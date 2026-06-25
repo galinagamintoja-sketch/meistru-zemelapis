@@ -6,8 +6,8 @@ const tradesmen = [
     town: "Lentvaris",
     regions: ["Vilnius", "Trakai"],
     radius: 35,
-    x: 43,
-    y: 49,
+    lat: 54.6476,
+    lng: 25.0513,
     rating: 4.9,
     reviewCount: 38,
     color: "#256c4f",
@@ -27,8 +27,8 @@ const tradesmen = [
     town: "Vilnius",
     regions: ["Vilnius"],
     radius: 25,
-    x: 57,
-    y: 39,
+    lat: 54.6872,
+    lng: 25.2797,
     rating: 4.7,
     reviewCount: 24,
     color: "#4078a8",
@@ -48,8 +48,8 @@ const tradesmen = [
     town: "Kaunas",
     regions: ["Kaunas"],
     radius: 45,
-    x: 22,
-    y: 27,
+    lat: 54.8985,
+    lng: 23.9036,
     rating: 4.8,
     reviewCount: 31,
     color: "#cc8b22",
@@ -66,11 +66,11 @@ const tradesmen = [
     id: "ruta",
     name: "Ruta Staliaus Darbai",
     trade: "Carpenter",
-    town: "Vilnius",
+    town: "Trakai",
     regions: ["Vilnius", "Trakai"],
     radius: 40,
-    x: 49,
-    y: 57,
+    lat: 54.6379,
+    lng: 24.9347,
     rating: 4.6,
     reviewCount: 17,
     color: "#b7603b",
@@ -90,8 +90,8 @@ const tradesmen = [
     town: "Klaipeda",
     regions: ["Klaipeda"],
     radius: 60,
-    x: 75,
-    y: 76,
+    lat: 55.7033,
+    lng: 21.1443,
     rating: 4.4,
     reviewCount: 15,
     color: "#5f6d66",
@@ -111,36 +111,34 @@ const locationFilter = document.querySelector("#locationFilter");
 const ratingFilter = document.querySelector("#ratingFilter");
 const resultsList = document.querySelector("#resultsList");
 const resultCount = document.querySelector("#resultCount");
-const map = document.querySelector("#map");
-const mapCanvas = document.querySelector("#mapCanvas");
-const pinLayer = document.querySelector("#pinLayer");
-const serviceAreas = document.querySelector("#serviceAreas");
 const profilePanel = document.querySelector("#profilePanel");
 const activeAreaLabel = document.querySelector("#activeAreaLabel");
 const radiusRange = document.querySelector("#radiusRange");
 const radiusValue = document.querySelector("#radiusValue");
-const zoomInButton = document.querySelector("#zoomIn");
-const zoomOutButton = document.querySelector("#zoomOut");
-const resetMapButton = document.querySelector("#resetMap");
 
 let activeId = tradesmen[0].id;
-const mapState = {
-  scale: 1,
-  x: 0,
-  y: 0,
-  isDragging: false,
-  dragStartX: 0,
-  dragStartY: 0,
-  startX: 0,
-  startY: 0,
-  activePointers: new Map(),
-  pinchStartDistance: 0,
-  pinchStartScale: 1,
-};
+const markerLayer = L.layerGroup();
+const areaLayer = L.layerGroup();
+
+const map = L.map("map", {
+  center: [54.8, 24.4],
+  zoom: 8,
+  minZoom: 6,
+  maxZoom: 15,
+  scrollWheelZoom: true,
+  zoomControl: true,
+});
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+}).addTo(map);
+
+areaLayer.addTo(map);
+markerLayer.addTo(map);
 
 function stars(rating) {
-  const fullStars = Math.round(rating);
-  return "★★★★★".slice(0, fullStars) + "☆☆☆☆☆".slice(0, 5 - fullStars);
+  return "*".repeat(Math.round(rating));
 }
 
 function filteredTradesmen() {
@@ -156,45 +154,37 @@ function filteredTradesmen() {
   });
 }
 
-function selectTradesman(id) {
+function markerIcon(person) {
+  return L.divIcon({
+    className: "trade-marker",
+    html: `<span style="background:${person.color}"><b>${person.trade.charAt(0)}</b></span>`,
+    iconSize: [38, 46],
+    iconAnchor: [19, 46],
+    popupAnchor: [0, -42],
+  });
+}
+
+function popupHtml(person) {
+  return `
+    <div class="map-popup">
+      <strong>${person.name}</strong>
+      <span>${person.trade} in ${person.town}</span>
+      <span>${person.rating} rating (${person.reviewCount} reviews)</span>
+      <button type="button" data-profile-id="${person.id}">Open profile</button>
+    </div>
+  `;
+}
+
+function selectTradesman(id, shouldMoveMap = true) {
   activeId = id;
   render();
-  document.querySelector("#profile").scrollIntoView({ behavior: "smooth", block: "start" });
-}
 
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
-
-function updateMapTransform() {
-  mapCanvas.style.transform = `translate(calc(-50% + ${mapState.x}px), calc(-50% + ${mapState.y}px)) scale(${mapState.scale})`;
-  activeAreaLabel.textContent = `Zoom ${Math.round(mapState.scale * 100)}%`;
-}
-
-function zoomMap(delta, originX = map.clientWidth / 2, originY = map.clientHeight / 2) {
-  const oldScale = mapState.scale;
-  const nextScale = clamp(oldScale + delta, 0.75, 2.35);
-
-  if (nextScale === oldScale) {
-    return;
+  const person = tradesmen.find((item) => item.id === id);
+  if (person && shouldMoveMap) {
+    map.setView([person.lat, person.lng], Math.max(map.getZoom(), 10), { animate: true });
   }
 
-  const mapRect = map.getBoundingClientRect();
-  const offsetX = originX - mapRect.width / 2;
-  const offsetY = originY - mapRect.height / 2;
-  const ratio = nextScale / oldScale;
-
-  mapState.x = offsetX - (offsetX - mapState.x) * ratio;
-  mapState.y = offsetY - (offsetY - mapState.y) * ratio;
-  mapState.scale = nextScale;
-  updateMapTransform();
-}
-
-function resetMap() {
-  mapState.scale = 1;
-  mapState.x = 0;
-  mapState.y = 0;
-  updateMapTransform();
+  document.querySelector("#profile").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function renderResults(list) {
@@ -210,9 +200,9 @@ function renderResults(list) {
           <span class="meta-row">
             <span class="tag">${person.trade}</span>
             <span class="tag">${person.town}</span>
-            <span class="tag">${person.radius} km</span>
+            <span class="tag">${person.radius} km area</span>
           </span>
-          <span>${person.reviewCount} reviews · ${person.serviceArea}</span>
+          <span>${person.reviewCount} reviews - ${person.serviceArea}</span>
         </button>
       `,
     )
@@ -224,41 +214,42 @@ function renderResults(list) {
 }
 
 function renderMap(list) {
-  serviceAreas.innerHTML = list
-    .map((person) => {
-      const size = Math.max(95, person.radius * 4.2);
-      return `
-        <span
-          class="service-area"
-          style="left:${person.x}%; top:${person.y}%; width:${size}px; height:${size}px; --area-color:${person.color};"
-          aria-hidden="true">
-        </span>
-      `;
-    })
-    .join("");
+  markerLayer.clearLayers();
+  areaLayer.clearLayers();
 
-  pinLayer.innerHTML = list
-    .map(
-      (person) => `
-        <button
-          class="pin ${person.id === activeId ? "active" : ""}"
-          style="left:${person.x}%; top:${person.y}%; --pin-color:${person.color};"
-          data-id="${person.id}"
-          type="button"
-          aria-label="${person.name}, ${person.trade}">
-          <span>${person.trade.charAt(0)}</span>
-        </button>
-      `,
-    )
-    .join("");
-
-  document.querySelectorAll(".pin").forEach((pin) => {
-    pin.addEventListener("click", (event) => {
-      event.stopPropagation();
-      selectTradesman(pin.dataset.id);
+  list.forEach((person) => {
+    const area = L.circle([person.lat, person.lng], {
+      radius: person.radius * 1000,
+      color: person.color,
+      weight: person.id === activeId ? 3 : 2,
+      fillColor: person.color,
+      fillOpacity: person.id === activeId ? 0.16 : 0.08,
     });
+
+    const marker = L.marker([person.lat, person.lng], {
+      icon: markerIcon(person),
+      title: `${person.name} - ${person.trade}`,
+    }).bindPopup(popupHtml(person));
+
+    marker.on("click", () => {
+      activeId = person.id;
+      renderProfile(person);
+      renderResults(filteredTradesmen());
+      marker.openPopup();
+    });
+
+    areaLayer.addLayer(area);
+    markerLayer.addLayer(marker);
   });
-  updateMapTransform();
+
+  activeAreaLabel.textContent = list.length ? `${list.length} pins with service areas` : "No matching tradesmen";
+
+  if (list.length) {
+    const bounds = L.latLngBounds(list.map((person) => [person.lat, person.lng]));
+    map.fitBounds(bounds.pad(0.25), { animate: true, maxZoom: 10 });
+  }
+
+  setTimeout(() => map.invalidateSize(), 50);
 }
 
 function renderProfile(person) {
@@ -327,85 +318,11 @@ radiusRange.addEventListener("input", () => {
   radiusValue.textContent = radiusRange.value;
 });
 
-zoomInButton.addEventListener("click", () => zoomMap(0.2));
-zoomOutButton.addEventListener("click", () => zoomMap(-0.2));
-resetMapButton.addEventListener("click", resetMap);
-
-map.addEventListener(
-  "wheel",
-  (event) => {
-    event.preventDefault();
-    const rect = map.getBoundingClientRect();
-    const direction = event.deltaY > 0 ? -0.12 : 0.12;
-    zoomMap(direction, event.clientX - rect.left, event.clientY - rect.top);
-  },
-  { passive: false },
-);
-
-map.addEventListener("pointerdown", (event) => {
-  if (event.target.closest("button")) {
-    return;
+document.addEventListener("click", (event) => {
+  const profileButton = event.target.closest("[data-profile-id]");
+  if (profileButton) {
+    selectTradesman(profileButton.dataset.profileId, false);
   }
-
-  mapState.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  map.setPointerCapture(event.pointerId);
-  map.classList.add("dragging");
-  mapState.isDragging = true;
-  mapState.dragStartX = event.clientX;
-  mapState.dragStartY = event.clientY;
-  mapState.startX = mapState.x;
-  mapState.startY = mapState.y;
-
-  if (mapState.activePointers.size === 2) {
-    const pointers = [...mapState.activePointers.values()];
-    mapState.pinchStartDistance = Math.hypot(pointers[0].x - pointers[1].x, pointers[0].y - pointers[1].y);
-    mapState.pinchStartScale = mapState.scale;
-  }
-});
-
-map.addEventListener("pointermove", (event) => {
-  if (mapState.activePointers.has(event.pointerId)) {
-    mapState.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  }
-
-  if (!mapState.isDragging) {
-    return;
-  }
-
-  if (mapState.activePointers.size === 2) {
-    const rect = map.getBoundingClientRect();
-    const pointers = [...mapState.activePointers.values()];
-    const distance = Math.hypot(pointers[0].x - pointers[1].x, pointers[0].y - pointers[1].y);
-    const midpointX = (pointers[0].x + pointers[1].x) / 2 - rect.left;
-    const midpointY = (pointers[0].y + pointers[1].y) / 2 - rect.top;
-    const nextScale = clamp(mapState.pinchStartScale * (distance / mapState.pinchStartDistance), 0.75, 2.35);
-    zoomMap(nextScale - mapState.scale, midpointX, midpointY);
-    return;
-  }
-
-  mapState.x = mapState.startX + event.clientX - mapState.dragStartX;
-  mapState.y = mapState.startY + event.clientY - mapState.dragStartY;
-  updateMapTransform();
-});
-
-map.addEventListener("pointerup", (event) => {
-  mapState.activePointers.delete(event.pointerId);
-  mapState.isDragging = false;
-  map.classList.remove("dragging");
-  if (map.hasPointerCapture(event.pointerId)) {
-    map.releasePointerCapture(event.pointerId);
-  }
-});
-
-map.addEventListener("pointercancel", (event) => {
-  mapState.activePointers.delete(event.pointerId);
-  mapState.isDragging = false;
-  map.classList.remove("dragging");
-});
-
-map.addEventListener("dblclick", (event) => {
-  const rect = map.getBoundingClientRect();
-  zoomMap(0.25, event.clientX - rect.left, event.clientY - rect.top);
 });
 
 render();

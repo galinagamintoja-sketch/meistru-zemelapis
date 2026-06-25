@@ -232,6 +232,70 @@ input[type="text"] {
   min-width: 0;
 }
 
+.real-map {
+  position: relative;
+  min-height: 620px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0 0 8px 8px;
+  background: #dfe9dd;
+  box-shadow: var(--shadow);
+}
+
+.real-map .leaflet-control-zoom a {
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.trade-marker {
+  background: transparent;
+  border: 0;
+}
+
+.trade-marker span {
+  position: relative;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 3px solid white;
+  border-radius: 999px 999px 999px 4px;
+  color: white;
+  font-weight: 900;
+  box-shadow: 0 12px 25px rgba(24, 32, 29, 0.28);
+  transform: rotate(-45deg);
+  font-size: 14px;
+}
+
+.trade-marker b {
+  display: block;
+  transform: rotate(45deg);
+}
+
+.leaflet-popup-content {
+  margin: 12px;
+}
+
+.map-popup {
+  display: grid;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.map-popup strong {
+  font-size: 15px;
+}
+
+.map-popup span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.map-popup button[type="button"] {
+  min-height: 34px;
+  margin-top: 4px;
+}
+
 .map-toolbar {
   display: flex;
   justify-content: space-between;

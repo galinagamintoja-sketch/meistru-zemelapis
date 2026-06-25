@@ -4,6 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Meistru Zemelapis Prototype</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -13,24 +19,24 @@
           <span class="brand-mark">MZ</span>
           <span>
             <strong>Meistru Zemelapis</strong>
-            <small>static service-area marketplace</small>
+            <small>open-source service-area marketplace</small>
           </span>
         </a>
         <nav class="stage-nav" aria-label="Prototype stages">
-          <a href="#search">Stage 1: search</a>
-          <a href="#profile">Stage 2: profile</a>
-          <a href="#register">Stage 3: register</a>
-          <a href="#trust">Stage 4: trust</a>
+          <a href="#search">Search</a>
+          <a href="#profile">Profile</a>
+          <a href="#register">Register</a>
+          <a href="#trust">Trust</a>
         </nav>
       </header>
 
       <main>
         <section class="hero" id="search">
           <div class="hero-copy">
-            <p class="eyebrow">Lithuania trade directory prototype</p>
-            <h1>Find nearby tradesmen by area, trade, rating, and proof of work.</h1>
+            <p class="eyebrow">TaskRabbit-style map for Lithuania</p>
+            <h1>Find nearby tradesmen on a real open-source map.</h1>
             <p>
-              Tradesmen register a service radius or selected municipalities. Homeowners search the static map and contact the closest trusted professional.
+              Businesses are marked as pins on OpenStreetMap. Homeowners filter by trade, area, and rating, then open a profile with contact details, photos, reviews, and service radius.
             </p>
           </div>
           <form class="search-panel" aria-label="Find a tradesman">
@@ -76,29 +82,13 @@
             <div id="resultsList" class="results-list" aria-live="polite"></div>
           </aside>
 
-          <section class="map-board" aria-label="Static map of tradesmen">
+          <section class="map-board" aria-label="Open-source map of tradesmen">
             <div class="map-toolbar">
-              <span>Static map view</span>
-              <span id="activeAreaLabel">Zoom 100%</span>
+              <span>OpenStreetMap view</span>
+              <span id="activeAreaLabel">Real map pins</span>
             </div>
-            <div class="static-map" id="map" aria-label="Zoomable static map">
-              <div class="map-controls" aria-label="Map controls">
-                <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
-                <button type="button" id="zoomOut" aria-label="Zoom out">-</button>
-                <button type="button" id="resetMap" aria-label="Reset map">Reset</button>
-              </div>
-              <div class="map-hint">Drag map · wheel or buttons to zoom</div>
-              <div class="map-canvas" id="mapCanvas">
-                <span class="road road-a"></span>
-                <span class="road road-b"></span>
-                <span class="road road-c"></span>
-                <span class="region region-vilnius">Vilnius</span>
-                <span class="region region-trakai">Trakai</span>
-                <span class="region region-kaunas">Kaunas</span>
-                <span class="region region-klaipeda">Klaipeda</span>
-                <div id="serviceAreas"></div>
-                <div id="pinLayer"></div>
-              </div>
+            <div class="real-map" id="map" aria-label="Zoomable OpenStreetMap with tradesmen pins">
+              <div class="map-hint">Drag, pinch, scroll, or use +/- to zoom</div>
             </div>
           </section>
         </section>
@@ -110,7 +100,7 @@
         <section class="register-section" id="register">
           <div class="section-heading">
             <p class="eyebrow">Tradesman onboarding</p>
-            <h2>Register service area without live tracking</h2>
+            <h2>Register a business without live tracking</h2>
           </div>
           <div class="register-grid">
             <form class="registration-form">
@@ -148,19 +138,19 @@
             <div class="stage-list">
               <div>
                 <strong>Stage 1</strong>
-                <span>Searchable static map with predefined service areas.</span>
+                <span>Open-source map with businesses, pins, and service-radius circles.</span>
               </div>
               <div>
                 <strong>Stage 2</strong>
-                <span>Full profile cards with work photos and contact options.</span>
+                <span>Profiles with photos, contact info, service areas, and reviews.</span>
               </div>
               <div>
                 <strong>Stage 3</strong>
-                <span>Tradesman registration form for radius or region coverage.</span>
+                <span>Tradesman registration by address, radius, or selected regions.</span>
               </div>
               <div>
                 <strong>Stage 4</strong>
-                <span>Ratings, written reviews, verified work photos, moderation queue.</span>
+                <span>Trust layer with ratings, verified jobs, moderation, and photo proof.</span>
               </div>
             </div>
           </div>
@@ -168,27 +158,32 @@
 
         <section class="trust-section" id="trust">
           <div class="section-heading">
-            <p class="eyebrow">Name check</p>
-            <h2>Web name direction</h2>
+            <p class="eyebrow">Open-source stack</p>
+            <h2>Built like a proper marketplace map</h2>
           </div>
           <div class="trust-grid">
             <div>
-              <strong>Best Lithuanian brand</strong>
-              <p>Meistru Zemelapis is clear, memorable, and directly explains the product.</p>
+              <strong>Map engine</strong>
+              <p>Leaflet, an open-source JavaScript map library.</p>
             </div>
             <div>
-              <strong>Suggested domain</strong>
-              <p>meistruzemelapis.lt</p>
+              <strong>Map data</strong>
+              <p>OpenStreetMap tiles for the prototype. Production should use a proper tile provider or hosted tile server.</p>
             </div>
             <div>
-              <strong>Backup names</strong>
-              <p>meistruradaras.lt, raskmeistra.lt, artimimeistrai.lt</p>
+              <strong>Business model</strong>
+              <p>TaskRabbit-style discovery: search, compare profiles, check trust, then contact.</p>
             </div>
           </div>
         </section>
       </main>
     </div>
 
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
     <script src="script.js"></script>
   </body>
 </html>
