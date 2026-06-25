@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="lt">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meistru Zemelapis Prototype</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#search" aria-label="Meistru Zemelapis">
+          <span class="brand-mark">MZ</span>
+          <span>
+            <strong>Meistru Zemelapis</strong>
+            <small>static service-area marketplace</small>
+          </span>
+        </a>
+        <nav class="stage-nav" aria-label="Prototype stages">
+          <a href="#search">Stage 1: search</a>
+          <a href="#profile">Stage 2: profile</a>
+          <a href="#register">Stage 3: register</a>
+          <a href="#trust">Stage 4: trust</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="hero" id="search">
+          <div class="hero-copy">
+            <p class="eyebrow">Lithuania trade directory prototype</p>
+            <h1>Find nearby tradesmen by area, trade, rating, and proof of work.</h1>
+            <p>
+              Tradesmen register a service radius or selected municipalities. Homeowners search the static map and contact the closest trusted professional.
+            </p>
+          </div>
+          <form class="search-panel" aria-label="Find a tradesman">
+            <label>
+              Trade
+              <select id="tradeFilter">
+                <option value="all">All trades</option>
+                <option value="Painter">Painter</option>
+                <option value="Plumber">Plumber</option>
+                <option value="Electrician">Electrician</option>
+                <option value="Carpenter">Carpenter</option>
+                <option value="Roofer">Roofer</option>
+              </select>
+            </label>
+            <label>
+              Location
+              <select id="locationFilter">
+                <option value="all">All regions</option>
+                <option value="Vilnius">Vilnius</option>
+                <option value="Trakai">Trakai</option>
+                <option value="Kaunas">Kaunas</option>
+                <option value="Klaipeda">Klaipeda</option>
+              </select>
+            </label>
+            <label>
+              Minimum rating
+              <select id="ratingFilter">
+                <option value="0">Any rating</option>
+                <option value="4">4.0+</option>
+                <option value="4.5">4.5+</option>
+                <option value="4.8">4.8+</option>
+              </select>
+            </label>
+          </form>
+        </section>
+
+        <section class="map-layout" aria-label="Tradesmen map and results">
+          <aside class="results-column">
+            <div class="section-heading">
+              <p class="eyebrow">Filtered results</p>
+              <h2><span id="resultCount">0</span> professionals</h2>
+            </div>
+            <div id="resultsList" class="results-list" aria-live="polite"></div>
+          </aside>
+
+          <section class="map-board" aria-label="Static map of tradesmen">
+            <div class="map-toolbar">
+              <span>Static map view</span>
+              <span id="activeAreaLabel">Service areas visible</span>
+            </div>
+            <div class="static-map" id="map">
+              <span class="road road-a"></span>
+              <span class="road road-b"></span>
+              <span class="road road-c"></span>
+              <span class="region region-vilnius">Vilnius</span>
+              <span class="region region-trakai">Trakai</span>
+              <span class="region region-kaunas">Kaunas</span>
+              <span class="region region-klaipeda">Klaipeda</span>
+              <div id="serviceAreas"></div>
+              <div id="pinLayer"></div>
+            </div>
+          </section>
+        </section>
+
+        <section class="profile-section" id="profile">
+          <article class="profile-panel" id="profilePanel" aria-live="polite"></article>
+        </section>
+
+        <section class="register-section" id="register">
+          <div class="section-heading">
+            <p class="eyebrow">Tradesman onboarding</p>
+            <h2>Register service area without live tracking</h2>
+          </div>
+          <div class="register-grid">
+            <form class="registration-form">
+              <label>
+                Business name
+                <input type="text" value="Jonas Apdaila" />
+              </label>
+              <label>
+                Trade
+                <select>
+                  <option>Painter</option>
+                  <option>Plumber</option>
+                  <option>Electrician</option>
+                  <option>Carpenter</option>
+                </select>
+              </label>
+              <label>
+                Base town
+                <input type="text" value="Lentvaris" />
+              </label>
+              <label>
+                Radius
+                <input type="range" min="5" max="80" value="30" id="radiusRange" />
+                <span><strong id="radiusValue">30</strong> km</span>
+              </label>
+              <fieldset>
+                <legend>Specific regions</legend>
+                <label><input type="checkbox" checked /> Vilnius city</label>
+                <label><input type="checkbox" checked /> Vilnius district</label>
+                <label><input type="checkbox" checked /> Trakai district</label>
+                <label><input type="checkbox" /> Kaunas district</label>
+              </fieldset>
+              <button type="button">Preview listing</button>
+            </form>
+            <div class="stage-list">
+              <div>
+                <strong>Stage 1</strong>
+                <span>Searchable static map with predefined service areas.</span>
+              </div>
+              <div>
+                <strong>Stage 2</strong>
+                <span>Full profile cards with work photos and contact options.</span>
+              </div>
+              <div>
+                <strong>Stage 3</strong>
+                <span>Tradesman registration form for radius or region coverage.</span>
+              </div>
+              <div>
+                <strong>Stage 4</strong>
+                <span>Ratings, written reviews, verified work photos, moderation queue.</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="trust-section" id="trust">
+          <div class="section-heading">
+            <p class="eyebrow">Name check</p>
+            <h2>Web name direction</h2>
+          </div>
+          <div class="trust-grid">
+            <div>
+              <strong>Best Lithuanian brand</strong>
+              <p>Meistru Zemelapis is clear, memorable, and directly explains the product.</p>
+            </div>
+            <div>
+              <strong>Suggested domain</strong>
+              <p>meistruzemelapis.lt</p>
+            </div>
+            <div>
+              <strong>Backup names</strong>
+              <p>meistruradaras.lt, raskmeistra.lt, artimimeistrai.lt</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
