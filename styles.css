@@ -252,11 +252,68 @@ input[type="text"] {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 0 0 8px 8px;
+  background: #dfe9dd;
+  box-shadow: var(--shadow);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.static-map.dragging {
+  cursor: grabbing;
+}
+
+.map-canvas {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1180px;
+  height: 760px;
   background:
     linear-gradient(90deg, rgba(255,255,255,0.42) 1px, transparent 1px) 0 0 / 74px 74px,
     linear-gradient(0deg, rgba(255,255,255,0.42) 1px, transparent 1px) 0 0 / 74px 74px,
     #dfe9dd;
-  box-shadow: var(--shadow);
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.map-controls {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  z-index: 12;
+  display: grid;
+  gap: 6px;
+}
+
+.map-controls button[type="button"] {
+  min-width: 44px;
+  min-height: 42px;
+  border: 1px solid rgba(24, 32, 29, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ink);
+  box-shadow: 0 8px 20px rgba(24, 32, 29, 0.14);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.map-controls button[type="button"]:hover {
+  border-color: var(--green);
+}
+
+.map-hint {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 12;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(24, 32, 29, 0.1);
 }
 
 .road {
@@ -327,6 +384,7 @@ input[type="text"] {
   box-shadow: 0 12px 25px rgba(24, 32, 29, 0.28);
   transform: translate(-50%, -100%) rotate(-45deg);
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .pin span {

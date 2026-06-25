@@ -111,14 +111,32 @@ const locationFilter = document.querySelector("#locationFilter");
 const ratingFilter = document.querySelector("#ratingFilter");
 const resultsList = document.querySelector("#resultsList");
 const resultCount = document.querySelector("#resultCount");
+const map = document.querySelector("#map");
+const mapCanvas = document.querySelector("#mapCanvas");
 const pinLayer = document.querySelector("#pinLayer");
 const serviceAreas = document.querySelector("#serviceAreas");
 const profilePanel = document.querySelector("#profilePanel");
 const activeAreaLabel = document.querySelector("#activeAreaLabel");
 const radiusRange = document.querySelector("#radiusRange");
 const radiusValue = document.querySelector("#radiusValue");
+const zoomInButton = document.querySelector("#zoomIn");
+const zoomOutButton = document.querySelector("#zoomOut");
+const resetMapButton = document.querySelector("#resetMap");
 
 let activeId = tradesmen[0].id;
+const mapState = {
+  scale: 1,
+  x: 0,
+  y: 0,
+  isDragging: false,
+  dragStartX: 0,
+  dragStartY: 0,
+  startX: 0,
+  startY: 0,
+  activePointers: new Map(),
+  pinchStartDistance: 0,
+  pinchStartScale: 1,
+};
 
 function stars(rating) {
   const fullStars = Math.round(rating);
@@ -142,6 +160,41 @@ function selectTradesman(id) {
   activeId = id;
   render();
   document.querySelector("#profile").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function updateMapTransform() {
+  mapCanvas.style.transform = `translate(calc(-50% + ${mapState.x}px), calc(-50% + ${mapState.y}px)) scale(${mapState.scale})`;
+  activeAreaLabel.textContent = `Zoom ${Math.round(mapState.scale * 100)}%`;
+}
+
+function zoomMap(delta, originX = map.clientWidth / 2, originY = map.clientHeight / 2) {
+  const oldScale = mapState.scale;
+  const nextScale = clamp(oldScale + delta, 0.75, 2.35);
+
+  if (nextScale === oldScale) {
+    return;
+  }
+
+  const mapRect = map.getBoundingClientRect();
+  const offsetX = originX - mapRect.width / 2;
+  const offsetY = originY - mapRect.height / 2;
+  const ratio = nextScale / oldScale;
+
+  mapState.x = offsetX - (offsetX - mapState.x) * ratio;
+  mapState.y = offsetY - (offsetY - mapState.y) * ratio;
+  mapState.scale = nextScale;
+  updateMapTransform();
+}
+
+function resetMap() {
+  mapState.scale = 1;
+  mapState.x = 0;
+  mapState.y = 0;
+  updateMapTransform();
 }
 
 function renderResults(list) {
@@ -200,10 +253,12 @@ function renderMap(list) {
     .join("");
 
   document.querySelectorAll(".pin").forEach((pin) => {
-    pin.addEventListener("click", () => selectTradesman(pin.dataset.id));
+    pin.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectTradesman(pin.dataset.id);
+    });
   });
-
-  activeAreaLabel.textContent = list.length ? "Service areas visible" : "No matching areas";
+  updateMapTransform();
 }
 
 function renderProfile(person) {
@@ -270,6 +325,87 @@ function render() {
 
 radiusRange.addEventListener("input", () => {
   radiusValue.textContent = radiusRange.value;
+});
+
+zoomInButton.addEventListener("click", () => zoomMap(0.2));
+zoomOutButton.addEventListener("click", () => zoomMap(-0.2));
+resetMapButton.addEventListener("click", resetMap);
+
+map.addEventListener(
+  "wheel",
+  (event) => {
+    event.preventDefault();
+    const rect = map.getBoundingClientRect();
+    const direction = event.deltaY > 0 ? -0.12 : 0.12;
+    zoomMap(direction, event.clientX - rect.left, event.clientY - rect.top);
+  },
+  { passive: false },
+);
+
+map.addEventListener("pointerdown", (event) => {
+  if (event.target.closest("button")) {
+    return;
+  }
+
+  mapState.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  map.setPointerCapture(event.pointerId);
+  map.classList.add("dragging");
+  mapState.isDragging = true;
+  mapState.dragStartX = event.clientX;
+  mapState.dragStartY = event.clientY;
+  mapState.startX = mapState.x;
+  mapState.startY = mapState.y;
+
+  if (mapState.activePointers.size === 2) {
+    const pointers = [...mapState.activePointers.values()];
+    mapState.pinchStartDistance = Math.hypot(pointers[0].x - pointers[1].x, pointers[0].y - pointers[1].y);
+    mapState.pinchStartScale = mapState.scale;
+  }
+});
+
+map.addEventListener("pointermove", (event) => {
+  if (mapState.activePointers.has(event.pointerId)) {
+    mapState.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  }
+
+  if (!mapState.isDragging) {
+    return;
+  }
+
+  if (mapState.activePointers.size === 2) {
+    const rect = map.getBoundingClientRect();
+    const pointers = [...mapState.activePointers.values()];
+    const distance = Math.hypot(pointers[0].x - pointers[1].x, pointers[0].y - pointers[1].y);
+    const midpointX = (pointers[0].x + pointers[1].x) / 2 - rect.left;
+    const midpointY = (pointers[0].y + pointers[1].y) / 2 - rect.top;
+    const nextScale = clamp(mapState.pinchStartScale * (distance / mapState.pinchStartDistance), 0.75, 2.35);
+    zoomMap(nextScale - mapState.scale, midpointX, midpointY);
+    return;
+  }
+
+  mapState.x = mapState.startX + event.clientX - mapState.dragStartX;
+  mapState.y = mapState.startY + event.clientY - mapState.dragStartY;
+  updateMapTransform();
+});
+
+map.addEventListener("pointerup", (event) => {
+  mapState.activePointers.delete(event.pointerId);
+  mapState.isDragging = false;
+  map.classList.remove("dragging");
+  if (map.hasPointerCapture(event.pointerId)) {
+    map.releasePointerCapture(event.pointerId);
+  }
+});
+
+map.addEventListener("pointercancel", (event) => {
+  mapState.activePointers.delete(event.pointerId);
+  mapState.isDragging = false;
+  map.classList.remove("dragging");
+});
+
+map.addEventListener("dblclick", (event) => {
+  const rect = map.getBoundingClientRect();
+  zoomMap(0.25, event.clientX - rect.left, event.clientY - rect.top);
 });
 
 render();

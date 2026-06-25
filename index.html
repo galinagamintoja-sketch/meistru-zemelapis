@@ -79,18 +79,26 @@
           <section class="map-board" aria-label="Static map of tradesmen">
             <div class="map-toolbar">
               <span>Static map view</span>
-              <span id="activeAreaLabel">Service areas visible</span>
+              <span id="activeAreaLabel">Zoom 100%</span>
             </div>
-            <div class="static-map" id="map">
-              <span class="road road-a"></span>
-              <span class="road road-b"></span>
-              <span class="road road-c"></span>
-              <span class="region region-vilnius">Vilnius</span>
-              <span class="region region-trakai">Trakai</span>
-              <span class="region region-kaunas">Kaunas</span>
-              <span class="region region-klaipeda">Klaipeda</span>
-              <div id="serviceAreas"></div>
-              <div id="pinLayer"></div>
+            <div class="static-map" id="map" aria-label="Zoomable static map">
+              <div class="map-controls" aria-label="Map controls">
+                <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
+                <button type="button" id="zoomOut" aria-label="Zoom out">-</button>
+                <button type="button" id="resetMap" aria-label="Reset map">Reset</button>
+              </div>
+              <div class="map-hint">Drag map · wheel or buttons to zoom</div>
+              <div class="map-canvas" id="mapCanvas">
+                <span class="road road-a"></span>
+                <span class="road road-b"></span>
+                <span class="road road-c"></span>
+                <span class="region region-vilnius">Vilnius</span>
+                <span class="region region-trakai">Trakai</span>
+                <span class="region region-kaunas">Kaunas</span>
+                <span class="region region-klaipeda">Klaipeda</span>
+                <div id="serviceAreas"></div>
+                <div id="pinLayer"></div>
+              </div>
             </div>
           </section>
         </section>
