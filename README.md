@@ -1,9 +1,17 @@
-# Meistru Zemelapis
+# LocalPro.lt
 
-Open-source map prototype for a Lithuanian tradesmen marketplace.
+Static prototype for a Lithuanian tradespeople marketplace.
 
-Homeowners can search by trade, region, and rating, then click real OpenStreetMap pins to view profile details, contact information, work photos, service area, ratings, and reviews.
+The first product stage is supply-side growth: register tradespeople, clean their details, approve profiles, and publish them on a map by trade, location, service radius, portfolio, and trust signals.
 
-Tradesmen register a predefined radius or selected service regions. The prototype does not use live tracking.
+Current prototype includes:
 
-The current prototype uses Leaflet with OpenStreetMap tiles. For production, use a proper commercial tile provider or host tiles under OpenStreetMap's usage rules.
+- LocalPro.lt rebrand from the earlier Meistru Zemelapis concept
+- Leaflet/OpenStreetMap search map
+- tradesperson profile cards with contact details, service area, work photos, reviews, and trust labels
+- tradesperson self-registration form
+- live profile preview for admin/AI-assisted onboarding
+- WhatsApp AI onboarding flow concept
+- safety/trust positioning inspired by Lithuanian nature, smart building, and construction reliability
+
+For production, use a proper commercial tile provider or host tiles under OpenStreetMap usage rules.

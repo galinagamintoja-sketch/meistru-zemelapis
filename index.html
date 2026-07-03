@@ -3,7 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Meistru Zemelapis Prototype</title>
+    <title>LocalPro.lt - patikimi vietiniai meistrai</title>
+    <meta
+      name="description"
+      content="LocalPro.lt - Lietuvos meistru zemelapis su patikimumo profiliais, paslaugu zonomis ir greita registracija."
+    />
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -15,46 +19,57 @@
   <body>
     <div class="app-shell">
       <header class="topbar">
-        <a class="brand" href="#search" aria-label="Meistru Zemelapis">
-          <span class="brand-mark">MZ</span>
+        <a class="brand" href="#search" aria-label="LocalPro.lt">
+          <span class="brand-mark" aria-hidden="true">LP</span>
           <span>
-            <strong>Meistru Zemelapis</strong>
-            <small>open-source service-area marketplace</small>
+            <strong>LocalPro.lt</strong>
+            <small>Vietiniai meistrai, tikri darbai, aiskus pasitikejimas</small>
           </span>
         </a>
-        <nav class="stage-nav" aria-label="Prototype stages">
-          <a href="#search">Search</a>
-          <a href="#profile">Profile</a>
-          <a href="#register">Register</a>
-          <a href="#trust">Trust</a>
+        <nav class="stage-nav" aria-label="Puslapio skyriai">
+          <a href="#search">Zemelapis</a>
+          <a href="#register">Registracija</a>
+          <a href="#whatsapp">WhatsApp AI</a>
+          <a href="#trust">Saugumas</a>
         </nav>
       </header>
 
       <main>
         <section class="hero" id="search">
           <div class="hero-copy">
-            <p class="eyebrow">TaskRabbit-style map for Lithuania</p>
-            <h1>Find nearby tradesmen on a real open-source map.</h1>
+            <p class="eyebrow">Lietuvos gamta + smart building + saugumas</p>
+            <h1>Patikimu vietiniu meistru tinklas visoje Lietuvoje.</h1>
             <p>
-              Businesses are marked as pins on OpenStreetMap. Homeowners filter by trade, area, and rating, then open a profile with contact details, photos, reviews, and service radius.
+              LocalPro.lt pradzioje augina meistru baze: kvieciame specialistus,
+              greitai surenkame profilio duomenis ir rodome juos zemelapyje pagal
+              miesta, darbo zona, paslaugas ir pasitikejimo lygi.
             </p>
+            <div class="hero-actions" aria-label="Pagrindiniai veiksmai">
+              <a class="primary-action" href="#register">Registruoti meistra</a>
+              <a class="secondary-action" href="#mapSection">Perziureti zemelapi</a>
+            </div>
           </div>
-          <form class="search-panel" aria-label="Find a tradesman">
+
+          <form class="search-panel" aria-label="Rasti meistra">
+            <div class="panel-title">
+              <strong>Greita paieska</strong>
+              <span>Prototype data</span>
+            </div>
             <label>
-              Trade
+              Darbo sritis
               <select id="tradeFilter">
-                <option value="all">All trades</option>
-                <option value="Painter">Painter</option>
-                <option value="Plumber">Plumber</option>
-                <option value="Electrician">Electrician</option>
-                <option value="Carpenter">Carpenter</option>
-                <option value="Roofer">Roofer</option>
+                <option value="all">Visos sritys</option>
+                <option value="Apdaila">Apdaila</option>
+                <option value="Santechnika">Santechnika</option>
+                <option value="Elektra">Elektra</option>
+                <option value="Staliaus darbai">Staliaus darbai</option>
+                <option value="Stogai">Stogai</option>
               </select>
             </label>
             <label>
-              Location
+              Vieta
               <select id="locationFilter">
-                <option value="all">All regions</option>
+                <option value="all">Visa Lietuva</option>
                 <option value="Vilnius">Vilnius</option>
                 <option value="Trakai">Trakai</option>
                 <option value="Kaunas">Kaunas</option>
@@ -62,33 +77,38 @@
               </select>
             </label>
             <label>
-              Minimum rating
+              Patikimumas
               <select id="ratingFilter">
-                <option value="0">Any rating</option>
+                <option value="0">Bet koks ivertinimas</option>
                 <option value="4">4.0+</option>
                 <option value="4.5">4.5+</option>
                 <option value="4.8">4.8+</option>
               </select>
             </label>
+            <div class="trust-strip" aria-label="Platformos signalai">
+              <span>Telefono patikra</span>
+              <span>Darbu nuotraukos</span>
+              <span>Klientu atsiliepimai</span>
+            </div>
           </form>
         </section>
 
-        <section class="map-layout" aria-label="Tradesmen map and results">
+        <section class="map-layout" id="mapSection" aria-label="Meistru zemelapis ir rezultatai">
           <aside class="results-column">
             <div class="section-heading">
-              <p class="eyebrow">Filtered results</p>
-              <h2><span id="resultCount">0</span> professionals</h2>
+              <p class="eyebrow">Atrinkti rezultatai</p>
+              <h2><span id="resultCount">0</span> profiliai</h2>
             </div>
             <div id="resultsList" class="results-list" aria-live="polite"></div>
           </aside>
 
-          <section class="map-board" aria-label="Open-source map of tradesmen">
+          <section class="map-board" aria-label="OpenStreetMap meistru zemelapis">
             <div class="map-toolbar">
-              <span>OpenStreetMap view</span>
-              <span id="activeAreaLabel">Real map pins</span>
+              <span>LocalPro zemelapis</span>
+              <span id="activeAreaLabel">Darbo zonos</span>
             </div>
-            <div class="real-map" id="map" aria-label="Zoomable OpenStreetMap with tradesmen pins">
-              <div class="map-hint">Drag, pinch, scroll, or use +/- to zoom</div>
+            <div class="real-map" id="map" aria-label="Interaktyvus OpenStreetMap su meistru zymekliais">
+              <div class="map-hint">Trauk, artink arba naudok +/-</div>
             </div>
           </section>
         </section>
@@ -99,80 +119,124 @@
 
         <section class="register-section" id="register">
           <div class="section-heading">
-            <p class="eyebrow">Tradesman onboarding</p>
-            <h2>Register a business without live tracking</h2>
+            <p class="eyebrow">Meistru pildymas pirmiausia</p>
+            <h2>Registracijos forma, kuri veliau taps tikru prisijungimu.</h2>
+            <p>
+              Pirmas tikslas - greitai ir tvarkingai surinkti 2,000 meistru profiliu.
+              Forma turi veikti ir savarankiskai, ir kaip AI sukurto WhatsApp profilio
+              perziura pries publikavima.
+            </p>
           </div>
+
           <div class="register-grid">
-            <form class="registration-form">
+            <form class="registration-form" aria-label="Meistro registracijos forma">
+              <div class="form-row">
+                <label>
+                  Vardas arba imones pavadinimas
+                  <input id="formName" type="text" value="Tomas Apdaila" autocomplete="name" />
+                </label>
+                <label>
+                  Telefono numeris
+                  <input id="formPhone" type="tel" value="+370 636 01230" autocomplete="tel" />
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  El. pastas
+                  <input id="formEmail" type="email" value="tomas@localpro.lt" autocomplete="email" />
+                </label>
+                <label>
+                  Pagrindinis miestas
+                  <input id="formTown" type="text" value="Lentvaris" autocomplete="address-level2" />
+                </label>
+              </div>
               <label>
-                Business name
-                <input type="text" value="Jonas Apdaila" />
-              </label>
-              <label>
-                Trade
-                <select>
-                  <option>Painter</option>
-                  <option>Plumber</option>
-                  <option>Electrician</option>
-                  <option>Carpenter</option>
+                Darbo sritis
+                <select id="formTrade">
+                  <option>Apdaila</option>
+                  <option>Santechnika</option>
+                  <option>Elektra</option>
+                  <option>Staliaus darbai</option>
+                  <option>Stogai</option>
+                  <option>Trinkeles ir aplinka</option>
+                  <option>Pilna renovacija</option>
                 </select>
               </label>
               <label>
-                Base town
-                <input type="text" value="Lentvaris" />
+                Trumpas aprasymas
+                <textarea id="formBio" rows="4">Vidaus apdaila, glaistymas, dazymas, laminato klojimas. Dirbu Lentvaryje, Traku rajone ir Vilniuje.</textarea>
               </label>
               <label>
-                Radius
-                <input type="range" min="5" max="80" value="30" id="radiusRange" />
-                <span><strong id="radiusValue">30</strong> km</span>
+                Darbo spindulys
+                <input type="range" min="5" max="100" value="35" id="radiusRange" />
+                <span><strong id="radiusValue">35</strong> km aplink miesta</span>
               </label>
               <fieldset>
-                <legend>Specific regions</legend>
-                <label><input type="checkbox" checked /> Vilnius city</label>
-                <label><input type="checkbox" checked /> Vilnius district</label>
-                <label><input type="checkbox" checked /> Trakai district</label>
-                <label><input type="checkbox" /> Kaunas district</label>
+                <legend>Aptarnaujamos vietos</legend>
+                <label><input type="checkbox" checked /> Vilnius</label>
+                <label><input type="checkbox" checked /> Vilniaus rajonas</label>
+                <label><input type="checkbox" checked /> Traku rajonas</label>
+                <label><input type="checkbox" /> Kaunas</label>
+                <label><input type="checkbox" /> Klaipeda</label>
               </fieldset>
-              <button type="button">Preview listing</button>
+              <button type="button" id="previewRegistration">Atnaujinti profilio perziura</button>
             </form>
-            <div class="stage-list">
-              <div>
-                <strong>Stage 1</strong>
-                <span>Open-source map with businesses, pins, and service-radius circles.</span>
+
+            <aside class="registration-preview" aria-label="Registracijos perziura">
+              <p class="eyebrow">Pries publikavima</p>
+              <div id="registrationPreview" class="preview-card"></div>
+              <div class="approval-flow" aria-label="Publikavimo eiga">
+                <span>1. Duomenys gauti</span>
+                <span>2. AI sutvarko profili</span>
+                <span>3. Admin patvirtina</span>
+                <span>4. Profilis zemelapyje</span>
               </div>
-              <div>
-                <strong>Stage 2</strong>
-                <span>Profiles with photos, contact info, service areas, and reviews.</span>
-              </div>
-              <div>
-                <strong>Stage 3</strong>
-                <span>Tradesman registration by address, radius, or selected regions.</span>
-              </div>
-              <div>
-                <strong>Stage 4</strong>
-                <span>Trust layer with ratings, verified jobs, moderation, and photo proof.</span>
-              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="whatsapp-section" id="whatsapp">
+          <div class="section-heading">
+            <p class="eyebrow">WhatsApp AI onboarding</p>
+            <h2>Meistras atsako zinute, LocalPro paruosia profili.</h2>
+          </div>
+          <div class="workflow-grid">
+            <div>
+              <strong>Pakvietimas</strong>
+              <p>Trumpa, aisku kas raso, kodel kvieciame, ir kaip atsisakyti. Jokio spaudimo.</p>
+            </div>
+            <div>
+              <strong>Sutikimas</strong>
+              <p>Jeigu meistras paraso taip, renkame tik profiliui reikalingus duomenis.</p>
+            </div>
+            <div>
+              <strong>AI isgryninimas</strong>
+              <p>Is zinuciu istraukiami kontaktai, miestas, darbo sritys, zona, patirtis ir nuotraukos.</p>
+            </div>
+            <div>
+              <strong>Patvirtinimas</strong>
+              <p>Profilis rodomas tik tada, kai zmogus arba admin patvirtina, kad informacija teisinga.</p>
             </div>
           </div>
         </section>
 
         <section class="trust-section" id="trust">
           <div class="section-heading">
-            <p class="eyebrow">Open-source stack</p>
-            <h2>Built like a proper marketplace map</h2>
+            <p class="eyebrow">Saugumas ir pasitikejimas</p>
+            <h2>LocalPro turi atrodyti kaip rimta statybos paslaugu sistema, ne skelbimu lenta.</h2>
           </div>
           <div class="trust-grid">
             <div>
-              <strong>Map engine</strong>
-              <p>Leaflet, an open-source JavaScript map library.</p>
+              <strong>Verified profilis</strong>
+              <p>Telefono numeris, darbo vietos, nuotraukos, atsiliepimai ir pasirinktinai dokumentai.</p>
             </div>
             <div>
-              <strong>Map data</strong>
-              <p>OpenStreetMap tiles for the prototype. Production should use a proper tile provider or hosted tile server.</p>
+              <strong>Smart building kryptis</strong>
+              <p>Isskirti meistrus, kurie dirba su renovacija, siltinimu, energiniu efektyvumu ir kokybiskais mazgais.</p>
             </div>
             <div>
-              <strong>Business model</strong>
-              <p>TaskRabbit-style discovery: search, compare profiles, check trust, then contact.</p>
+              <strong>Lietuviskas identitetas</strong>
+              <p>Misku, ezeru, molio, medzio, Kauno modernizmo ir zemelapio grid sistema vietoje generic SaaS stiliaus.</p>
             </div>
           </div>
         </section>

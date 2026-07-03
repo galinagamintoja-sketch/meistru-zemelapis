@@ -2,7 +2,7 @@ const tradesmen = [
   {
     id: "jonas",
     name: "Jonas Apdaila",
-    trade: "Painter",
+    trade: "Apdaila",
     town: "Lentvaris",
     regions: ["Vilnius", "Trakai"],
     radius: 35,
@@ -10,20 +10,21 @@ const tradesmen = [
     lng: 25.0513,
     rating: 4.9,
     reviewCount: 38,
-    color: "#256c4f",
+    trustLevel: "Verified",
+    color: "#1f5e46",
     phone: "+370 636 01230",
-    email: "jonas@meistrai.lt",
-    serviceArea: "Lentvaris + 35 km radius, Vilnius and Trakai districts",
-    photos: ["Interior repaint", "Facade refresh", "Wood staining"],
+    email: "jonas@localpro.lt",
+    serviceArea: "Lentvaris + 35 km, Vilnius ir Traku rajonai",
+    photos: ["Vidaus dazymas", "Fasado atnaujinimas", "Medzio alyvavimas"],
     reviews: [
-      ["Rasa", 5, "Clean work, arrived on time, protected floors properly."],
-      ["Mindaugas", 5, "Good communication and fair price for two rooms."],
+      ["Rasa", 5, "Tvarkingas darbas, atvyko sutartu laiku, apsaugojo grindis."],
+      ["Mindaugas", 5, "Aiski komunikacija ir sazininga kaina uz du kambarius."],
     ],
   },
   {
     id: "darius",
     name: "Darius Santechnika",
-    trade: "Plumber",
+    trade: "Santechnika",
     town: "Vilnius",
     regions: ["Vilnius"],
     radius: 25,
@@ -31,20 +32,21 @@ const tradesmen = [
     lng: 25.2797,
     rating: 4.7,
     reviewCount: 24,
-    color: "#4078a8",
+    trustLevel: "Phone verified",
+    color: "#2f7281",
     phone: "+370 612 22110",
-    email: "darius@meistrai.lt",
-    serviceArea: "Vilnius city and 25 km around it",
-    photos: ["Bathroom pipework", "Boiler install", "Leak repair"],
+    email: "darius@localpro.lt",
+    serviceArea: "Vilniaus miestas ir 25 km aplink",
+    photos: ["Vonios vamzdynas", "Boilerio montavimas", "Nuotekio remontas"],
     reviews: [
-      ["Tomas", 5, "Solved a leak the same day and explained the options."],
-      ["Aiste", 4, "Professional work, slightly later than planned."],
+      ["Tomas", 5, "Nuoteki sutvarke ta pacia diena ir paaiskino pasirinkimus."],
+      ["Aiste", 4, "Profesionalus darbas, tik siek tiek velavo."],
     ],
   },
   {
     id: "marius",
     name: "Marius Elektra",
-    trade: "Electrician",
+    trade: "Elektra",
     town: "Kaunas",
     regions: ["Kaunas"],
     radius: 45,
@@ -52,20 +54,21 @@ const tradesmen = [
     lng: 23.9036,
     rating: 4.8,
     reviewCount: 31,
-    color: "#cc8b22",
+    trustLevel: "Verified",
+    color: "#d59d3f",
     phone: "+370 699 48331",
-    email: "marius@meistrai.lt",
-    serviceArea: "Kaunas city, Kaunas district, Jonava direction",
-    photos: ["Fuse board", "LED lighting", "Socket layout"],
+    email: "marius@localpro.lt",
+    serviceArea: "Kaunas, Kauno rajonas, Jonavos kryptis",
+    photos: ["Skydine", "LED apsvietimas", "Rozeciu planas"],
     reviews: [
-      ["Laura", 5, "Neat wiring and clear invoice."],
-      ["Paulius", 5, "Helped plan sockets before renovation started."],
+      ["Laura", 5, "Tvarkingi laidai ir aiski saskaita."],
+      ["Paulius", 5, "Padejo suplanuoti rozeciu vietas pries remonta."],
     ],
   },
   {
     id: "ruta",
     name: "Ruta Staliaus Darbai",
-    trade: "Carpenter",
+    trade: "Staliaus darbai",
     town: "Trakai",
     regions: ["Vilnius", "Trakai"],
     radius: 40,
@@ -73,20 +76,21 @@ const tradesmen = [
     lng: 24.9347,
     rating: 4.6,
     reviewCount: 17,
-    color: "#b7603b",
+    trustLevel: "Portfolio added",
+    color: "#b95f3c",
     phone: "+370 600 45090",
-    email: "ruta@meistrai.lt",
-    serviceArea: "Vilnius, Trakai, custom furniture pickup by agreement",
-    photos: ["Wardrobes", "Kitchen fronts", "Oak shelves"],
+    email: "ruta@localpro.lt",
+    serviceArea: "Vilnius, Trakai, nestandartiniai baldai pagal susitarima",
+    photos: ["Spintos", "Virtuves fasadai", "Azuolo lentynos"],
     reviews: [
-      ["Greta", 5, "Measured carefully and matched the finish we wanted."],
-      ["Andrius", 4, "Strong result, lead time was three weeks."],
+      ["Greta", 5, "Tiksliai ismatavo ir pataike norima apdaila."],
+      ["Andrius", 4, "Stiprus rezultatas, gamyba uztruko tris savaites."],
     ],
   },
   {
     id: "klaidas",
     name: "Klaidas Stogai",
-    trade: "Roofer",
+    trade: "Stogai",
     town: "Klaipeda",
     regions: ["Klaipeda"],
     radius: 60,
@@ -94,14 +98,15 @@ const tradesmen = [
     lng: 21.1443,
     rating: 4.4,
     reviewCount: 15,
-    color: "#5f6d66",
+    trustLevel: "Phone verified",
+    color: "#242926",
     phone: "+370 611 77420",
-    email: "klaidas@meistrai.lt",
-    serviceArea: "Klaipeda city, Gargzdai, Palanga, Kretinga",
-    photos: ["Roof tiles", "Gutter repair", "Flat roof"],
+    email: "klaidas@localpro.lt",
+    serviceArea: "Klaipeda, Gargzdai, Palanga, Kretinga",
+    photos: ["Cerpes", "Lietvamzdziai", "Plokscias stogas"],
     reviews: [
-      ["Saulius", 5, "Quick after storm damage and sent photos during work."],
-      ["Ieva", 4, "Good price and tidy finish."],
+      ["Saulius", 5, "Greitai sureagavo po audros ir siunte nuotraukas darbo metu."],
+      ["Ieva", 4, "Gera kaina ir tvarkinga pabaiga."],
     ],
   },
 ];
@@ -115,6 +120,8 @@ const profilePanel = document.querySelector("#profilePanel");
 const activeAreaLabel = document.querySelector("#activeAreaLabel");
 const radiusRange = document.querySelector("#radiusRange");
 const radiusValue = document.querySelector("#radiusValue");
+const previewButton = document.querySelector("#previewRegistration");
+const registrationPreview = document.querySelector("#registrationPreview");
 
 let activeId = tradesmen[0].id;
 const markerLayer = L.layerGroup();
@@ -168,9 +175,9 @@ function popupHtml(person) {
   return `
     <div class="map-popup">
       <strong>${person.name}</strong>
-      <span>${person.trade} in ${person.town}</span>
-      <span>${person.rating} rating (${person.reviewCount} reviews)</span>
-      <button type="button" data-profile-id="${person.id}">Open profile</button>
+      <span>${person.trade} - ${person.town}</span>
+      <span>${person.rating} ivertinimas (${person.reviewCount} atsiliepimai)</span>
+      <button type="button" data-profile-id="${person.id}">Atidaryti profili</button>
     </div>
   `;
 }
@@ -200,9 +207,10 @@ function renderResults(list) {
           <span class="meta-row">
             <span class="tag">${person.trade}</span>
             <span class="tag">${person.town}</span>
-            <span class="tag">${person.radius} km area</span>
+            <span class="tag">${person.radius} km zona</span>
+            <span class="tag">${person.trustLevel}</span>
           </span>
-          <span>${person.reviewCount} reviews - ${person.serviceArea}</span>
+          <span>${person.reviewCount} atsiliepimai - ${person.serviceArea}</span>
         </button>
       `,
     )
@@ -242,7 +250,7 @@ function renderMap(list) {
     markerLayer.addLayer(marker);
   });
 
-  activeAreaLabel.textContent = list.length ? `${list.length} pins with service areas` : "No matching tradesmen";
+  activeAreaLabel.textContent = list.length ? `${list.length} zymekliai su darbo zonomis` : "Nera atitikmenu";
 
   if (list.length) {
     const bounds = L.latLngBounds(list.map((person) => [person.lat, person.lng]));
@@ -256,31 +264,37 @@ function renderProfile(person) {
   profilePanel.innerHTML = `
     <div class="profile-card">
       <div class="profile-summary">
-        <p class="eyebrow">Selected professional</p>
+        <p class="eyebrow">Pasirinktas specialistas</p>
         <h2>${person.name}</h2>
         <div class="tag-row">
           <span class="tag">${person.trade}</span>
           <span class="tag">${person.town}</span>
+          <span class="tag">${person.trustLevel}</span>
           <span class="rating">${person.rating} ${stars(person.rating)}</span>
         </div>
-        <p>${person.reviewCount} customer reviews. Service area: ${person.serviceArea}.</p>
+        <p>${person.reviewCount} klientu atsiliepimai. Darbo zona: ${person.serviceArea}.</p>
+        <div class="verification-list">
+          <span>Telefono patikra</span>
+          <span>Darbu galerija</span>
+          <span>Klientu ivertinimai</span>
+        </div>
         <div class="contact-list">
-          <a href="tel:${person.phone.replaceAll(" ", "")}"><span>Phone</span><strong>${person.phone}</strong></a>
-          <a href="mailto:${person.email}"><span>Email</span><strong>${person.email}</strong></a>
+          <a href="tel:${person.phone.replaceAll(" ", "")}"><span>Telefonas</span><strong>${person.phone}</strong></a>
+          <a href="mailto:${person.email}"><span>El. pastas</span><strong>${person.email}</strong></a>
         </div>
       </div>
       <div>
-        <p class="eyebrow">Work photos</p>
+        <p class="eyebrow">Darbu nuotraukos</p>
         <div class="photo-grid">
           ${person.photos
             .map(
               (photo, index) => `
-                <div class="work-photo" title="${photo}" style="--photo-color:${index === 0 ? person.color : index === 1 ? "#4078a8" : "#cc8b22"}"></div>
+                <div class="work-photo" style="--photo-color:${index === 0 ? person.color : index === 1 ? "#2f7281" : "#d59d3f"}">${photo}</div>
               `,
             )
             .join("")}
         </div>
-        <p class="eyebrow">Reviews</p>
+        <p class="eyebrow">Atsiliepimai</p>
         <div class="reviews">
           ${person.reviews
             .map(
@@ -294,6 +308,31 @@ function renderProfile(person) {
             .join("")}
         </div>
       </div>
+    </div>
+  `;
+}
+
+function renderRegistrationPreview() {
+  const name = document.querySelector("#formName").value.trim() || "Naujas LocalPro meistras";
+  const phone = document.querySelector("#formPhone").value.trim() || "Telefono numeris nepateiktas";
+  const email = document.querySelector("#formEmail").value.trim() || "El. pastas nepateiktas";
+  const town = document.querySelector("#formTown").value.trim() || "Vieta nepateikta";
+  const trade = document.querySelector("#formTrade").value;
+  const bio = document.querySelector("#formBio").value.trim() || "Aprasymas bus sugeneruotas is WhatsApp zinuciu.";
+  const radius = radiusRange.value;
+
+  registrationPreview.innerHTML = `
+    <h3>${name}</h3>
+    <div class="tag-row">
+      <span class="tag">${trade}</span>
+      <span class="tag">${town}</span>
+      <span class="tag">${radius} km zona</span>
+      <span class="tag">Laukia patvirtinimo</span>
+    </div>
+    <p>${bio}</p>
+    <div class="contact-list">
+      <a href="tel:${phone.replaceAll(" ", "")}"><span>Telefonas</span><strong>${phone}</strong></a>
+      <a href="mailto:${email}"><span>El. pastas</span><strong>${email}</strong></a>
     </div>
   `;
 }
@@ -316,6 +355,13 @@ function render() {
 
 radiusRange.addEventListener("input", () => {
   radiusValue.textContent = radiusRange.value;
+  renderRegistrationPreview();
+});
+
+previewButton.addEventListener("click", renderRegistrationPreview);
+
+document.querySelectorAll("#formName, #formPhone, #formEmail, #formTown, #formTrade, #formBio").forEach((field) => {
+  field.addEventListener("input", renderRegistrationPreview);
 });
 
 document.addEventListener("click", (event) => {
@@ -326,3 +372,4 @@ document.addEventListener("click", (event) => {
 });
 
 render();
+renderRegistrationPreview();
