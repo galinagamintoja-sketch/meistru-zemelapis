@@ -6,7 +6,7 @@ The first product stage is supply-side growth: register tradespeople, clean thei
 
 Current prototype includes:
 
-- LocalPro.lt rebrand from the earlier Meistru Zemelapis concept
+- LocalPro.lt branding and public marketplace direction
 - Leaflet/OpenStreetMap search map
 - tradesperson profile cards with contact details, service area, work photos, reviews, and trust labels
 - tradesperson self-registration form

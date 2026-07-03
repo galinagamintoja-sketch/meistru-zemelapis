@@ -14,11 +14,11 @@ const tradesmen = [
     color: "#1f5e46",
     phone: "+370 636 01230",
     email: "jonas@localpro.lt",
-    serviceArea: "Lentvaris + 35 km, Vilnius ir Traku rajonai",
-    photos: ["Vidaus dazymas", "Fasado atnaujinimas", "Medzio alyvavimas"],
+    serviceArea: "Lentvaris + 35 km, Vilnius ir Trakų rajonai",
+    photos: ["Vidaus dažymas", "Fasado atnaujinimas", "Medžio alyvavimas"],
     reviews: [
       ["Rasa", 5, "Tvarkingas darbas, atvyko sutartu laiku, apsaugojo grindis."],
-      ["Mindaugas", 5, "Aiski komunikacija ir sazininga kaina uz du kambarius."],
+      ["Mindaugas", 5, "Aiški komunikacija ir sąžininga kaina už du kambarius."],
     ],
   },
   {
@@ -37,10 +37,10 @@ const tradesmen = [
     phone: "+370 612 22110",
     email: "darius@localpro.lt",
     serviceArea: "Vilniaus miestas ir 25 km aplink",
-    photos: ["Vonios vamzdynas", "Boilerio montavimas", "Nuotekio remontas"],
+    photos: ["Vonios vamzdynas", "Boilerio montavimas", "Nuotėkio remontas"],
     reviews: [
-      ["Tomas", 5, "Nuoteki sutvarke ta pacia diena ir paaiskino pasirinkimus."],
-      ["Aiste", 4, "Profesionalus darbas, tik siek tiek velavo."],
+      ["Tomas", 5, "Nuotėkį sutvarkė tą pačią dieną ir paaiškino pasirinkimus."],
+      ["Aistė", 4, "Profesionalus darbas, tik šiek tiek vėlavo."],
     ],
   },
   {
@@ -59,10 +59,10 @@ const tradesmen = [
     phone: "+370 699 48331",
     email: "marius@localpro.lt",
     serviceArea: "Kaunas, Kauno rajonas, Jonavos kryptis",
-    photos: ["Skydine", "LED apsvietimas", "Rozeciu planas"],
+    photos: ["Skydinė", "LED apšvietimas", "Rozečių planas"],
     reviews: [
-      ["Laura", 5, "Tvarkingi laidai ir aiski saskaita."],
-      ["Paulius", 5, "Padejo suplanuoti rozeciu vietas pries remonta."],
+      ["Laura", 5, "Tvarkingi laidai ir aiški sąskaita."],
+      ["Paulius", 5, "Padėjo suplanuoti rozečių vietas prieš remontą."],
     ],
   },
   {
@@ -80,11 +80,11 @@ const tradesmen = [
     color: "#b95f3c",
     phone: "+370 600 45090",
     email: "ruta@localpro.lt",
-    serviceArea: "Vilnius, Trakai, nestandartiniai baldai pagal susitarima",
-    photos: ["Spintos", "Virtuves fasadai", "Azuolo lentynos"],
+    serviceArea: "Vilnius, Trakai, nestandartiniai baldai pagal susitarimą",
+    photos: ["Spintos", "Virtuvės fasadai", "Ąžuolo lentynos"],
     reviews: [
-      ["Greta", 5, "Tiksliai ismatavo ir pataike norima apdaila."],
-      ["Andrius", 4, "Stiprus rezultatas, gamyba uztruko tris savaites."],
+      ["Greta", 5, "Tiksliai išmatavo ir pataikė norimą apdailą."],
+      ["Andrius", 4, "Stiprus rezultatas, gamyba užtruko tris savaites."],
     ],
   },
   {
@@ -102,10 +102,10 @@ const tradesmen = [
     color: "#242926",
     phone: "+370 611 77420",
     email: "klaidas@localpro.lt",
-    serviceArea: "Klaipeda, Gargzdai, Palanga, Kretinga",
-    photos: ["Cerpes", "Lietvamzdziai", "Plokscias stogas"],
+    serviceArea: "Klaipėda, Gargždai, Palanga, Kretinga",
+    photos: ["Čerpės", "Lietvamzdžiai", "Plokščias stogas"],
     reviews: [
-      ["Saulius", 5, "Greitai sureagavo po audros ir siunte nuotraukas darbo metu."],
+      ["Saulius", 5, "Greitai sureagavo po audros ir siuntė nuotraukas darbo metu."],
       ["Ieva", 4, "Gera kaina ir tvarkinga pabaiga."],
     ],
   },
@@ -176,8 +176,8 @@ function popupHtml(person) {
     <div class="map-popup">
       <strong>${person.name}</strong>
       <span>${person.trade} - ${person.town}</span>
-      <span>${person.rating} ivertinimas (${person.reviewCount} atsiliepimai)</span>
-      <button type="button" data-profile-id="${person.id}">Atidaryti profili</button>
+      <span>${person.rating} įvertinimas (${person.reviewCount} atsiliepimai)</span>
+      <button type="button" data-profile-id="${person.id}">Atidaryti profilį</button>
     </div>
   `;
 }
@@ -250,7 +250,7 @@ function renderMap(list) {
     markerLayer.addLayer(marker);
   });
 
-  activeAreaLabel.textContent = list.length ? `${list.length} zymekliai su darbo zonomis` : "Nera atitikmenu";
+  activeAreaLabel.textContent = list.length ? `${list.length} žymekliai su darbo zonomis` : "Nėra atitikmenų";
 
   if (list.length) {
     const bounds = L.latLngBounds(list.map((person) => [person.lat, person.lng]));
@@ -272,19 +272,19 @@ function renderProfile(person) {
           <span class="tag">${person.trustLevel}</span>
           <span class="rating">${person.rating} ${stars(person.rating)}</span>
         </div>
-        <p>${person.reviewCount} klientu atsiliepimai. Darbo zona: ${person.serviceArea}.</p>
+        <p>${person.reviewCount} klientų atsiliepimai. Darbo zona: ${person.serviceArea}.</p>
         <div class="verification-list">
           <span>Telefono patikra</span>
-          <span>Darbu galerija</span>
-          <span>Klientu ivertinimai</span>
+          <span>Darbų galerija</span>
+          <span>Klientų įvertinimai</span>
         </div>
         <div class="contact-list">
           <a href="tel:${person.phone.replaceAll(" ", "")}"><span>Telefonas</span><strong>${person.phone}</strong></a>
-          <a href="mailto:${person.email}"><span>El. pastas</span><strong>${person.email}</strong></a>
+          <a href="mailto:${person.email}"><span>El. paštas</span><strong>${person.email}</strong></a>
         </div>
       </div>
       <div>
-        <p class="eyebrow">Darbu nuotraukos</p>
+        <p class="eyebrow">Darbų nuotraukos</p>
         <div class="photo-grid">
           ${person.photos
             .map(
@@ -313,12 +313,12 @@ function renderProfile(person) {
 }
 
 function renderRegistrationPreview() {
-  const name = document.querySelector("#formName").value.trim() || "Naujas LocalPro meistras";
+  const name = document.querySelector("#formName").value.trim() || "Naujas LocalPro specialistas";
   const phone = document.querySelector("#formPhone").value.trim() || "Telefono numeris nepateiktas";
-  const email = document.querySelector("#formEmail").value.trim() || "El. pastas nepateiktas";
+  const email = document.querySelector("#formEmail").value.trim() || "El. paštas nepateiktas";
   const town = document.querySelector("#formTown").value.trim() || "Vieta nepateikta";
   const trade = document.querySelector("#formTrade").value;
-  const bio = document.querySelector("#formBio").value.trim() || "Aprasymas bus sugeneruotas is WhatsApp zinuciu.";
+  const bio = document.querySelector("#formBio").value.trim() || "Aprašymas bus sugeneruotas iš WhatsApp žinučių.";
   const radius = radiusRange.value;
 
   registrationPreview.innerHTML = `
@@ -332,7 +332,7 @@ function renderRegistrationPreview() {
     <p>${bio}</p>
     <div class="contact-list">
       <a href="tel:${phone.replaceAll(" ", "")}"><span>Telefonas</span><strong>${phone}</strong></a>
-      <a href="mailto:${email}"><span>El. pastas</span><strong>${email}</strong></a>
+      <a href="mailto:${email}"><span>El. paštas</span><strong>${email}</strong></a>
     </div>
   `;
 }
