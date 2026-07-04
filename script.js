@@ -8,8 +8,8 @@ const specialists = [
     radius: 35,
     lat: 54.6872,
     lng: 25.2797,
-    verification: ["phone", "portfolio", "documents"],
-    verificationLabel: "Dokumentų patikra",
+    verification: ["contact", "portfolio", "whatsapp"],
+    verificationLabel: "Darbų pavyzdžiai",
     rating: 4.9,
     reviewCount: 38,
     color: "#37503f",
@@ -32,7 +32,7 @@ const specialists = [
     radius: 30,
     lat: 54.8985,
     lng: 23.9036,
-    verification: ["phone", "portfolio"],
+    verification: ["contact", "portfolio", "whatsapp"],
     verificationLabel: "Darbų nuotraukos",
     rating: 4.7,
     reviewCount: 24,
@@ -56,8 +56,8 @@ const specialists = [
     radius: 45,
     lat: 55.7033,
     lng: 21.1443,
-    verification: ["phone", "documents"],
-    verificationLabel: "Dokumentų patikra",
+    verification: ["contact", "whatsapp"],
+    verificationLabel: "WhatsApp kontaktas",
     rating: 4.8,
     reviewCount: 31,
     color: "#b8763a",
@@ -80,7 +80,7 @@ const specialists = [
     radius: 40,
     lat: 55.9349,
     lng: 23.3137,
-    verification: ["phone", "portfolio"],
+    verification: ["contact", "portfolio", "whatsapp"],
     verificationLabel: "Darbų nuotraukos",
     rating: 4.6,
     reviewCount: 17,
@@ -104,8 +104,8 @@ const specialists = [
     radius: 60,
     lat: 55.7348,
     lng: 24.3575,
-    verification: ["phone"],
-    verificationLabel: "Telefono patikra",
+    verification: ["contact"],
+    verificationLabel: "Kontaktas patvirtintas",
     rating: 4.4,
     reviewCount: 15,
     color: "#37503f",
@@ -128,7 +128,7 @@ const specialists = [
     radius: 50,
     lat: 54.3964,
     lng: 24.0456,
-    verification: ["phone", "portfolio"],
+    verification: ["contact", "portfolio", "whatsapp"],
     verificationLabel: "Darbų nuotraukos",
     rating: 4.8,
     reviewCount: 19,
@@ -152,8 +152,8 @@ const specialists = [
     radius: 70,
     lat: 55.4976,
     lng: 25.5992,
-    verification: ["phone", "portfolio", "documents"],
-    verificationLabel: "Dokumentų patikra",
+    verification: ["contact", "portfolio", "whatsapp"],
+    verificationLabel: "Darbų pavyzdžiai",
     rating: 4.9,
     reviewCount: 27,
     color: "#b8763a",
@@ -352,9 +352,9 @@ function renderProfile(person) {
         </div>
         <p>${person.reviewCount} klientų atsiliepimai. Darbo zona: ${person.serviceArea}.</p>
         <div class="verification-list">
-          <span>Telefono patikra</span>
+          <span>Kontaktas patvirtintas</span>
           ${person.verification.includes("portfolio") ? "<span>Darbų galerija</span>" : ""}
-          ${person.verification.includes("documents") ? "<span>Dokumentų patikra</span>" : ""}
+          ${person.verification.includes("whatsapp") ? "<span>WhatsApp kontaktas</span>" : ""}
         </div>
         <div class="contact-list">
           <a href="tel:${person.phone.replaceAll(" ", "")}"><span>Telefonas</span><strong>${person.phone}</strong></a>

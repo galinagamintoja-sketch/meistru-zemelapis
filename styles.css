@@ -180,6 +180,7 @@ textarea {
 .registration-form,
 .registration-preview,
 .profile-card,
+.solutions-grid > article,
 .workflow-grid > div,
 .trust-grid > div,
 .result-card,
@@ -450,10 +451,59 @@ textarea {
 }
 
 .profile-section,
+.solutions-section,
 .register-section,
 .how-section,
 .trust-section {
   padding: 18px clamp(18px, 4vw, 56px) 68px;
+}
+
+.solutions-section {
+  padding-top: 10px;
+  padding-bottom: 34px;
+}
+
+.solutions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.solutions-grid > article {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+}
+
+.solutions-grid strong {
+  font-size: 18px;
+}
+
+.solutions-grid p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.service-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.service-pills span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 250, 240, 0.8);
+  color: var(--ink);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .profile-card {
@@ -653,6 +703,7 @@ fieldset label {
 
 @media (max-width: 1040px) {
   .hero,
+  .solutions-grid,
   .map-layout,
   .profile-card,
   .register-grid,
