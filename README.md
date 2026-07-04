@@ -11,7 +11,7 @@ Current prototype includes:
 - tradesperson profile cards with contact details, service area, work photos, reviews, and trust labels
 - tradesperson self-registration form
 - live profile preview for admin/AI-assisted onboarding
-- WhatsApp AI onboarding flow concept
+- WhatsApp-assisted low-friction onboarding flow concept
 - safety/trust positioning inspired by Lithuanian nature, smart building, and construction reliability
 
 For production, use a proper commercial tile provider or host tiles under OpenStreetMap usage rules.

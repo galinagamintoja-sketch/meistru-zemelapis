@@ -3,10 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LocalPro.lt - patikimi vietiniai profesionalai</title>
+    <title>LocalPro.lt - patikimi meistrai jūsų mieste</title>
     <meta
       name="description"
-      content="LocalPro.lt - Lietuvos vietinių profesionalų platforma su patikimumo profiliais, paslaugų zonomis ir greita registracija."
+      content="LocalPro.lt padeda rasti patikrintus statybos, remonto ir namų priežiūros specialistus pagal miestą, darbo zoną ir paslaugą."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700&display=swap"
+      rel="stylesheet"
     />
     <link
       rel="stylesheet"
@@ -23,13 +29,13 @@
           <span class="brand-mark" aria-hidden="true">LP</span>
           <span>
             <strong>LocalPro.lt</strong>
-            <small>Vietiniai profesionalai, tikri darbai, aiškus pasitikėjimas</small>
+            <small>Patikrinti specialistai Lietuvos miestuose</small>
           </span>
         </a>
         <nav class="stage-nav" aria-label="Puslapio skyriai">
-          <a href="#search">Rasti pro</a>
-          <a href="#register">Tapti LocalPro</a>
-          <a href="#whatsapp">WhatsApp AI</a>
+          <a href="#search">Rasti specialistą</a>
+          <a href="#register">Tapti specialistu</a>
+          <a href="#how">Kaip veikia</a>
           <a href="#trust">Saugumas</a>
         </nav>
       </header>
@@ -37,23 +43,18 @@
       <main>
         <section class="hero" id="search">
           <div class="hero-copy">
-            <p class="eyebrow">Lietuvos gamta + smart building + saugumas</p>
-            <h1>LocalPro.lt - patikimi specialistai šalia jūsų.</h1>
+            <p class="eyebrow">Žemėlapis pirmiausia</p>
+            <h1>Patikimi meistrai jūsų mieste.</h1>
             <p>
-              Pirmiausia kuriame stiprią Lietuvos profesionalų bazę: kviečiame
-              specialistus, tvarkingai surenkame jų profilio duomenis ir rodome
-              juos pagal miestą, darbo zoną, paslaugas bei pasitikėjimo lygį.
+              LocalPro.lt jungia klientus su patikrintais statybos, remonto ir
+              namų priežiūros specialistais pagal miestą, darbo zoną ir paslaugą.
             </p>
-            <div class="hero-actions" aria-label="Pagrindiniai veiksmai">
-              <a class="primary-action" href="#register">Tapti LocalPro</a>
-              <a class="secondary-action" href="#mapSection">Peržiūrėti specialistus</a>
-            </div>
           </div>
 
           <form class="search-panel" aria-label="Rasti specialistą">
             <div class="panel-title">
               <strong>Greita paieška</strong>
-              <span>LocalPro beta</span>
+              <span>Pagal zoną ir patikrą</span>
             </div>
             <label>
               Darbo sritis
@@ -64,40 +65,50 @@
                 <option value="Elektra">Elektra</option>
                 <option value="Staliaus darbai">Staliaus darbai</option>
                 <option value="Stogai">Stogai</option>
+                <option value="Trinkelės ir aplinka">Trinkelės ir aplinka</option>
+                <option value="Pilna renovacija">Pilna renovacija</option>
               </select>
             </label>
             <label>
-              Vieta
+              Miestas / rajonas
               <select id="locationFilter">
                 <option value="all">Visa Lietuva</option>
                 <option value="Vilnius">Vilnius</option>
-                <option value="Trakai">Trakai</option>
                 <option value="Kaunas">Kaunas</option>
-                <option value="Klaipeda">Klaipeda</option>
+                <option value="Klaipėda">Klaipėda</option>
+                <option value="Šiauliai">Šiauliai</option>
+                <option value="Panevėžys">Panevėžys</option>
+                <option value="Alytus">Alytus</option>
+                <option value="Marijampolė">Marijampolė</option>
+                <option value="Utena">Utena</option>
+                <option value="Tauragė">Tauragė</option>
+                <option value="Telšiai">Telšiai</option>
               </select>
             </label>
             <label>
-              Patikimumas
-              <select id="ratingFilter">
-                <option value="0">Bet koks įvertinimas</option>
-                <option value="4">4.0+</option>
-                <option value="4.5">4.5+</option>
-                <option value="4.8">4.8+</option>
+              Patikros lygis
+              <select id="verificationFilter">
+                <option value="all">Visi specialistai</option>
+                <option value="phone">Telefono patikra</option>
+                <option value="portfolio">Darbų nuotraukos</option>
+                <option value="documents">Dokumentų patikra</option>
               </select>
             </label>
-            <div class="trust-strip" aria-label="Platformos signalai">
-              <span>Telefono patikra</span>
-              <span>Darbų nuotraukos</span>
-              <span>Klientų atsiliepimai</span>
+            <div class="hero-actions" aria-label="Pagrindiniai veiksmai">
+              <a class="primary-action" href="#mapSection">Ieškoti žemėlapyje</a>
+              <a class="secondary-action" href="#register">Registruotis nemokamai</a>
             </div>
           </form>
         </section>
 
         <section class="map-layout" id="mapSection" aria-label="LocalPro specialistų žemėlapis ir rezultatai">
           <aside class="results-column">
-            <div class="section-heading">
-              <p class="eyebrow">Atrinkti rezultatai</p>
-              <h2><span id="resultCount">0</span> profiliai</h2>
+            <div class="section-heading compact">
+              <p class="eyebrow">Specialistai žemėlapyje</p>
+              <h2 id="resultsHeading"><span id="resultCount">0</span> specialistai</h2>
+              <p id="resultsIntro">
+                Pasirinkite specialistą sąraše arba žemėlapyje ir peržiūrėkite darbo zoną.
+              </p>
             </div>
             <div id="resultsList" class="results-list" aria-live="polite"></div>
           </aside>
@@ -108,7 +119,7 @@
               <span id="activeAreaLabel">Darbo zonos</span>
             </div>
             <div class="real-map" id="map" aria-label="Interaktyvus OpenStreetMap su LocalPro specialistų žymekliais">
-              <div class="map-hint">Trauk, artink arba naudok +/-</div>
+              <div class="map-hint">Traukite žemėlapį, artinkite arba naudokite +/-</div>
             </div>
           </section>
         </section>
@@ -119,12 +130,11 @@
 
         <section class="register-section" id="register">
           <div class="section-heading">
-            <p class="eyebrow">Specialistų bazė pirmiausia</p>
-            <h2>Registracijos forma, kuri vėliau taps tikru prisijungimu.</h2>
+            <p class="eyebrow">Specialistams</p>
+            <h2>Registruokitės nemokamai ir atsiraskite LocalPro žemėlapyje.</h2>
             <p>
-              Pirmas tikslas - greitai ir tvarkingai surinkti 2,000 specialistų profilių.
-              Forma turi veikti ir savarankiškai, ir kaip AI sukurto WhatsApp profilio
-              peržiūra prieš publikavimą.
+              Sukurkite aiškų profilį su miestu, darbo zona, paslaugomis,
+              nuotraukomis ir vieno paspaudimo kontaktu per telefoną ar WhatsApp.
             </p>
           </div>
 
@@ -147,7 +157,7 @@
                 </label>
                 <label>
                   Pagrindinis miestas
-                  <input id="formTown" type="text" value="Lentvaris" autocomplete="address-level2" />
+                  <input id="formTown" type="text" value="Vilnius" autocomplete="address-level2" />
                 </label>
               </div>
               <label>
@@ -158,13 +168,13 @@
                   <option>Elektra</option>
                   <option>Staliaus darbai</option>
                   <option>Stogai</option>
-                  <option>Trinkeles ir aplinka</option>
+                  <option>Trinkelės ir aplinka</option>
                   <option>Pilna renovacija</option>
                 </select>
               </label>
               <label>
                 Trumpas aprašymas
-                <textarea id="formBio" rows="4">Vidaus apdaila, glaistymas, dažymas, laminato klojimas. Dirbu Lentvaryje, Trakų rajone ir Vilniuje.</textarea>
+                <textarea id="formBio" rows="4">Vidaus apdaila, glaistymas, dažymas, laminato klojimas. Dirbu Vilniuje ir aplinkiniuose rajonuose.</textarea>
               </label>
               <label>
                 Darbo spindulys
@@ -175,68 +185,69 @@
                 <legend>Aptarnaujamos vietos</legend>
                 <label><input type="checkbox" checked /> Vilnius</label>
                 <label><input type="checkbox" checked /> Vilniaus rajonas</label>
-                <label><input type="checkbox" checked /> Trakų rajonas</label>
                 <label><input type="checkbox" /> Kaunas</label>
-                <label><input type="checkbox" /> Klaipeda</label>
+                <label><input type="checkbox" /> Klaipėda</label>
+                <label><input type="checkbox" /> Šiauliai</label>
+                <label><input type="checkbox" /> Panevėžys</label>
               </fieldset>
               <button type="button" id="previewRegistration">Atnaujinti profilio peržiūrą</button>
             </form>
 
             <aside class="registration-preview" aria-label="Registracijos peržiūra">
-              <p class="eyebrow">Prieš publikavimą</p>
+              <p class="eyebrow">Profilio peržiūra</p>
               <div id="registrationPreview" class="preview-card"></div>
               <div class="approval-flow" aria-label="Publikavimo eiga">
-                <span>1. Duomenys gauti</span>
-                <span>2. AI sutvarko profilį</span>
-                <span>3. Admin patvirtina</span>
-                <span>4. Profilis žemėlapyje</span>
+                <span>1. Užpildote formą</span>
+                <span>2. Patikriname kontaktą</span>
+                <span>3. Sutvarkome profilį</span>
+                <span>4. Rodome žemėlapyje</span>
               </div>
             </aside>
           </div>
         </section>
 
-        <section class="whatsapp-section" id="whatsapp">
+        <section class="how-section" id="how">
           <div class="section-heading">
-            <p class="eyebrow">WhatsApp AI onboarding</p>
-            <h2>Specialistas atsako žinute, LocalPro paruošia profilį.</h2>
+            <p class="eyebrow">Kaip veikia</p>
+            <h2>Mažai rašymo, aiškus profilis, klientas susisiekia tiesiogiai.</h2>
           </div>
           <div class="workflow-grid">
             <div>
-              <strong>Pakvietimas</strong>
-              <p>Trumpa, aišku kas rašo, kodėl kviečiame, ir kaip atsisakyti. Jokio spaudimo.</p>
+              <strong>Registracija</strong>
+              <p>Specialistas užpildo trumpą formą arba atsiunčia informaciją žinute.</p>
             </div>
             <div>
-              <strong>Sutikimas</strong>
-              <p>Jeigu specialistas parašo taip, renkame tik profiliui reikalingus duomenis.</p>
+              <strong>Profilio sutvarkymas</strong>
+              <p>Kontaktai, miestas, darbo sritys, zona ir nuotraukos sudedami į aiškų profilį.</p>
             </div>
             <div>
-              <strong>AI isgryninimas</strong>
-              <p>Iš žinučių ištraukiami kontaktai, miestas, darbo sritys, zona, patirtis ir nuotraukos.</p>
+              <strong>Patikra</strong>
+              <p>Telefono numeris, darbų galerija ir dokumentai žymimi atskirais patikros lygiais.</p>
             </div>
             <div>
-              <strong>Patvirtinimas</strong>
-              <p>Profilis rodomas tik tada, kai žmogus arba admin patvirtina, kad informacija teisinga.</p>
+              <strong>Kontaktas</strong>
+              <p>Klientas mato darbo zoną ir pats susisiekia telefonu arba per WhatsApp.</p>
             </div>
           </div>
         </section>
 
         <section class="trust-section" id="trust">
           <div class="section-heading">
-              <p class="eyebrow">Saugumas ir pasitikėjimas</p>
-            <h2>LocalPro turi atrodyti kaip rimta statybos paslaugų sistema, ne skelbimų lenta.</h2>
+            <p class="eyebrow">Saugumas ir pasitikėjimas</p>
+            <h2>Rimta statybos paslaugų sistema, ne skelbimų lenta.</h2>
           </div>
           <div class="trust-grid">
             <div>
-              <strong>Patikrintas profilis</strong>
-              <p>Telefono numeris, darbo vietos, nuotraukos, atsiliepimai ir pasirinktinai dokumentai.</p>
+              <strong>Patikra atskirai nuo reputacijos</strong>
+              <p>Telefono, darbų nuotraukų ir dokumentų patikra rodoma atskirai nuo būsimų klientų atsiliepimų.</p>
             </div>
             <div>
               <strong>Smart building kryptis</strong>
-              <p>Išskirti specialistus, kurie dirba su renovacija, šiltinimu, energiniu efektyvumu ir kokybiškais mazgais.</p>
+              <p>Išskiriami renovacijos, šiltinimo, energinio efektyvumo ir kokybiškų mazgų specialistai.</p>
             </div>
             <div>
-              <strong>Lietuviskas identitetas</strong>
-              <p>Miškų, ežerų, molio, medžio, Kauno modernizmo ir žemėlapio grid sistema vietoje generic SaaS stiliaus.</p>
+              <strong>Lietuviškas identitetas</strong>
+              <p>Molio ochra, eglės žalia, ežero pilka-mėlyna ir Kauno modernizmo įkvėptas saulės vėduoklės žymeklis.</p>
             </div>
           </div>
         </section>
