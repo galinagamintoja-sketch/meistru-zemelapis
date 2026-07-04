@@ -182,7 +182,6 @@ textarea {
 .profile-card,
 .solutions-grid > article,
 .workflow-grid > div,
-.trust-grid > div,
 .result-card,
 .empty-state {
   border: 1px solid var(--line);
@@ -453,8 +452,7 @@ textarea {
 .profile-section,
 .solutions-section,
 .register-section,
-.how-section,
-.trust-section {
+.how-section {
   padding: 18px clamp(18px, 4vw, 56px) 68px;
 }
 
@@ -676,29 +674,20 @@ fieldset label {
   gap: 14px;
 }
 
-.workflow-grid > div,
-.trust-grid > div {
+.workflow-grid > div {
   display: grid;
   gap: 8px;
   padding: 18px;
 }
 
-.workflow-grid strong,
-.trust-grid strong {
+.workflow-grid strong {
   font-size: 18px;
 }
 
-.workflow-grid p,
-.trust-grid p {
+.workflow-grid p {
   margin: 0;
   color: var(--muted);
   line-height: 1.45;
-}
-
-.trust-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
 }
 
 @media (max-width: 1040px) {
@@ -707,7 +696,6 @@ fieldset label {
   .map-layout,
   .profile-card,
   .register-grid,
-  .trust-grid,
   .workflow-grid {
     grid-template-columns: 1fr;
   }
