@@ -1,0 +1,100 @@
+@import "../styles.css";
+
+.status-message {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.status-message.success {
+  color: var(--spruce);
+}
+
+.status-message.error {
+  color: #9b2d20;
+}
+
+.admin-shell {
+  min-height: 100vh;
+  padding: clamp(28px, 5vw, 64px);
+}
+
+.admin-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(180px, 260px) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.admin-toolbar button,
+.admin-actions button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--clay);
+  color: white;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.admin-message {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.admin-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 250, 240, 0.96);
+  box-shadow: var(--soft-shadow);
+}
+
+.admin-card h2 {
+  margin: 4px 0 6px;
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.admin-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.admin-meta,
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-meta span {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--soft);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-actions button {
+  padding: 0 12px;
+}
+
+@media (max-width: 760px) {
+  .admin-toolbar {
+    grid-template-columns: 1fr;
+  }
+}
