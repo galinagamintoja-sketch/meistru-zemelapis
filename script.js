@@ -4,7 +4,7 @@ const specialists = [
     name: "Jonas Apdaila",
     trade: "Apdaila",
     town: "Vilnius",
-    regions: ["Vilnius", "Kaunas"],
+    operatingCities: ["Vilnius", "Kaunas"],
     radius: 35,
     lat: 54.6872,
     lng: 25.2797,
@@ -28,7 +28,7 @@ const specialists = [
     name: "Darius Santechnika",
     trade: "Santechnika",
     town: "Kaunas",
-    regions: ["Kaunas", "Marijampolė"],
+    operatingCities: ["Kaunas", "Marijampolė"],
     radius: 30,
     lat: 54.8985,
     lng: 23.9036,
@@ -52,7 +52,7 @@ const specialists = [
     name: "Marius Elektra",
     trade: "Elektra",
     town: "Klaipėda",
-    regions: ["Klaipėda", "Telšiai"],
+    operatingCities: ["Klaipėda", "Telšiai"],
     radius: 45,
     lat: 55.7033,
     lng: 21.1443,
@@ -76,7 +76,7 @@ const specialists = [
     name: "Rūta Staliaus Darbai",
     trade: "Staliaus darbai",
     town: "Šiauliai",
-    regions: ["Šiauliai", "Panevėžys"],
+    operatingCities: ["Šiauliai", "Panevėžys"],
     radius: 40,
     lat: 55.9349,
     lng: 23.3137,
@@ -100,7 +100,7 @@ const specialists = [
     name: "Klaidas Stogai",
     trade: "Stogai",
     town: "Panevėžys",
-    regions: ["Panevėžys", "Utena"],
+    operatingCities: ["Panevėžys", "Utena"],
     radius: 60,
     lat: 55.7348,
     lng: 24.3575,
@@ -124,7 +124,7 @@ const specialists = [
     name: "Asta Trinkelės ir Aplinka",
     trade: "Trinkelės ir aplinka",
     town: "Alytus",
-    regions: ["Alytus", "Marijampolė"],
+    operatingCities: ["Alytus", "Marijampolė"],
     radius: 50,
     lat: 54.3964,
     lng: 24.0456,
@@ -148,7 +148,7 @@ const specialists = [
     name: "Vytautas Pilna Renovacija",
     trade: "Pilna renovacija",
     town: "Utena",
-    regions: ["Utena", "Vilnius"],
+    operatingCities: ["Utena", "Vilnius"],
     radius: 70,
     lat: 55.4976,
     lng: 25.5992,
@@ -215,7 +215,7 @@ function filteredSpecialists() {
 
   return specialists.filter((person) => {
     const tradeMatch = trade === "all" || person.trade === trade;
-    const locationMatch = location === "all" || person.regions.includes(location) || person.town === location;
+    const locationMatch = location === "all" || person.operatingCities.includes(location);
     const verificationMatch = verification === "all" || person.verification.includes(verification);
     return tradeMatch && locationMatch && verificationMatch;
   });
@@ -288,7 +288,7 @@ function renderResults(list) {
             <span class="tag">${person.radius} km zona</span>
             <span class="tag">${person.verificationLabel}</span>
           </span>
-          <span>${person.reviewCount} atsiliepimai - ${person.serviceArea}</span>
+          <span>${person.reviewCount} atsiliepimai - dirba: ${person.operatingCities.join(", ")}. ${person.serviceArea}</span>
         </button>
       `,
     )
@@ -339,6 +339,22 @@ function renderMap(list) {
 }
 
 function renderProfile(person) {
+  if (!person) {
+    profilePanel.innerHTML = `
+      <div class="profile-card empty-profile">
+        <div class="profile-summary">
+          <p class="eyebrow">Nėra profilio</p>
+          <h2>Šiam filtrui dar nėra patvirtinto specialisto.</h2>
+          <p>Pakeiskite miestą arba darbo sritį, arba registruokite pirmą specialistą šioje zonoje.</p>
+          <div class="hero-actions">
+            <a class="primary-action" href="#register">Registruotis nemokamai</a>
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   profilePanel.innerHTML = `
     <div class="profile-card">
       <div class="profile-summary">
@@ -424,7 +440,7 @@ function render() {
 
   renderResults(list);
   renderMap(list);
-  const activePerson = specialists.find((person) => person.id === activeId) || list[0] || specialists[0];
+  const activePerson = list.find((person) => person.id === activeId) || list[0] || null;
   renderProfile(activePerson);
 }
 
