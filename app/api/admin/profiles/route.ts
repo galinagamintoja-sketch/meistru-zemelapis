@@ -41,7 +41,7 @@ export async function GET(request: Request) {
         approval_status,
         source,
         service_area_label,
-        service_categories(name, slug),
+        service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
         operating_areas(city, radius_km),
         profile_photos(label, url, sort_order),
         reviews(client_name, rating, text, moderation_status)
