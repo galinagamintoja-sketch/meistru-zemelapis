@@ -5,6 +5,7 @@ import { createServerSupabase, requireAdminToken } from "../../../../lib/supabas
 
 const validStatuses = new Set(["pending", "approved", "rejected", "suspended", "all"]);
 const validActions = new Set(["approve", "reject", "suspend", "verify_contact", "verify_whatsapp", "update"]);
+const validSources = new Set(["self-registration", "whatsapp-onboarding", "admin-created", "imported-lead"]);
 
 export async function GET(request: Request) {
   if (!requireAdminToken(request)) {
@@ -69,6 +70,103 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({ mode: "database", profiles: (data ?? []).map(profileRowToSpecialist) });
+}
+
+export async function POST(request: Request) {
+  if (!requireAdminToken(request)) {
+    return NextResponse.json({ error: "Admin token required" }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const name = cleanText(body.name);
+  const phone = cleanText(body.phone);
+  const categorySlug = cleanText(body.categorySlug ?? body.category);
+  const city = cleanText(body.city);
+  const operatingCities = normalizeCities(body.operatingCities, city);
+  const email = cleanText(body.email);
+  const whatsapp = cleanText(body.whatsapp);
+  const description = cleanText(body.description);
+  const source = validSources.has(cleanText(body.source)) ? cleanText(body.source) : "admin-created";
+  const radius = normalizeRadius(body.radius);
+
+  if (!name || !phone || !categorySlug || !city || !operatingCities.length) {
+    return NextResponse.json(
+      { error: "Name, phone, category, and city / operating area are required." },
+      { status: 400 }
+    );
+  }
+
+  const supabase = createServerSupabase();
+
+  if (!supabase) {
+    return NextResponse.json({ ok: true, mode: "seed", message: "Admin-created profile accepted in demo mode." });
+  }
+
+  const { data: category, error: categoryError } = await supabase
+    .from("service_categories")
+    .select("id")
+    .eq("slug", categorySlug)
+    .maybeSingle();
+
+  if (categoryError) {
+    return NextResponse.json({ error: categoryError.message }, { status: 500 });
+  }
+
+  if (!category?.id) {
+    return NextResponse.json({ error: "Choose a valid category." }, { status: 400 });
+  }
+
+  const { data: profile, error } = await supabase
+    .from("tradesperson_profiles")
+    .insert({
+      display_name: name,
+      phone,
+      whatsapp_number: whatsapp || phone,
+      email: email || `admin-${crypto.randomUUID()}@localpro.local`,
+      base_city: city,
+      radius_km: radius,
+      description: description || null,
+      service_category_id: category.id,
+      service_area_label: operatingCities.join(", "),
+      public_status: "private",
+      approval_status: "pending",
+      source,
+      verification_labels: []
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const { error: areaError } = await supabase.from("operating_areas").insert(
+    operatingCities.map((areaCity) => ({
+      tradesperson_profile_id: profile.id,
+      city: areaCity,
+      radius_km: radius
+    }))
+  );
+
+  if (areaError) {
+    return NextResponse.json({ error: areaError.message }, { status: 500 });
+  }
+
+  await supabase.from("admin_actions").insert({
+    tradesperson_profile_id: profile.id,
+    action: "profile_admin_created",
+    notes: "Profile created manually from admin panel.",
+    created_by_role: "admin"
+  });
+
+  return NextResponse.json({
+    ok: true,
+    profile: {
+      id: profile.id,
+      approvalStatus: "pending",
+      publicStatus: "private"
+    }
+  });
 }
 
 export async function PATCH(request: Request) {
@@ -212,6 +310,22 @@ export async function PATCH(request: Request) {
 
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeCities(value: unknown, fallbackCity: string) {
+  const rawCities = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [fallbackCity];
+  return Array.from(
+    new Set(
+      rawCities
+        .map((city: unknown) => cleanText(city))
+        .filter((city: string) => city.length >= 2)
+    )
+  ).slice(0, 20) as string[];
+}
+
+function normalizeRadius(value: unknown) {
+  const radius = Number(value);
+  return Number.isFinite(radius) && radius >= 1 && radius <= 200 ? Math.round(radius) : 30;
 }
 
 function assignText(patch: Record<string, string | number | null>, key: string, value: unknown) {

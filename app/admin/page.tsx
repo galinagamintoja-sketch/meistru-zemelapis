@@ -18,6 +18,18 @@ type EditDraft = {
   serviceArea: string;
   description: string;
 };
+type AddDraft = {
+  name: string;
+  phone: string;
+  categorySlug: string;
+  city: string;
+  operatingCities: string;
+  email: string;
+  whatsapp: string;
+  description: string;
+  radius: string;
+  source: string;
+};
 
 const tokenStorageKey = "localpro-admin-token";
 const statuses: Array<{ value: StatusFilter; label: string }> = [
@@ -26,6 +38,23 @@ const statuses: Array<{ value: StatusFilter; label: string }> = [
   { value: "rejected", label: "Rejected" },
   { value: "all", label: "All" }
 ];
+const profileSources = [
+  { value: "admin-created", label: "Admin created" },
+  { value: "self-registration", label: "Self registration" },
+  { value: "imported-lead", label: "Imported lead" }
+];
+const emptyAddDraft: AddDraft = {
+  name: "",
+  phone: "",
+  categorySlug: "",
+  city: "",
+  operatingCities: "",
+  email: "",
+  whatsapp: "",
+  description: "",
+  radius: "30",
+  source: "admin-created"
+};
 
 export default function AdminPage() {
   const [tokenInput, setTokenInput] = useState("");
@@ -34,6 +63,9 @@ export default function AdminPage() {
   const [profiles, setProfiles] = useState<Specialist[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [drafts, setDrafts] = useState<Record<string, EditDraft>>({});
+  const [addDraft, setAddDraft] = useState<AddDraft>(emptyAddDraft);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [addSucceeded, setAddSucceeded] = useState(false);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -193,6 +225,47 @@ export default function AdminPage() {
     await loadProfiles();
   }
 
+  async function addTradesperson(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("Adding tradesperson...");
+    setAddSucceeded(false);
+
+    const response = await fetch("/api/admin/profiles", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...authHeaders(token)
+      },
+      body: JSON.stringify({
+        name: addDraft.name,
+        phone: addDraft.phone,
+        categorySlug: addDraft.categorySlug,
+        city: addDraft.city,
+        operatingCities: splitList(addDraft.operatingCities || addDraft.city),
+        email: addDraft.email,
+        whatsapp: addDraft.whatsapp,
+        description: addDraft.description,
+        radius: Number(addDraft.radius),
+        source: addDraft.source
+      })
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      setMessage(data.error ?? "Could not add tradesperson.");
+      return;
+    }
+
+    setAddSucceeded(true);
+    setAddDraft(emptyAddDraft);
+    setMessage("Tradesperson added successfully.");
+    if (status === "pending") {
+      await loadProfiles();
+    } else {
+      setStatus("pending");
+    }
+  }
+
   function updateDraft(id: string, field: keyof EditDraft, value: string) {
     setDrafts((current) => ({
       ...current,
@@ -201,6 +274,14 @@ export default function AdminPage() {
         [field]: value
       }
     }));
+  }
+
+  function updateAddDraft(field: keyof AddDraft, value: string) {
+    setAddDraft((current) => ({
+      ...current,
+      [field]: value
+    }));
+    setAddSucceeded(false);
   }
 
   useEffect(() => {
@@ -271,9 +352,94 @@ export default function AdminPage() {
         <button type="button" onClick={() => loadProfiles()} disabled={isLoading}>
           {isLoading ? "Loading..." : "Refresh"}
         </button>
+        <button type="button" onClick={() => setIsAddOpen((current) => !current)}>
+          {isAddOpen ? "Close add form" : "Add tradesperson"}
+        </button>
       </div>
 
       <p className="admin-message">{message}</p>
+
+      {isAddOpen ? (
+        <section className="admin-add-panel">
+          <div className="admin-card-header">
+            <div>
+              <p className="eyebrow">Manual profile</p>
+              <h2>Add tradesperson</h2>
+              <p>New admin-created profiles stay pending and private until approved.</p>
+            </div>
+            {addSucceeded ? (
+              <button className="admin-secondary" type="button" onClick={() => {
+                setAddDraft(emptyAddDraft);
+                setAddSucceeded(false);
+              }}>
+                Add another
+              </button>
+            ) : null}
+          </div>
+
+          <form className="admin-edit admin-add-form" onSubmit={addTradesperson}>
+            <label>
+              Name *
+              <input required value={addDraft.name} onChange={(event) => updateAddDraft("name", event.target.value)} />
+            </label>
+            <label>
+              Phone *
+              <input required value={addDraft.phone} onChange={(event) => updateAddDraft("phone", event.target.value)} />
+            </label>
+            <label>
+              Category *
+              <select required value={addDraft.categorySlug} onChange={(event) => updateAddDraft("categorySlug", event.target.value)}>
+                <option value="">Choose category</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.slug}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              City *
+              <input required value={addDraft.city} onChange={(event) => updateAddDraft("city", event.target.value)} />
+            </label>
+            <label>
+              Operating area *
+              <input
+                required
+                placeholder="Vilnius, Lentvaris"
+                value={addDraft.operatingCities}
+                onChange={(event) => updateAddDraft("operatingCities", event.target.value)}
+              />
+            </label>
+            <label>
+              Radius km
+              <input value={addDraft.radius} onChange={(event) => updateAddDraft("radius", event.target.value)} inputMode="numeric" />
+            </label>
+            <label>
+              Email
+              <input value={addDraft.email} onChange={(event) => updateAddDraft("email", event.target.value)} type="email" />
+            </label>
+            <label>
+              WhatsApp
+              <input value={addDraft.whatsapp} onChange={(event) => updateAddDraft("whatsapp", event.target.value)} />
+            </label>
+            <label>
+              Source
+              <select value={addDraft.source} onChange={(event) => updateAddDraft("source", event.target.value)}>
+                {profileSources.map((source) => (
+                  <option key={source.value} value={source.value}>
+                    {source.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="admin-wide">
+              Description
+              <textarea value={addDraft.description} onChange={(event) => updateAddDraft("description", event.target.value)} rows={4} />
+            </label>
+            <button type="submit">Add tradesperson</button>
+          </form>
+        </section>
+      ) : null}
 
       <section className="admin-grid">
         {profiles.map((profile) => {

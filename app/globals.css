@@ -45,7 +45,7 @@
 
 .admin-toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 260px) auto;
+  grid-template-columns: minmax(180px, 260px) auto auto;
   gap: 12px;
   align-items: end;
   margin-bottom: 16px;
@@ -55,6 +55,7 @@
 .admin-actions button,
 .admin-edit button,
 .admin-login button,
+.admin-add-panel button,
 .admin-secondary {
   min-height: 44px;
   border: 0;
@@ -83,6 +84,17 @@
 .admin-grid {
   display: grid;
   gap: 14px;
+}
+
+.admin-add-panel {
+  display: grid;
+  gap: 14px;
+  margin: 0 0 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 250, 240, 0.96);
+  box-shadow: var(--soft-shadow);
 }
 
 .admin-card {
@@ -213,6 +225,11 @@
 .admin-edit input:disabled {
   color: var(--muted);
   background: var(--soft);
+}
+
+.admin-add-form {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .admin-wide {
