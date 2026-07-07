@@ -7,7 +7,9 @@ export type Specialist = {
   companyName?: string | null;
   trade: string;
   categorySlug: string;
+  publicStatus?: "public" | "private" | string;
   subcategorySlugs: string[];
+  subcategoryNames?: string[];
   town: string;
   operatingCities: string[];
   radius: number;

@@ -3,6 +3,9 @@ import { specialists as seedSpecialists } from "../../../../lib/seed-data";
 import { profileRowToSpecialist } from "../../../../lib/db-mappers";
 import { createServerSupabase, requireAdminToken } from "../../../../lib/supabase";
 
+const validStatuses = new Set(["pending", "approved", "rejected", "suspended", "all"]);
+const validActions = new Set(["approve", "reject", "suspend", "verify_contact", "verify_whatsapp", "update"]);
+
 export async function GET(request: Request) {
   if (!requireAdminToken(request)) {
     return NextResponse.json({ error: "Admin token required" }, { status: 401 });
@@ -10,6 +13,11 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") ?? "pending";
+
+  if (!validStatuses.has(status)) {
+    return NextResponse.json({ error: "Invalid status filter" }, { status: 400 });
+  }
+
   const supabase = createServerSupabase();
 
   if (!supabase) {
@@ -42,6 +50,7 @@ export async function GET(request: Request) {
         source,
         service_area_label,
         service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
+        profile_services(service_subcategories(name, slug)),
         operating_areas(city, radius_km),
         profile_photos(label, url, sort_order),
         reviews(client_name, rating, text, moderation_status)
@@ -71,7 +80,7 @@ export async function PATCH(request: Request) {
   const id = String(body.id ?? "");
   const action = String(body.action ?? "");
 
-  if (!id || !["approve", "reject", "suspend", "verify_contact", "verify_whatsapp"].includes(action)) {
+  if (!id || !validActions.has(action)) {
     return NextResponse.json({ error: "Invalid admin action" }, { status: 400 });
   }
 
@@ -79,6 +88,84 @@ export async function PATCH(request: Request) {
 
   if (!supabase) {
     return NextResponse.json({ ok: true, mode: "seed", message: "Admin action accepted in demo mode." });
+  }
+
+  if (action === "update") {
+    const updates = body.profile ?? {};
+    const categorySlug = cleanText(updates.categorySlug);
+    let serviceCategoryId: string | null | undefined;
+
+    if (categorySlug) {
+      const { data: category, error: categoryError } = await supabase
+        .from("service_categories")
+        .select("id")
+        .eq("slug", categorySlug)
+        .maybeSingle();
+
+      if (categoryError) {
+        return NextResponse.json({ error: categoryError.message }, { status: 500 });
+      }
+
+      serviceCategoryId = category?.id ?? null;
+    }
+
+    const patch: Record<string, string | number | null> = {};
+    assignText(patch, "display_name", updates.name);
+    assignNullableText(patch, "company_name", updates.companyName);
+    assignText(patch, "phone", updates.phone);
+    assignNullableText(patch, "whatsapp_number", updates.whatsapp);
+    assignText(patch, "email", updates.email);
+    assignText(patch, "base_city", updates.town);
+    assignNullableText(patch, "service_area_label", updates.serviceArea);
+    assignNullableText(patch, "description", updates.description);
+
+    const radius = Number(updates.radius);
+    if (Number.isFinite(radius) && radius >= 1 && radius <= 200) {
+      patch.radius_km = Math.round(radius);
+    }
+
+    if (serviceCategoryId !== undefined) {
+      patch.service_category_id = serviceCategoryId;
+    }
+
+    if (Object.keys(patch).length) {
+      const { error } = await supabase.from("tradesperson_profiles").update(patch).eq("id", id);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+    }
+
+    if (Array.isArray(updates.operatingCities)) {
+      const cities = Array.from(
+        new Set(
+          updates.operatingCities
+            .map((city: unknown) => cleanText(city))
+            .filter((city: string) => city.length >= 2)
+        )
+      ).slice(0, 20) as string[];
+
+      if (cities.length) {
+        const { error: deleteError } = await supabase.from("operating_areas").delete().eq("tradesperson_profile_id", id);
+
+        if (deleteError) {
+          return NextResponse.json({ error: deleteError.message }, { status: 500 });
+        }
+
+        const radiusKm = typeof patch.radius_km === "number" ? patch.radius_km : null;
+        const { error: insertError } = await supabase.from("operating_areas").insert(
+          cities.map((city) => ({
+            tradesperson_profile_id: id,
+            city,
+            radius_km: radiusKm
+          }))
+        );
+
+        if (insertError) {
+          return NextResponse.json({ error: insertError.message }, { status: 500 });
+        }
+      }
+    }
   }
 
   const patch =
@@ -121,4 +208,21 @@ export async function PATCH(request: Request) {
   });
 
   return NextResponse.json({ ok: true });
+}
+
+function cleanText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function assignText(patch: Record<string, string | number | null>, key: string, value: unknown) {
+  const nextValue = cleanText(value);
+  if (nextValue) {
+    patch[key] = nextValue;
+  }
+}
+
+function assignNullableText(patch: Record<string, string | number | null>, key: string, value: unknown) {
+  if (typeof value === "string") {
+    patch[key] = value.trim() || null;
+  }
 }
