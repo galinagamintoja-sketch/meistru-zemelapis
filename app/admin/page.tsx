@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import type { Category, Specialist } from "../../lib/types";
 
 type StatusFilter = "pending" | "approved" | "rejected" | "all";
@@ -68,6 +68,7 @@ export default function AdminPage() {
   const [addSucceeded, setAddSucceeded] = useState(false);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const nextLoadMessageRef = useRef<string | null>(null);
 
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -146,7 +147,8 @@ export default function AdminPage() {
       const nextProfiles: Specialist[] = data.profiles ?? [];
       setProfiles(nextProfiles);
       setDrafts(Object.fromEntries(nextProfiles.map((profile) => [profile.id, profileToDraft(profile)])));
-      setMessage(profilesLoadedMessage(nextProfiles.length, data.mode));
+      setMessage(nextLoadMessageRef.current ?? profilesLoadedMessage(nextProfiles.length, data.mode));
+      nextLoadMessageRef.current = null;
     } catch {
       setMessage("Could not load profiles.");
     } finally {
@@ -258,7 +260,7 @@ export default function AdminPage() {
 
     setAddSucceeded(true);
     setAddDraft(emptyAddDraft);
-    setMessage("Tradesperson added successfully.");
+    nextLoadMessageRef.current = "Tradesperson added successfully.";
     if (status === "pending") {
       await loadProfiles();
     } else {
