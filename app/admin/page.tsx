@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import type { Category, Specialist } from "../../lib/types";
 
 type StatusFilter = "pending" | "approved" | "rejected" | "all";
@@ -37,15 +37,7 @@ export default function AdminPage() {
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const headers = useMemo<Record<string, string>>(() => {
-    const nextHeaders: Record<string, string> = {};
-    if (token) {
-      nextHeaders["x-admin-token"] = token;
-    }
-    return nextHeaders;
-  }, [token]);
-
-  function login(event: FormEvent<HTMLFormElement>) {
+  async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextToken = tokenInput.trim();
     if (!nextToken) {
@@ -53,9 +45,7 @@ export default function AdminPage() {
       return;
     }
 
-    localStorage.setItem(tokenStorageKey, nextToken);
-    setToken(nextToken);
-    setMessage("Admin token saved in this browser.");
+    await validateAndLoad(nextToken, "Admin token saved in this browser.");
   }
 
   function logout() {
@@ -67,8 +57,39 @@ export default function AdminPage() {
     setMessage("Logged out.");
   }
 
-  async function loadProfiles() {
-    if (!token) {
+  async function validateAndLoad(nextToken: string, successMessage?: string) {
+    setIsLoading(true);
+    setMessage("Checking admin token...");
+
+    try {
+      const response = await fetch(`/api/admin/profiles?status=${status}`, { headers: authHeaders(nextToken) });
+      const data = await response.json();
+
+      if (!response.ok) {
+        localStorage.removeItem(tokenStorageKey);
+        setToken("");
+        setProfiles([]);
+        setDrafts({});
+        setMessage(data.error ?? "Admin token rejected.");
+        return;
+      }
+
+      const nextProfiles: Specialist[] = data.profiles ?? [];
+      localStorage.setItem(tokenStorageKey, nextToken);
+      setToken(nextToken);
+      setTokenInput(nextToken);
+      setProfiles(nextProfiles);
+      setDrafts(Object.fromEntries(nextProfiles.map((profile) => [profile.id, profileToDraft(profile)])));
+      setMessage(successMessage ?? profilesLoadedMessage(nextProfiles.length, data.mode));
+    } catch {
+      setMessage("Could not check admin token.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function loadProfiles(nextToken = token) {
+    if (!nextToken) {
       return;
     }
 
@@ -76,10 +97,16 @@ export default function AdminPage() {
     setMessage("Loading profiles...");
 
     try {
-      const response = await fetch(`/api/admin/profiles?status=${status}`, { headers });
+      const response = await fetch(`/api/admin/profiles?status=${status}`, { headers: authHeaders(nextToken) });
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem(tokenStorageKey);
+          setToken("");
+          setProfiles([]);
+          setDrafts({});
+        }
         setMessage(data.error ?? "Could not load profiles.");
         return;
       }
@@ -87,7 +114,7 @@ export default function AdminPage() {
       const nextProfiles: Specialist[] = data.profiles ?? [];
       setProfiles(nextProfiles);
       setDrafts(Object.fromEntries(nextProfiles.map((profile) => [profile.id, profileToDraft(profile)])));
-      setMessage(data.mode === "seed" ? "Demo mode: Supabase is not connected." : `${nextProfiles.length} profile(s) loaded.`);
+      setMessage(profilesLoadedMessage(nextProfiles.length, data.mode));
     } catch {
       setMessage("Could not load profiles.");
     } finally {
@@ -109,7 +136,7 @@ export default function AdminPage() {
       method: "PATCH",
       headers: {
         "content-type": "application/json",
-        ...headers
+        ...authHeaders(token)
       },
       body: JSON.stringify({ id, action })
     });
@@ -135,7 +162,7 @@ export default function AdminPage() {
       method: "PATCH",
       headers: {
         "content-type": "application/json",
-        ...headers
+        ...authHeaders(token)
       },
       body: JSON.stringify({
         id,
@@ -179,8 +206,8 @@ export default function AdminPage() {
   useEffect(() => {
     const savedToken = localStorage.getItem(tokenStorageKey) ?? "";
     if (savedToken) {
-      setToken(savedToken);
       setTokenInput(savedToken);
+      validateAndLoad(savedToken).catch(() => setMessage("Could not check saved admin token."));
     }
 
     loadCategories().catch(() => setMessage("Could not load categories."));
@@ -241,7 +268,7 @@ export default function AdminPage() {
             ))}
           </select>
         </label>
-        <button type="button" onClick={loadProfiles} disabled={isLoading}>
+        <button type="button" onClick={() => loadProfiles()} disabled={isLoading}>
           {isLoading ? "Loading..." : "Refresh"}
         </button>
       </div>
@@ -384,4 +411,12 @@ function splitList(value: string) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function authHeaders(token: string): Record<string, string> {
+  return token ? { "x-admin-token": token } : {};
+}
+
+function profilesLoadedMessage(count: number, mode: string) {
+  return mode === "seed" ? "Demo mode: Supabase is not connected." : `${count} profile(s) loaded.`;
 }
