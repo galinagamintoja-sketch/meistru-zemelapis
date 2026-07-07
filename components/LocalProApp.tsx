@@ -36,6 +36,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitTone, setSubmitTone] = useState<"success" | "error" | "">("");
   const mapElementRef = useRef<HTMLDivElement | null>(null);
+  const profileSectionRef = useRef<HTMLElement | null>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const markerLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const areaLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
@@ -145,7 +146,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           .marker([specialist.lat, specialist.lng], { icon, title: `${specialist.name} - ${specialist.trade}` })
           .bindPopup(`<div class="map-popup"><strong>${specialist.name}</strong><span>${specialist.trade} - ${specialist.town}</span><span>${specialist.verificationLabel}</span></div>`);
 
-        marker.on("click", () => setActiveId(specialist.id));
+        marker.on("click", () => openSpecialistProfile(specialist.id));
         marker.addTo(markerLayer);
       });
 
@@ -162,6 +163,14 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
   function stars(rating: number) {
     return "★".repeat(Math.max(0, Math.round(rating)));
+  }
+
+  function openSpecialistProfile(specialistId: string) {
+    setActiveId(specialistId);
+    window.setTimeout(() => {
+      profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.history.replaceState(null, "", "#profile");
+    }, 0);
   }
 
   async function submitRegistration(event: FormEvent<HTMLFormElement>) {
@@ -297,7 +306,13 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
             </div>
             <div className="results-list" aria-live="polite">
               {specialists.length ? specialists.map((specialist) => (
-                <button className={`result-card ${specialist.id === activeId ? "active" : ""}`} key={specialist.id} onClick={() => setActiveId(specialist.id)} type="button">
+                <button
+                  aria-controls="profile"
+                  className={`result-card ${specialist.id === activeId ? "active" : ""}`}
+                  key={specialist.id}
+                  onClick={() => openSpecialistProfile(specialist.id)}
+                  type="button"
+                >
                   <span className="meta-row">
                     <strong>{specialist.name}</strong>
                     <span className="rating">{specialist.rating ? specialist.rating.toFixed(1) : "Naujas"} {stars(specialist.rating)}</span>
@@ -309,6 +324,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                     <span className="tag">{specialist.verificationLabel}</span>
                   </span>
                   <span>{specialist.reviewCount} atsiliepimai - dirba: {specialist.operatingCities.join(", ")}. {specialist.serviceArea}</span>
+                  <span className="open-profile-label">Atidaryti profilį</span>
                 </button>
               )) : (
                 <div className="empty-state">
@@ -331,7 +347,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           </section>
         </section>
 
-        <section className="profile-section" id="profile">
+        <section className="profile-section" id="profile" ref={profileSectionRef}>
           {activeSpecialist ? (
             <article className="profile-card" aria-live="polite">
               <div className="profile-summary">

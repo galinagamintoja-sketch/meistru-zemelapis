@@ -334,6 +334,18 @@ textarea {
   line-height: 1.4;
 }
 
+.open-profile-label {
+  justify-self: start;
+  min-height: 32px;
+  padding: 7px 11px;
+  border-radius: 8px;
+  background: var(--clay);
+  color: white;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .empty-state {
   display: grid;
   gap: 10px;
