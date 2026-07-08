@@ -10,6 +10,7 @@ Current MVP includes:
 - Leaflet/OpenStreetMap search map backed by `/api/specialists`
 - tradesperson profile cards with contact details, service area, work photos, reviews, and trust labels
 - tradesperson self-registration API at `/api/tradesperson/register`
+- Google login page at `/login`
 - admin approval dashboard at `/admin`
 - CSV/imported lead API foundation at `/api/imported-leads`
 - WhatsApp Business webhook foundation at `/api/whatsapp/webhook`
@@ -32,5 +33,7 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 ADMIN_TOKEN=
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=
+AUTH_SESSION_SECRET=
 WHATSAPP_VERIFY_TOKEN=
 ```

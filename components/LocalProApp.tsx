@@ -219,6 +219,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           <a href="#services">Paslaugos</a>
           <a href="#register">Tapti specialistu</a>
           <a href="#how">Kaip veikia</a>
+          <a href="/login">Login</a>
           <a href="/admin">Admin</a>
         </nav>
       </header>
