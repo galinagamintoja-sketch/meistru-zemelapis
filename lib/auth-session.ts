@@ -43,6 +43,44 @@ export function verifySession(value?: string | null) {
   }
 }
 
+export function isAdminEmail(email?: string | null) {
+  if (!email) {
+    return false;
+  }
+
+  return getAdminAllowlist().includes(email.trim().toLowerCase());
+}
+
+export function getSessionFromRequest(request: Request) {
+  const cookie = request.headers.get("cookie") ?? "";
+  const sessionCookie = cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${loginSessionCookie}=`))
+    ?.slice(loginSessionCookie.length + 1);
+
+  return verifySession(sessionCookie);
+}
+
+export function requireAdminSession(request: Request) {
+  const session = getSessionFromRequest(request);
+  return session && isAdminEmail(session.email) ? session : null;
+}
+
+export function getAdminAllowlist() {
+  const configured = process.env.ADMIN_EMAIL_ALLOWLIST ?? "galinagamintoja@gmail.com";
+  return configured
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function getSessionSecret() {
-  return process.env.AUTH_SESSION_SECRET ?? process.env.ADMIN_TOKEN ?? getGoogleClientId();
+  const secret = process.env.AUTH_SESSION_SECRET;
+
+  if (!secret) {
+    throw new Error("AUTH_SESSION_SECRET is required");
+  }
+
+  return secret;
 }

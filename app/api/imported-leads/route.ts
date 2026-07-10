@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase, requireAdminToken } from "../../../lib/supabase";
+import { requireAdminSession } from "../../../lib/auth-session";
+import { createServerSupabase } from "../../../lib/supabase";
 
 export async function GET(request: Request) {
-  if (!requireAdminToken(request)) {
-    return NextResponse.json({ error: "Admin token required" }, { status: 401 });
+  if (!requireAdminSession(request)) {
+    return NextResponse.json({ error: "Admin Google login required" }, { status: 401 });
   }
 
   const supabase = createServerSupabase();
@@ -25,8 +26,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!requireAdminToken(request)) {
-    return NextResponse.json({ error: "Admin token required" }, { status: 401 });
+  if (!requireAdminSession(request)) {
+    return NextResponse.json({ error: "Admin Google login required" }, { status: 401 });
   }
 
   const body = await request.json();

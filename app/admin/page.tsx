@@ -10,8 +10,9 @@ type EditDraft = {
   phone: string;
   whatsapp: string;
   email: string;
-  categorySlug: string;
-  subcategories: string;
+  categorySlugs: string[];
+  subcategorySlugs: string[];
+  photoUrls: string[];
   town: string;
   operatingCities: string;
   radius: string;
@@ -21,7 +22,9 @@ type EditDraft = {
 type AddDraft = {
   name: string;
   phone: string;
-  categorySlug: string;
+  categorySlugs: string[];
+  subcategorySlugs: string[];
+  photoUrls: string[];
   city: string;
   operatingCities: string;
   email: string;
@@ -31,22 +34,23 @@ type AddDraft = {
   source: string;
 };
 
-const tokenStorageKey = "localpro-admin-token";
 const statuses: Array<{ value: StatusFilter; label: string }> = [
-  { value: "pending", label: "Pending" },
-  { value: "approved", label: "Approved" },
-  { value: "rejected", label: "Rejected" },
-  { value: "all", label: "All" }
+  { value: "pending", label: "Laukiantys" },
+  { value: "approved", label: "Patvirtinti" },
+  { value: "rejected", label: "Atmesti" },
+  { value: "all", label: "Visi" }
 ];
 const profileSources = [
-  { value: "admin-created", label: "Admin created" },
-  { value: "self-registration", label: "Self registration" },
-  { value: "imported-lead", label: "Imported lead" }
+  { value: "admin-created", label: "Sukūrė administratorius" },
+  { value: "self-registration", label: "Savarankiška registracija" },
+  { value: "imported-lead", label: "Importuotas kontaktas" }
 ];
 const emptyAddDraft: AddDraft = {
   name: "",
   phone: "",
-  categorySlug: "",
+  categorySlugs: [],
+  subcategorySlugs: [],
+  photoUrls: [""],
   city: "",
   operatingCities: "",
   email: "",
@@ -57,8 +61,8 @@ const emptyAddDraft: AddDraft = {
 };
 
 export default function AdminPage() {
-  const [tokenInput, setTokenInput] = useState("");
-  const [token, setToken] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [status, setStatus] = useState<StatusFilter>("pending");
   const [profiles, setProfiles] = useState<Specialist[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -70,77 +74,56 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(false);
   const nextLoadMessageRef = useRef<string | null>(null);
 
-  async function login(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const nextToken = tokenInput.trim();
-    if (!nextToken) {
-      setMessage("Enter the admin token.");
-      return;
-    }
-
-    await validateAndLoad(nextToken, "Admin token saved in this browser.");
-  }
-
-  function logout() {
-    localStorage.removeItem(tokenStorageKey);
-    setToken("");
-    setTokenInput("");
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setIsAdmin(false);
     setProfiles([]);
     setDrafts({});
-    setMessage("Logged out.");
+    setMessage("Atsijungta.");
   }
 
-  async function validateAndLoad(nextToken: string, successMessage?: string) {
+  async function checkSession() {
     setIsLoading(true);
-    setMessage("Checking admin token...");
+    setMessage("Tikrinama administratoriaus prieiga...");
 
     try {
-      const response = await fetch(`/api/admin/profiles?status=${status}`, { headers: authHeaders(nextToken) });
+      const response = await fetch("/api/auth/session");
       const data = await response.json();
-
-      if (!response.ok) {
-        localStorage.removeItem(tokenStorageKey);
-        setToken("");
-        setProfiles([]);
-        setDrafts({});
-        setMessage(data.error ?? "Admin token rejected.");
+      if (!data.isAdmin) {
+        setIsAdmin(false);
+        setMessage(data.user ? "Jūsų Google paskyra nėra administratorių sąraše." : "Prisijunkite su administratoriaus Google paskyra.");
         return;
       }
 
-      const nextProfiles: Specialist[] = data.profiles ?? [];
-      localStorage.setItem(tokenStorageKey, nextToken);
-      setToken(nextToken);
-      setTokenInput(nextToken);
-      setProfiles(nextProfiles);
-      setDrafts(Object.fromEntries(nextProfiles.map((profile) => [profile.id, profileToDraft(profile)])));
-      setMessage(successMessage ?? profilesLoadedMessage(nextProfiles.length, data.mode));
+      setIsAdmin(true);
+      setMessage("Administratoriaus prieiga patvirtinta.");
     } catch {
-      setMessage("Could not check admin token.");
+      setMessage("Nepavyko patikrinti administratoriaus prieigos.");
     } finally {
       setIsLoading(false);
+      setSessionChecked(true);
     }
   }
 
-  async function loadProfiles(nextToken = token) {
-    if (!nextToken) {
+  async function loadProfiles() {
+    if (!isAdmin) {
       return;
     }
 
     setIsLoading(true);
-    setMessage("Loading profiles...");
+    setMessage("Įkeliami profiliai...");
 
     try {
-      const response = await fetch(`/api/admin/profiles?status=${status}`, { headers: authHeaders(nextToken) });
+      const response = await fetch(`/api/admin/profiles?status=${status}`);
       const data = await response.json();
 
       if (!response.ok) {
         if (response.status === 401) {
-          localStorage.removeItem(tokenStorageKey);
-          setToken("");
+          setIsAdmin(false);
           setProfiles([]);
           setDrafts({});
         }
-        setMessage(data.error ?? "Could not load profiles.");
+        setMessage(data.error ?? "Nepavyko įkelti profilių.");
         return;
       }
 
@@ -150,7 +133,7 @@ export default function AdminPage() {
       setMessage(nextLoadMessageRef.current ?? profilesLoadedMessage(nextProfiles.length, data.mode));
       nextLoadMessageRef.current = null;
     } catch {
-      setMessage("Could not load profiles.");
+      setMessage("Nepavyko įkelti profilių.");
     } finally {
       setIsLoading(false);
     }
@@ -162,26 +145,31 @@ export default function AdminPage() {
     setCategories(data.categories ?? []);
   }
 
-  async function runAction(id: string, action: "approve" | "reject") {
-    const label = action === "approve" ? "Approve" : "Reject";
-    setMessage(`${label} in progress...`);
+  async function runAction(id: string, action: "approve" | "reject" | "delete") {
+    const label = action === "approve" ? "Tvirtinama" : action === "reject" ? "Atmetama" : "Trinama";
+    setMessage(`${label}...`);
 
     const response = await fetch("/api/admin/profiles", {
       method: "PATCH",
       headers: {
-        "content-type": "application/json",
-        ...authHeaders(token)
+        "content-type": "application/json"
       },
       body: JSON.stringify({ id, action })
     });
     const data = await response.json();
 
     if (!response.ok) {
-      setMessage(data.error ?? `${label} failed.`);
+      setMessage(data.error ?? `${label} nepavyko.`);
       return;
     }
 
-    setMessage(action === "approve" ? "Profile approved and made public." : "Profile rejected and hidden.");
+    setMessage(
+      action === "approve"
+        ? "Profilis patvirtintas ir publikuotas."
+        : action === "reject"
+          ? "Profilis atmestas ir paslėptas."
+          : "Profilis ištrintas."
+    );
     await loadProfiles();
   }
 
@@ -191,12 +179,11 @@ export default function AdminPage() {
       return;
     }
 
-    setMessage("Saving profile changes...");
+    setMessage("Saugomi profilio pakeitimai...");
     const response = await fetch("/api/admin/profiles", {
       method: "PATCH",
       headers: {
-        "content-type": "application/json",
-        ...authHeaders(token)
+        "content-type": "application/json"
       },
       body: JSON.stringify({
         id,
@@ -207,7 +194,10 @@ export default function AdminPage() {
           phone: draft.phone,
           whatsapp: draft.whatsapp,
           email: draft.email,
-          categorySlug: draft.categorySlug,
+          categorySlug: draft.categorySlugs[0] ?? "",
+          categorySlugs: draft.categorySlugs,
+          subcategorySlugs: draft.subcategorySlugs,
+          photoUrls: draft.photoUrls.map((url) => url.trim()).filter(Boolean),
           town: draft.town,
           operatingCities: splitList(draft.operatingCities),
           radius: Number(draft.radius),
@@ -219,29 +209,31 @@ export default function AdminPage() {
     const data = await response.json();
 
     if (!response.ok) {
-      setMessage(data.error ?? "Save failed.");
+      setMessage(data.error ?? "Išsaugoti nepavyko.");
       return;
     }
 
-    setMessage("Profile changes saved.");
+    setMessage("Profilio pakeitimai išsaugoti.");
     await loadProfiles();
   }
 
   async function addTradesperson(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage("Adding tradesperson...");
+    setMessage("Pridedamas specialistas...");
     setAddSucceeded(false);
 
     const response = await fetch("/api/admin/profiles", {
       method: "POST",
       headers: {
-        "content-type": "application/json",
-        ...authHeaders(token)
+        "content-type": "application/json"
       },
       body: JSON.stringify({
         name: addDraft.name,
         phone: addDraft.phone,
-        categorySlug: addDraft.categorySlug,
+        categorySlug: addDraft.categorySlugs[0] ?? "",
+        categorySlugs: addDraft.categorySlugs,
+        subcategorySlugs: addDraft.subcategorySlugs,
+        photoUrls: addDraft.photoUrls.map((url) => url.trim()).filter(Boolean),
         city: addDraft.city,
         operatingCities: splitList(addDraft.operatingCities || addDraft.city),
         email: addDraft.email,
@@ -254,13 +246,13 @@ export default function AdminPage() {
     const data = await response.json();
 
     if (!response.ok) {
-      setMessage(data.error ?? "Could not add tradesperson.");
+      setMessage(data.error ?? "Specialisto pridėti nepavyko.");
       return;
     }
 
     setAddSucceeded(true);
     setAddDraft(emptyAddDraft);
-    nextLoadMessageRef.current = "Tradesperson added successfully.";
+    nextLoadMessageRef.current = "Specialistas pridėtas.";
     if (status === "pending") {
       await loadProfiles();
     } else {
@@ -268,59 +260,128 @@ export default function AdminPage() {
     }
   }
 
-  function updateDraft(id: string, field: keyof EditDraft, value: string) {
-    setDrafts((current) => ({
-      ...current,
-      [id]: {
-        ...current[id],
-        [field]: value
+  function updateDraft(id: string, field: keyof EditDraft, value: string | string[]) {
+    setDrafts((current) => {
+      const draft = current[id];
+      if (!draft) {
+        return current;
       }
-    }));
+
+      const nextDraft: EditDraft = {
+        ...draft,
+        [field]: value
+      } as EditDraft;
+
+      if (field === "categorySlugs" && Array.isArray(value)) {
+        const allowedSubcategories = new Set(selectedSubcategories(categories, value).map((subcategory) => subcategory.slug));
+        nextDraft.subcategorySlugs = draft.subcategorySlugs.filter((slug) => allowedSubcategories.has(slug));
+      }
+
+      return {
+        ...current,
+        [id]: nextDraft
+      };
+    });
   }
 
-  function updateAddDraft(field: keyof AddDraft, value: string) {
+  function updateAddDraft(field: keyof AddDraft, value: string | string[]) {
+    setAddDraft((current) => {
+      const nextDraft: AddDraft = {
+        ...current,
+        [field]: value
+      } as AddDraft;
+
+      if (field === "categorySlugs" && Array.isArray(value)) {
+        const allowedSubcategories = new Set(selectedSubcategories(categories, value).map((subcategory) => subcategory.slug));
+        nextDraft.subcategorySlugs = current.subcategorySlugs.filter((slug) => allowedSubcategories.has(slug));
+      }
+
+      return nextDraft;
+    });
+    setAddSucceeded(false);
+  }
+
+  function updateDraftPhotoUrl(id: string, index: number, value: string) {
+    setDrafts((current) => {
+      const draft = current[id];
+      if (!draft) {
+        return current;
+      }
+
+      const photoUrls = [...draft.photoUrls];
+      photoUrls[index] = value;
+      return { ...current, [id]: { ...draft, photoUrls } };
+    });
+  }
+
+  function updateAddPhotoUrl(index: number, value: string) {
+    setAddDraft((current) => {
+      const photoUrls = [...current.photoUrls];
+      photoUrls[index] = value;
+      return { ...current, photoUrls };
+    });
+    setAddSucceeded(false);
+  }
+
+  function addDraftPhotoField(id: string) {
+    setDrafts((current) => {
+      const draft = current[id];
+      if (!draft || draft.photoUrls.length >= 8) {
+        return current;
+      }
+
+      return { ...current, [id]: { ...draft, photoUrls: [...draft.photoUrls, ""] } };
+    });
+  }
+
+  function removeDraftPhotoField(id: string, index: number) {
+    setDrafts((current) => {
+      const draft = current[id];
+      if (!draft) {
+        return current;
+      }
+
+      const next = draft.photoUrls.length > 1 ? draft.photoUrls.filter((_, currentIndex) => currentIndex !== index) : [""];
+      return { ...current, [id]: { ...draft, photoUrls: next } };
+    });
+  }
+
+  function addAddPhotoField() {
     setAddDraft((current) => ({
       ...current,
-      [field]: value
+      photoUrls: current.photoUrls.length >= 8 ? current.photoUrls : [...current.photoUrls, ""]
+    }));
+    setAddSucceeded(false);
+  }
+
+  function removeAddPhotoField(index: number) {
+    setAddDraft((current) => ({
+      ...current,
+      photoUrls: current.photoUrls.length > 1 ? current.photoUrls.filter((_, currentIndex) => currentIndex !== index) : [""]
     }));
     setAddSucceeded(false);
   }
 
   useEffect(() => {
-    const savedToken = localStorage.getItem(tokenStorageKey) ?? "";
-    if (savedToken) {
-      setTokenInput(savedToken);
-      validateAndLoad(savedToken).catch(() => setMessage("Could not check saved admin token."));
-    }
-
-    loadCategories().catch(() => setMessage("Could not load categories."));
+    checkSession().catch(() => setMessage("Nepavyko patikrinti administratoriaus prieigos."));
+    loadCategories().catch(() => setMessage("Nepavyko įkelti kategorijų."));
   }, []);
 
   useEffect(() => {
     loadProfiles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, token]);
+  }, [status, isAdmin]);
 
-  if (!token) {
+  const addAvailableSubcategories = selectedSubcategories(categories, addDraft.categorySlugs);
+
+  if (!sessionChecked || !isAdmin) {
     return (
       <main className="admin-shell">
         <section className="admin-login">
           <p className="eyebrow">LocalPro admin</p>
-          <h1>Admin login</h1>
-          <p>Enter the existing admin token to review and publish tradesperson profiles.</p>
-          <form onSubmit={login}>
-            <label>
-              Admin token
-              <input
-                value={tokenInput}
-                onChange={(event) => setTokenInput(event.target.value)}
-                placeholder="ADMIN_TOKEN"
-                type="password"
-                autoComplete="current-password"
-              />
-            </label>
-            <button type="submit">Login</button>
-          </form>
+          <h1>Administratoriaus prisijungimas</h1>
+          <p>Prisijunkite su Google paskyra, kuri yra administratorių sąraše.</p>
+          <a className="primary-action" href="/login">Prisijungti su Google</a>
           <p className="admin-message">{message}</p>
         </section>
       </main>
@@ -332,17 +393,17 @@ export default function AdminPage() {
       <section className="section-heading admin-heading">
         <div>
           <p className="eyebrow">LocalPro admin</p>
-          <h1>Profile approval dashboard</h1>
-          <p>Review registrations, edit profile details, then approve public listings or reject weak submissions.</p>
+          <h1>Profilių patikros skydelis</h1>
+          <p>Peržiūrėkite registracijas, pataisykite duomenis ir patvirtinkite arba atmeskite profilius.</p>
         </div>
         <button className="admin-secondary" type="button" onClick={logout}>
-          Logout
+          Atsijungti
         </button>
       </section>
 
       <div className="admin-toolbar">
         <label>
-          Status
+          Būsena
           <select value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}>
             {statuses.map((item) => (
               <option key={item.value} value={item.value}>
@@ -352,10 +413,10 @@ export default function AdminPage() {
           </select>
         </label>
         <button type="button" onClick={() => loadProfiles()} disabled={isLoading}>
-          {isLoading ? "Loading..." : "Refresh"}
+          {isLoading ? "Kraunama..." : "Atnaujinti"}
         </button>
         <button type="button" onClick={() => setIsAddOpen((current) => !current)}>
-          {isAddOpen ? "Close add form" : "Add tradesperson"}
+          {isAddOpen ? "Uždaryti pridėjimo formą" : "Pridėti specialistą"}
         </button>
       </div>
 
@@ -365,33 +426,43 @@ export default function AdminPage() {
         <section className="admin-add-panel">
           <div className="admin-card-header">
             <div>
-              <p className="eyebrow">Manual profile</p>
-              <h2>Add tradesperson</h2>
-              <p>New admin-created profiles stay pending and private until approved.</p>
+              <p className="eyebrow">Rankinis profilis</p>
+              <h2>Pridėti specialistą</h2>
+              <p>Naujai administratoriaus sukurti profiliai lieka laukiantys ir privatūs, kol juos patvirtinsite.</p>
             </div>
             {addSucceeded ? (
               <button className="admin-secondary" type="button" onClick={() => {
                 setAddDraft(emptyAddDraft);
                 setAddSucceeded(false);
               }}>
-                Add another
+                Pridėti dar vieną
               </button>
             ) : null}
           </div>
 
           <form className="admin-edit admin-add-form" onSubmit={addTradesperson}>
             <label>
-              Name *
+              Vardas *
               <input required value={addDraft.name} onChange={(event) => updateAddDraft("name", event.target.value)} />
             </label>
             <label>
-              Phone *
+              Telefonas *
               <input required value={addDraft.phone} onChange={(event) => updateAddDraft("phone", event.target.value)} />
             </label>
             <label>
-              Category *
-              <select required value={addDraft.categorySlug} onChange={(event) => updateAddDraft("categorySlug", event.target.value)}>
-                <option value="">Choose category</option>
+              Kategorijos *
+              <select
+                multiple
+                size={Math.min(6, Math.max(3, categories.length))}
+                required
+                value={addDraft.categorySlugs}
+                onChange={(event) =>
+                  updateAddDraft(
+                    "categorySlugs",
+                    Array.from(event.currentTarget.selectedOptions).map((option) => option.value)
+                  )
+                }
+              >
                 {categories.map((category) => (
                   <option key={category.id} value={category.slug}>
                     {category.name}
@@ -400,11 +471,32 @@ export default function AdminPage() {
               </select>
             </label>
             <label>
-              City *
+              Subkategorijos
+              <select
+                multiple
+                size={Math.min(8, Math.max(3, addAvailableSubcategories.length || 3))}
+                value={addDraft.subcategorySlugs}
+                onChange={(event) =>
+                  updateAddDraft(
+                    "subcategorySlugs",
+                    Array.from(event.currentTarget.selectedOptions).map((option) => option.value)
+                  )
+                }
+                disabled={!addAvailableSubcategories.length}
+              >
+                {addAvailableSubcategories.map((subcategory) => (
+                  <option key={subcategory.id} value={subcategory.slug}>
+                    {subcategory.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Miestas *
               <input required value={addDraft.city} onChange={(event) => updateAddDraft("city", event.target.value)} />
             </label>
             <label>
-              Operating area *
+              Aptarnavimo zona *
               <input
                 required
                 placeholder="Vilnius, Lentvaris"
@@ -413,11 +505,11 @@ export default function AdminPage() {
               />
             </label>
             <label>
-              Radius km
+              Spindulys km
               <input value={addDraft.radius} onChange={(event) => updateAddDraft("radius", event.target.value)} inputMode="numeric" />
             </label>
             <label>
-              Email
+              El. paštas
               <input value={addDraft.email} onChange={(event) => updateAddDraft("email", event.target.value)} type="email" />
             </label>
             <label>
@@ -425,7 +517,7 @@ export default function AdminPage() {
               <input value={addDraft.whatsapp} onChange={(event) => updateAddDraft("whatsapp", event.target.value)} />
             </label>
             <label>
-              Source
+              Šaltinis
               <select value={addDraft.source} onChange={(event) => updateAddDraft("source", event.target.value)}>
                 {profileSources.map((source) => (
                   <option key={source.value} value={source.value}>
@@ -435,10 +527,33 @@ export default function AdminPage() {
               </select>
             </label>
             <label className="admin-wide">
-              Description
+              Aprašymas
               <textarea value={addDraft.description} onChange={(event) => updateAddDraft("description", event.target.value)} rows={4} />
             </label>
-            <button type="submit">Add tradesperson</button>
+            <fieldset className="admin-wide">
+              <legend>Nuotraukų URL</legend>
+              <p className="field-note">JPG, PNG arba WebP, iki 8 nuotraukų, iki 5 MB kiekviena. Naudokite viešus URL.</p>
+              {addDraft.photoUrls.map((photoUrl, index) => (
+                <div className="form-row" key={`add-photo-${index}`}>
+                  <label>
+                    Nuotraukos URL {index + 1}
+                    <input
+                      type="url"
+                      placeholder="https://..."
+                      value={photoUrl}
+                      onChange={(event) => updateAddPhotoUrl(index, event.target.value)}
+                    />
+                  </label>
+                  <button type="button" className="admin-secondary" onClick={() => removeAddPhotoField(index)}>
+                    Pašalinti
+                  </button>
+                </div>
+              ))}
+              <button type="button" className="admin-secondary" onClick={addAddPhotoField} disabled={addDraft.photoUrls.length >= 8}>
+                Pridėti URL
+              </button>
+            </fieldset>
+            <button type="submit">Pridėti specialistą</button>
           </form>
         </section>
       ) : null}
@@ -457,42 +572,49 @@ export default function AdminPage() {
                 </div>
                 <div className="admin-actions">
                   <button type="button" onClick={() => runAction(profile.id, "approve")}>
-                    Approve
+                    Tvirtinti
                   </button>
                   <button className="admin-danger" type="button" onClick={() => runAction(profile.id, "reject")}>
-                    Reject
+                    Atmesti
+                  </button>
+                  <button className="admin-danger" type="button" onClick={() => {
+                    if (window.confirm("Ištrinti profilį visam laikui?")) {
+                      runAction(profile.id, "delete");
+                    }
+                  }}>
+                    Ištrinti
                   </button>
                 </div>
               </div>
 
               <dl className="admin-summary">
-                <div><dt>Name</dt><dd>{profile.name}</dd></div>
-                <div><dt>Business</dt><dd>{profile.companyName || "-"}</dd></div>
-                <div><dt>Phone</dt><dd>{profile.phone}</dd></div>
-                <div><dt>Email</dt><dd>{profile.email}</dd></div>
-                <div><dt>Category</dt><dd>{profile.trade}</dd></div>
-                <div><dt>Subcategory</dt><dd>{formatSubcategories(profile, "-")}</dd></div>
-                <div><dt>City / area</dt><dd>{profile.town} / {profile.operatingCities.join(", ")}</dd></div>
-                <div><dt>Verification</dt><dd>{profile.verificationLabel || "Pending"}</dd></div>
-                <div><dt>Public status</dt><dd>{formatPublicStatus(profile)}</dd></div>
+                <div><dt>Vardas</dt><dd>{profile.name}</dd></div>
+                <div><dt>Įmonė</dt><dd>{profile.companyName || "-"}</dd></div>
+                <div><dt>Telefonas</dt><dd>{profile.phone}</dd></div>
+                <div><dt>El. paštas</dt><dd>{profile.email}</dd></div>
+                <div><dt>Kategorija</dt><dd>{profile.trade}</dd></div>
+                <div><dt>Subkategorija</dt><dd>{formatSubcategories(profile, "-")}</dd></div>
+                <div><dt>Miestas / zona</dt><dd>{profile.town} / {profile.operatingCities.join(", ")}</dd></div>
+                <div><dt>Patikra</dt><dd>{profile.verificationLabel || "Laukiama"}</dd></div>
+                <div><dt>Vieša būsena</dt><dd>{formatPublicStatus(profile)}</dd></div>
               </dl>
 
-              <p className="admin-description">{profile.description || "No description yet."}</p>
+              <p className="admin-description">{profile.description || "Aprašymo dar nėra."}</p>
 
               <form className="admin-edit" onSubmit={(event) => {
                 event.preventDefault();
                 saveProfile(profile.id);
               }}>
                 <label>
-                  Name
+                  Vardas
                   <input value={draft.name} onChange={(event) => updateDraft(profile.id, "name", event.target.value)} />
                 </label>
                 <label>
-                  Business name
+                  Įmonės pavadinimas
                   <input value={draft.companyName} onChange={(event) => updateDraft(profile.id, "companyName", event.target.value)} />
                 </label>
                 <label>
-                  Phone
+                  Telefonas
                   <input value={draft.phone} onChange={(event) => updateDraft(profile.id, "phone", event.target.value)} />
                 </label>
                 <label>
@@ -500,13 +622,23 @@ export default function AdminPage() {
                   <input value={draft.whatsapp} onChange={(event) => updateDraft(profile.id, "whatsapp", event.target.value)} />
                 </label>
                 <label>
-                  Email
+                  El. paštas
                   <input value={draft.email} onChange={(event) => updateDraft(profile.id, "email", event.target.value)} />
                 </label>
                 <label>
-                  Category
-                  <select value={draft.categorySlug} onChange={(event) => updateDraft(profile.id, "categorySlug", event.target.value)}>
-                    <option value="">Choose category</option>
+                  Kategorijos
+                  <select
+                    multiple
+                    size={Math.min(6, Math.max(3, categories.length))}
+                    value={draft.categorySlugs}
+                    onChange={(event) =>
+                      updateDraft(
+                        profile.id,
+                        "categorySlugs",
+                        Array.from(event.currentTarget.selectedOptions).map((option) => option.value)
+                      )
+                    }
+                  >
                     {categories.map((category) => (
                       <option key={category.id} value={category.slug}>
                         {category.name}
@@ -515,30 +647,71 @@ export default function AdminPage() {
                   </select>
                 </label>
                 <label>
-                  Subcategory
-                  <input value={draft.subcategories} onChange={(event) => updateDraft(profile.id, "subcategories", event.target.value)} disabled />
+                  Subkategorijos
+                  <select
+                    multiple
+                    size={Math.min(8, Math.max(3, selectedSubcategories(categories, draft.categorySlugs).length || 3))}
+                    value={draft.subcategorySlugs}
+                    onChange={(event) =>
+                      updateDraft(
+                        profile.id,
+                        "subcategorySlugs",
+                        Array.from(event.currentTarget.selectedOptions).map((option) => option.value)
+                      )
+                    }
+                    disabled={!selectedSubcategories(categories, draft.categorySlugs).length}
+                  >
+                    {selectedSubcategories(categories, draft.categorySlugs).map((subcategory) => (
+                      <option key={subcategory.id} value={subcategory.slug}>
+                        {subcategory.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
-                  City
+                  Miestas
                   <input value={draft.town} onChange={(event) => updateDraft(profile.id, "town", event.target.value)} />
                 </label>
                 <label>
-                  Operating cities
+                  Aptarnaujami miestai
                   <input value={draft.operatingCities} onChange={(event) => updateDraft(profile.id, "operatingCities", event.target.value)} />
                 </label>
                 <label>
-                  Radius km
+                  Spindulys km
                   <input value={draft.radius} onChange={(event) => updateDraft(profile.id, "radius", event.target.value)} inputMode="numeric" />
                 </label>
                 <label className="admin-wide">
-                  Service area label
+                  Aptarnavimo zonos pavadinimas
                   <input value={draft.serviceArea} onChange={(event) => updateDraft(profile.id, "serviceArea", event.target.value)} />
                 </label>
                 <label className="admin-wide">
-                  Description
+                  Aprašymas
                   <textarea value={draft.description} onChange={(event) => updateDraft(profile.id, "description", event.target.value)} rows={4} />
                 </label>
-                <button type="submit">Save edits</button>
+                <fieldset className="admin-wide">
+                  <legend>Nuotraukų URL</legend>
+                  <p className="field-note">JPG, PNG arba WebP, iki 8 nuotraukų, iki 5 MB kiekviena. Naudokite viešus URL.</p>
+                  {draft.photoUrls.map((photoUrl, index) => (
+                    <div className="form-row" key={`photo-${profile.id}-${index}`}>
+                      <label>
+                        Nuotraukos URL {index + 1}
+                        <input
+                          type="url"
+                          placeholder="https://..."
+                          value={photoUrl}
+                          onChange={(event) => updateDraftPhotoUrl(profile.id, index, event.target.value)}
+                        />
+                      </label>
+                      <button type="button" className="admin-secondary" onClick={() => removeDraftPhotoField(profile.id, index)}>
+                        Pašalinti
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" className="admin-secondary" onClick={() => addDraftPhotoField(profile.id)} disabled={draft.photoUrls.length >= 8}>
+                    Pridėti URL
+                  </button>
+                </fieldset>
+                <button type="submit">Išsaugoti pakeitimus</button>
               </form>
             </article>
           );
@@ -549,14 +722,16 @@ export default function AdminPage() {
 }
 
 function profileToDraft(profile: Specialist): EditDraft {
+  const categorySlugs = profile.categorySlugs?.length ? profile.categorySlugs : profile.categorySlug ? [profile.categorySlug] : [];
   return {
     name: profile.name,
     companyName: profile.companyName ?? "",
     phone: profile.phone,
     whatsapp: profile.whatsapp,
     email: profile.email,
-    categorySlug: profile.categorySlug,
-    subcategories: profile.subcategoryNames?.join(", ") ?? "",
+    categorySlugs,
+    subcategorySlugs: profile.subcategorySlugs ?? [],
+    photoUrls: profile.photoUrls?.length ? profile.photoUrls : [""],
     town: profile.town,
     operatingCities: profile.operatingCities.join(", "),
     radius: String(profile.radius),
@@ -565,13 +740,17 @@ function profileToDraft(profile: Specialist): EditDraft {
   };
 }
 
-function formatSubcategories(profile: Specialist, fallback = "No subcategory") {
+function selectedSubcategories(categories: Category[], categorySlugs: string[]) {
+  return categories.filter((category) => categorySlugs.includes(category.slug)).flatMap((category) => category.subcategories);
+}
+
+function formatSubcategories(profile: Specialist, fallback = "Be subkategorijos") {
   return profile.subcategoryNames?.join(", ") || fallback;
 }
 
 function formatPublicStatus(profile: Specialist) {
   const status = profile.publicStatus ?? (profile.status === "approved" ? "public" : "private");
-  return status === "private" ? "hidden" : status;
+  return status === "private" ? "paslėpta" : status;
 }
 
 function splitList(value: string) {
@@ -581,10 +760,6 @@ function splitList(value: string) {
     .filter(Boolean);
 }
 
-function authHeaders(token: string): Record<string, string> {
-  return token ? { "x-admin-token": token } : {};
-}
-
 function profilesLoadedMessage(count: number, mode: string) {
-  return mode === "seed" ? "Demo mode: Supabase is not connected." : `${count} profile(s) loaded.`;
+  return mode === "seed" ? "Vietinis demo režimas: Supabase neprijungtas." : `Įkelta profilių: ${count}.`;
 }

@@ -72,10 +72,11 @@ create index tradesperson_profiles_status_idx on tradesperson_profiles(approval_
 create index tradesperson_profiles_category_idx on tradesperson_profiles(service_category_id);
 
 create table profile_services (
+  id uuid primary key default gen_random_uuid(),
   tradesperson_profile_id uuid not null references tradesperson_profiles(id) on delete cascade,
   service_category_id uuid references service_categories(id) on delete cascade,
   service_subcategory_id uuid references service_subcategories(id) on delete cascade,
-  primary key (tradesperson_profile_id, service_category_id, service_subcategory_id)
+  unique (tradesperson_profile_id, service_category_id, service_subcategory_id)
 );
 
 create table operating_areas (
@@ -103,6 +104,20 @@ create table profile_photos (
   moderation_status moderation_status not null default 'pending',
   created_at timestamptz not null default now()
 );
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'profile-photos',
+  'profile-photos',
+  true,
+  2097152,
+  array['image/jpeg', 'image/png', 'image/webp']
+)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
 
 create table reviews (
   id uuid primary key default gen_random_uuid(),
@@ -261,3 +276,106 @@ on conflict (slug) do nothing;
 insert into service_subcategories (service_category_id, name, slug)
 select id, 'Instaliacija', 'instaliacija' from service_categories where slug = 'elektra'
 on conflict (slug) do nothing;
+
+alter table users enable row level security;
+alter table service_categories enable row level security;
+alter table service_subcategories enable row level security;
+alter table tradesperson_profiles enable row level security;
+alter table profile_services enable row level security;
+alter table operating_areas enable row level security;
+alter table profile_photos enable row level security;
+alter table reviews enable row level security;
+alter table enquiries enable row level security;
+alter table imported_leads enable row level security;
+alter table whatsapp_conversations enable row level security;
+alter table whatsapp_messages enable row level security;
+alter table consent_logs enable row level security;
+alter table admin_actions enable row level security;
+alter table verification_statuses enable row level security;
+
+create policy "Public can read active categories"
+on service_categories
+for select
+to anon, authenticated
+using (is_active = true);
+
+create policy "Public can read active subcategories"
+on service_subcategories
+for select
+to anon, authenticated
+using (
+  is_active = true
+  and exists (
+    select 1
+    from service_categories c
+    where c.id = service_subcategories.service_category_id
+      and c.is_active = true
+  )
+);
+
+create policy "Public can read approved public profiles"
+on tradesperson_profiles
+for select
+to anon, authenticated
+using (
+  approval_status = 'approved'
+  and public_status = 'public'
+);
+
+create policy "Public can read services for approved public profiles"
+on profile_services
+for select
+to anon, authenticated
+using (
+  exists (
+    select 1
+    from tradesperson_profiles p
+    where p.id = profile_services.tradesperson_profile_id
+      and p.approval_status = 'approved'
+      and p.public_status = 'public'
+  )
+);
+
+create policy "Public can read areas for approved public profiles"
+on operating_areas
+for select
+to anon, authenticated
+using (
+  exists (
+    select 1
+    from tradesperson_profiles p
+    where p.id = operating_areas.tradesperson_profile_id
+      and p.approval_status = 'approved'
+      and p.public_status = 'public'
+  )
+);
+
+create policy "Public can read approved photos for approved public profiles"
+on profile_photos
+for select
+to anon, authenticated
+using (
+  moderation_status = 'approved'
+  and exists (
+    select 1
+    from tradesperson_profiles p
+    where p.id = profile_photos.tradesperson_profile_id
+      and p.approval_status = 'approved'
+      and p.public_status = 'public'
+  )
+);
+
+create policy "Public can read approved reviews for approved public profiles"
+on reviews
+for select
+to anon, authenticated
+using (
+  moderation_status = 'approved'
+  and exists (
+    select 1
+    from tradesperson_profiles p
+    where p.id = reviews.tradesperson_profile_id
+      and p.approval_status = 'approved'
+      and p.public_status = 'public'
+  )
+);

@@ -8,6 +8,33 @@ type Props = {
   categories: Category[];
 };
 
+type RegistrationDraft = {
+  name: string;
+  phone: string;
+  email: string;
+  city: string;
+  trade: string;
+  categorySlugs: string[];
+  subcategorySlugs: string[];
+  photoUrls: string[];
+  photoUploads: Array<{
+    name: string;
+    type: "image/jpeg" | "image/png" | "image/webp";
+    size: number;
+    dataUrl: string;
+  }>;
+  description: string;
+  radiusKm: number;
+  operatingCities: string[];
+  consentAccepted: boolean;
+};
+
+const photoFieldMetadata = {
+  maxItems: 8,
+  maxSizeMb: 5,
+  acceptedTypes: ["image/jpeg", "image/png", "image/webp"] as const
+};
+
 const cities = ["Vilnius", "Kaunas", "Klaipėda", "Šiauliai", "Panevėžys", "Alytus", "Marijampolė", "Utena", "Tauragė", "Telšiai"];
 const verificationOptions = [
   { value: "contact", label: "Kontaktas patvirtintas" },
@@ -22,16 +49,20 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [specialists, setSpecialists] = useState(initialSpecialists);
   const [activeId, setActiveId] = useState(initialSpecialists[0]?.id ?? "");
   const [loading, setLoading] = useState(false);
-  const [formState, setFormState] = useState({
-    name: "Tomas Apdaila",
-    phone: "+370 636 01230",
-    email: "tomas@localpro.lt",
-    city: "Vilnius",
-    trade: categories[0]?.name ?? "Apdaila",
-    description: "Vidaus apdaila, glaistymas, dažymas, laminato klojimas. Dirbu Vilniuje ir aplinkiniuose rajonuose.",
+  const [formState, setFormState] = useState<RegistrationDraft>({
+    name: "",
+    phone: "",
+    email: "",
+    city: "",
+    trade: "",
+    categorySlugs: [],
+    subcategorySlugs: [],
+    photoUrls: [""],
+    photoUploads: [],
+    description: "",
     radiusKm: 35,
-    operatingCities: ["Vilnius", "Vilniaus rajonas"],
-    consentAccepted: true
+    operatingCities: [] as string[],
+    consentAccepted: false
   });
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitTone, setSubmitTone] = useState<"success" | "error" | "">("");
@@ -44,6 +75,17 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const activeSpecialist = useMemo(
     () => specialists.find((specialist) => specialist.id === activeId) ?? specialists[0] ?? null,
     [activeId, specialists]
+  );
+  const selectedCategoryNames = useMemo(
+    () =>
+      categories
+        .filter((category) => formState.categorySlugs.includes(category.slug))
+        .map((category) => category.name),
+    [categories, formState.categorySlugs]
+  );
+  const selectedSubcategories = useMemo(
+    () => categories.filter((category) => formState.categorySlugs.includes(category.slug)).flatMap((category) => category.subcategories),
+    [categories, formState.categorySlugs]
   );
 
   useEffect(() => {
@@ -181,7 +223,11 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     const response = await fetch("/api/tradesperson/register", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(formState)
+      body: JSON.stringify({
+        ...formState,
+        trade: formState.trade || selectedCategoryNames[0] || formState.categorySlugs[0] || "",
+        photoUrls: formState.photoUrls.map((url) => url.trim()).filter(Boolean)
+      })
     });
     const data = await response.json();
 
@@ -204,6 +250,113 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     }));
   }
 
+  function updateCategory(slug: string, checked: boolean) {
+    setFormState((current) => {
+      const categorySlugs = checked
+        ? Array.from(new Set([...current.categorySlugs, slug]))
+        : current.categorySlugs.filter((item) => item !== slug);
+      const allowedSubcategorySlugs = new Set(
+        categories.filter((category) => categorySlugs.includes(category.slug)).flatMap((category) => category.subcategories.map((item) => item.slug))
+      );
+
+      return {
+        ...current,
+        trade: categories.find((category) => categorySlugs.includes(category.slug))?.name ?? "",
+        categorySlugs,
+        subcategorySlugs: current.subcategorySlugs.filter((item) => allowedSubcategorySlugs.has(item))
+      };
+    });
+  }
+
+  function updateSubcategory(slug: string, checked: boolean) {
+    setFormState((current) => {
+      const categorySlug = getSubcategoryCategorySlug(slug);
+      const categorySlugs = !categorySlug || current.categorySlugs.includes(categorySlug)
+        ? current.categorySlugs
+        : Array.from(new Set([...current.categorySlugs, categorySlug]));
+
+      return {
+        ...current,
+        trade: categories.find((category) => categorySlugs.includes(category.slug))?.name ?? current.trade,
+        categorySlugs,
+        subcategorySlugs: checked
+          ? Array.from(new Set([...current.subcategorySlugs, slug]))
+          : current.subcategorySlugs.filter((item) => item !== slug)
+      };
+    });
+  }
+
+  function updatePhotoUrl(index: number, value: string) {
+    setFormState((current) => {
+      const photoUrls = [...current.photoUrls];
+      photoUrls[index] = value;
+      return { ...current, photoUrls };
+    });
+  }
+
+  function addPhotoField() {
+    setFormState((current) => {
+      if (current.photoUrls.length >= photoFieldMetadata.maxItems) {
+        return current;
+      }
+
+      return { ...current, photoUrls: [...current.photoUrls, ""] };
+    });
+  }
+
+  function removePhotoField(index: number) {
+    setFormState((current) => ({
+      ...current,
+      photoUrls: current.photoUrls.length > 1 ? current.photoUrls.filter((_, currentIndex) => currentIndex !== index) : [""]
+    }));
+  }
+
+  async function updatePhotoUploads(files: FileList | null) {
+    const selectedFiles = Array.from(files ?? []).slice(0, photoFieldMetadata.maxItems);
+    const allowedTypes = new Set(photoFieldMetadata.acceptedTypes);
+    const maxBytes = photoFieldMetadata.maxSizeMb * 1024 * 1024;
+
+    for (const file of selectedFiles) {
+      if (!allowedTypes.has(file.type as (typeof photoFieldMetadata.acceptedTypes)[number])) {
+        setSubmitTone("error");
+        setSubmitMessage("Įkelkite JPG, PNG arba WebP nuotraukas.");
+        return;
+      }
+
+      if (file.size > maxBytes) {
+        setSubmitTone("error");
+        setSubmitMessage(`Viena nuotrauka gali būti iki ${photoFieldMetadata.maxSizeMb} MB.`);
+        return;
+      }
+    }
+
+    const photoUploads = await Promise.all(
+      selectedFiles.map(
+        (file) =>
+          new Promise<RegistrationDraft["photoUploads"][number]>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () =>
+              resolve({
+                name: file.name,
+                type: file.type as RegistrationDraft["photoUploads"][number]["type"],
+                size: file.size,
+                dataUrl: String(reader.result)
+              });
+            reader.onerror = () => reject(new Error("Nepavyko perskaityti nuotraukos."));
+            reader.readAsDataURL(file);
+          })
+      )
+    );
+
+    setFormState((current) => ({ ...current, photoUploads }));
+    setSubmitMessage("");
+    setSubmitTone("");
+  }
+
+  function getSubcategoryCategorySlug(subcategorySlug: string) {
+    return categories.find((category) => category.subcategories.some((item) => item.slug === subcategorySlug))?.slug ?? "";
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -219,8 +372,8 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           <a href="#services">Paslaugos</a>
           <a href="#register">Tapti specialistu</a>
           <a href="#how">Kaip veikia</a>
-          <a href="/login">Login</a>
-          <a href="/admin">Admin</a>
+          <a href="/login">Prisijungti</a>
+          <a href="/admin">Administravimas</a>
         </nav>
       </header>
 
@@ -429,16 +582,77 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   <input value={formState.city} onChange={(event) => setFormState({ ...formState, city: event.target.value })} type="text" autoComplete="address-level2" />
                 </label>
               </div>
-              <label>
-                Darbo sritis
-                <select value={formState.trade} onChange={(event) => setFormState({ ...formState, trade: event.target.value })}>
-                  {categories.map((category) => <option key={category.id}>{category.name}</option>)}
-                </select>
-              </label>
+              <fieldset>
+                <legend>Darbo sritys</legend>
+                {categories.map((category) => (
+                  <label key={category.id}>
+                    <input
+                      type="checkbox"
+                      checked={formState.categorySlugs.includes(category.slug)}
+                      onChange={(event) => updateCategory(category.slug, event.target.checked)}
+                    />
+                    {category.name}
+                  </label>
+                ))}
+              </fieldset>
+              {selectedSubcategories.length ? (
+                <fieldset>
+                  <legend>Konkrečios paslaugos</legend>
+                  {selectedSubcategories.map((subcategory) => (
+                    <label key={subcategory.id}>
+                      <input
+                        type="checkbox"
+                        checked={formState.subcategorySlugs.includes(subcategory.slug)}
+                        onChange={(event) => updateSubcategory(subcategory.slug, event.target.checked)}
+                      />
+                      {subcategory.name}
+                    </label>
+                  ))}
+                </fieldset>
+              ) : null}
               <label>
                 Trumpas aprašymas
                 <textarea value={formState.description} onChange={(event) => setFormState({ ...formState, description: event.target.value })} rows={4} />
               </label>
+              <fieldset>
+                <legend>Darbų nuotraukos</legend>
+                <p className="field-note">
+                  {photoFieldMetadata.acceptedTypes.join(", ")}; iki {photoFieldMetadata.maxItems} nuotraukų; iki {photoFieldMetadata.maxSizeMb} MB kiekviena.
+                </p>
+                <label>
+                  Įkelti nuotraukas
+                  <input
+                    type="file"
+                    accept={photoFieldMetadata.acceptedTypes.join(",")}
+                    multiple
+                    onChange={(event) => updatePhotoUploads(event.target.files).catch(() => {
+                      setSubmitTone("error");
+                      setSubmitMessage("Nuotraukų įkelti nepavyko.");
+                    })}
+                  />
+                  <span>{formState.photoUploads.length ? `${formState.photoUploads.length} nuotraukos paruoštos įkelti` : "Pasirinkite failus iš telefono arba kompiuterio"}</span>
+                </label>
+                {formState.photoUrls.map((photoUrl, index) => (
+                  <div className="form-row" key={`photo-url-${index}`}>
+                    <label>
+                      Nuotraukos URL {index + 1}
+                      <input
+                        value={photoUrl}
+                        onChange={(event) => updatePhotoUrl(index, event.target.value)}
+                        type="url"
+                        placeholder="https://..."
+                        autoComplete="off"
+                      />
+                    </label>
+                    <button type="button" className="secondary-action" onClick={() => removePhotoField(index)}>
+                      Pašalinti
+                    </button>
+                  </div>
+                ))}
+                <button type="button" className="secondary-action" onClick={addPhotoField} disabled={formState.photoUrls.length >= photoFieldMetadata.maxItems}>
+                  Pridėti URL
+                </button>
+              </fieldset>
               <label>
                 Darbo spindulys
                 <input type="range" min="5" max="100" value={formState.radiusKm} onChange={(event) => setFormState({ ...formState, radiusKm: Number(event.target.value) })} />
@@ -468,20 +682,30 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               <div className="preview-card">
                 <h3>{formState.name || "Naujas LocalPro specialistas"}</h3>
                 <div className="tag-row">
-                  <span className="tag">{formState.trade}</span>
-                  <span className="tag">{formState.city}</span>
+                  {selectedCategoryNames.length ? selectedCategoryNames.map((name) => <span className="tag" key={name}>{name}</span>) : <span className="tag">Pasirinkite sritį</span>}
+                  {formState.subcategorySlugs.length ? formState.subcategorySlugs.map((slug) => {
+                    const subcategory = selectedSubcategories.find((item) => item.slug === slug);
+                    return <span className="tag" key={slug}>{subcategory?.name ?? slug}</span>;
+                  }) : null}
+                  <span className="tag">{formState.city || "Miestas"}</span>
                   <span className="tag">{formState.radiusKm} km zona</span>
                   <span className="tag">Laukia patikros</span>
                 </div>
-                <p>{formState.description}</p>
+                <p>{formState.description || "Trumpas darbų aprašymas bus rodomas čia."}</p>
+                {formState.photoUploads.length || formState.photoUrls.filter(Boolean).length ? (
+                  <div className="verification-list">
+                    {formState.photoUploads.map((photo) => <span key={photo.name}>{photo.name}</span>)}
+                    {formState.photoUrls.filter(Boolean).map((url, index) => <span key={`${url}-${index}`}>{formatPhotoUrl(url)}</span>)}
+                  </div>
+                ) : null}
                 <div className="contact-list">
-                  <a href={`tel:${formState.phone.replaceAll(" ", "")}`}><span>Telefonas</span><strong>{formState.phone}</strong></a>
-                  <a href={`mailto:${formState.email}`}><span>El. paštas</span><strong>{formState.email}</strong></a>
+                  <a href={`tel:${formState.phone.replaceAll(" ", "")}`}><span>Telefonas</span><strong>{formState.phone || "+370..."}</strong></a>
+                  <a href={`mailto:${formState.email}`}><span>El. paštas</span><strong>{formState.email || "vardas@example.lt"}</strong></a>
                 </div>
               </div>
               <div className="approval-flow" aria-label="Publikavimo eiga">
                 <span>1. Užpildote formą</span>
-                <span>2. Saugome kaip pending</span>
+                <span>2. Saugome kaip laukiantį</span>
                 <span>3. Admin patikrina</span>
                 <span>4. Rodome žemėlapyje</span>
               </div>
@@ -512,4 +736,14 @@ function logEnquiry(specialistId: string, eventType: "phone_click" | "whatsapp_c
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ specialistId, eventType })
   }).catch(() => undefined);
+}
+
+function formatPhotoUrl(value: string) {
+  try {
+    const url = new URL(value);
+    const path = `${url.hostname}${url.pathname}`.replace(/^www\./, "");
+    return path.length > 32 ? `${path.slice(0, 29)}...` : path;
+  } catch {
+    return value.length > 32 ? `${value.slice(0, 29)}...` : value;
+  }
 }

@@ -65,7 +65,7 @@ export async function getSpecialists(filters: SpecialistFilters = {}) {
         source,
         service_area_label,
         service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
-        profile_services(service_subcategories(name, slug)),
+        profile_services(service_categories(name, slug), service_subcategories(name, slug)),
         operating_areas(city, radius_km),
         profile_photos(label, url, sort_order),
         reviews(client_name, rating, text, moderation_status)
@@ -107,6 +107,7 @@ function applyFilters(list: Specialist[], filters: SpecialistFilters) {
       !service ||
       specialist.trade === service ||
       specialist.categorySlug === service ||
+      specialist.categorySlugs?.includes(service) ||
       specialist.subcategorySlugs.includes(service);
     const cityMatch = !city || specialist.operatingCities.includes(city);
     const verificationMatch = !verification || specialist.verification.includes(verification);
