@@ -370,7 +370,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
         <nav className="stage-nav" aria-label="Puslapio skyriai">
           <a href="#search">Rasti specialistą</a>
           <a href="#services">Paslaugos</a>
-          <a href="#register">Tapti specialistu</a>
+          <a href="#register">Registruotis</a>
           <a href="#how">Kaip veikia</a>
           <a href="/login">Prisijungti</a>
           <a href="/admin">Administravimas</a>
@@ -422,7 +422,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
             </label>
             <div className="hero-actions" aria-label="Pagrindiniai veiksmai">
               <a className="primary-action" href="#mapSection">Ieškoti žemėlapyje</a>
-              <a className="secondary-action" href="#register">Registruotis nemokamai</a>
+              <a className="secondary-action" href="#register">Tapti specialistu</a>
             </div>
           </form>
         </section>
@@ -442,8 +442,8 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               <p>Nemokamai sukurkite profilį, parodykite darbus ir gaukite tiesioginius kontaktus.</p>
             </article>
             <article>
-              <strong>Verslui</strong>
-              <p>Backend dabar ruošiamas registracijai, patvirtinimui, importui ir WhatsApp onboardingui.</p>
+              <strong>Patikrai</strong>
+              <p>Profiliai pirmiausia peržiūrimi administratoriaus, todėl žemėlapyje lieka tik tvarkingi specialistų įrašai.</p>
             </article>
           </div>
           <div className="service-pills" aria-label="Paslaugų kategorijos">
@@ -557,33 +557,33 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           <div className="section-heading">
             <p className="eyebrow">Specialistams</p>
             <h2>Registruokitės nemokamai ir atsiraskite LocalPro žemėlapyje.</h2>
-            <p>Sukurkite aiškų profilį su miestu, darbo zona, paslaugomis, nuotraukomis ir vieno paspaudimo kontaktu.</p>
+            <p>Sukurkite aiškų profilį su miestu, darbo zona, paslaugomis ir vieno paspaudimo kontaktu. Nuotraukas galima pridėti dabar arba vėliau per administratorių.</p>
           </div>
 
           <div className="register-grid">
             <form className="registration-form" aria-label="LocalPro specialisto registracijos forma" onSubmit={submitRegistration}>
               <div className="form-row">
                 <label>
-                  Vardas arba įmonės pavadinimas
+                  Vardas arba įmonės pavadinimas *
                   <input value={formState.name} onChange={(event) => setFormState({ ...formState, name: event.target.value })} type="text" autoComplete="name" />
                 </label>
                 <label>
-                  Telefono numeris
+                  Telefono numeris *
                   <input value={formState.phone} onChange={(event) => setFormState({ ...formState, phone: event.target.value })} type="tel" autoComplete="tel" />
                 </label>
               </div>
               <div className="form-row">
                 <label>
-                  El. paštas
+                  El. paštas *
                   <input value={formState.email} onChange={(event) => setFormState({ ...formState, email: event.target.value })} type="email" autoComplete="email" />
                 </label>
                 <label>
-                  Pagrindinis miestas
+                  Pagrindinis miestas *
                   <input value={formState.city} onChange={(event) => setFormState({ ...formState, city: event.target.value })} type="text" autoComplete="address-level2" />
                 </label>
               </div>
               <fieldset>
-                <legend>Darbo sritys</legend>
+                <legend>Darbo sritys *</legend>
                 {categories.map((category) => (
                   <label key={category.id}>
                     <input
@@ -597,7 +597,8 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               </fieldset>
               {selectedSubcategories.length ? (
                 <fieldset>
-                  <legend>Konkrečios paslaugos</legend>
+                  <legend>Konkrečios paslaugos nebūtinos</legend>
+                  <p className="field-note">Pažymėkite tik tai, kas tiksliai tinka. Jei paslaugos sąraše nėra, įrašykite ją aprašyme.</p>
                   {selectedSubcategories.map((subcategory) => (
                     <label key={subcategory.id}>
                       <input
@@ -611,13 +612,13 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                 </fieldset>
               ) : null}
               <label>
-                Trumpas aprašymas
+                Trumpas aprašymas *
                 <textarea value={formState.description} onChange={(event) => setFormState({ ...formState, description: event.target.value })} rows={4} />
               </label>
               <fieldset>
-                <legend>Darbų nuotraukos</legend>
+                <legend>Darbų nuotraukos nebūtinos</legend>
                 <p className="field-note">
-                  {photoFieldMetadata.acceptedTypes.join(", ")}; iki {photoFieldMetadata.maxItems} nuotraukų; iki {photoFieldMetadata.maxSizeMb} MB kiekviena.
+                  Galite pridėti darbų pavyzdžius dabar arba papildyti profilį vėliau. {photoFieldMetadata.acceptedTypes.join(", ")}; iki {photoFieldMetadata.maxItems} nuotraukų; iki {photoFieldMetadata.maxSizeMb} MB kiekviena.
                 </p>
                 <label>
                   Įkelti nuotraukas
@@ -654,12 +655,13 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                 </button>
               </fieldset>
               <label>
-                Darbo spindulys
+                Darbo spindulys *
                 <input type="range" min="5" max="100" value={formState.radiusKm} onChange={(event) => setFormState({ ...formState, radiusKm: Number(event.target.value) })} />
                 <span><strong>{formState.radiusKm}</strong> km aplink miestą</span>
               </label>
               <fieldset>
-                <legend>Aptarnaujamos vietos</legend>
+                <legend>Aptarnaujamos vietos *</legend>
+                <p className="field-note">Spindulys rodo bendrą darbo zoną žemėlapyje, o miestai padeda klientams greičiau rasti jus filtruose.</p>
                 {cities.slice(0, 6).map((item) => (
                   <label key={item}>
                     <input type="checkbox" checked={formState.operatingCities.includes(item)} onChange={(event) => updateOperatingCity(item, event.target.checked)} />
@@ -706,7 +708,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               <div className="approval-flow" aria-label="Publikavimo eiga">
                 <span>1. Užpildote formą</span>
                 <span>2. Saugome kaip laukiantį</span>
-                <span>3. Admin patikrina</span>
+                <span>3. Admin patikrina profilį</span>
                 <span>4. Rodome žemėlapyje</span>
               </div>
             </aside>
@@ -719,9 +721,9 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
             <h2>Mažai rašymo, aiškus profilis, klientas susisiekia tiesiogiai.</h2>
           </div>
           <div className="workflow-grid">
-            <div><strong>Registracija</strong><p>Specialistas užpildo trumpą formą arba vėliau ateina per WhatsApp onboardingą.</p></div>
-            <div><strong>Duomenų bazė</strong><p>Profilis saugomas kaip pending su sutikimu ir aptarnaujamomis vietomis.</p></div>
-            <div><strong>Admin patikra</strong><p>Publikuojame tik po patvirtinimo. Kontaktų ir WhatsApp patikra pažymima atskirai.</p></div>
+            <div><strong>Registracija</strong><p>Specialistas užpildo formą, pasirenka darbo sritis, miestą ir kontaktus.</p></div>
+            <div><strong>Laukia patikros</strong><p>Profilis saugomas kaip laukiantis su sutikimu ir aptarnaujamomis vietomis.</p></div>
+            <div><strong>Admin patikra</strong><p>Publikuojame tik po patvirtinimo. Jei trūksta informacijos, profilį galima pataisyti administravime.</p></div>
             <div><strong>Kontaktas</strong><p>Klientas mato darbo zoną ir pats susisiekia telefonu arba per WhatsApp.</p></div>
           </div>
         </section>
