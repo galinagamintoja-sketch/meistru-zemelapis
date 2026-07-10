@@ -110,7 +110,7 @@ values (
   'profile-photos',
   'profile-photos',
   true,
-  2097152,
+  5242880,
   array['image/jpeg', 'image/png', 'image/webp']
 )
 on conflict (id) do update

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { registrationSchema, photoFieldMetadata, normalizeLithuanianPhone } from "../../../../lib/validators";
 import { createServerSupabase, hasSupabaseConfig } from "../../../../lib/supabase";
 
+const PROFILE_PHOTOS_BUCKET = "profile-photos";
+let profilePhotosBucketReady = false;
+
 export async function POST(request: Request) {
   const parsed = registrationSchema.safeParse(await request.json());
 
@@ -205,6 +208,11 @@ async function uploadProfilePhoto(
   index: number,
   supabase: NonNullable<ReturnType<typeof createServerSupabase>>
 ): Promise<{ url: string } | { error: string }> {
+  const bucketError = await ensureProfilePhotosBucket(supabase);
+  if (bucketError) {
+    return { error: bucketError };
+  }
+
   const base64 = photo.dataUrl.split(",")[1];
   if (!base64) {
     return { error: "Nuotraukos failas netinkamas." };
@@ -213,15 +221,48 @@ async function uploadProfilePhoto(
   const extension = photo.type === "image/png" ? "png" : photo.type === "image/webp" ? "webp" : "jpg";
   const storagePath = `${profileId}/${index + 1}-${crypto.randomUUID()}.${extension}`;
   const bytes = Uint8Array.from(Buffer.from(base64, "base64"));
-  const { error } = await supabase.storage.from("profile-photos").upload(storagePath, bytes, {
+  const { error } = await supabase.storage.from(PROFILE_PHOTOS_BUCKET).upload(storagePath, bytes, {
     contentType: photo.type,
     upsert: false
   });
 
   if (error) {
-    return { error: error.message };
+    return { error: `Nuotraukos nepavyko įkelti: ${error.message}` };
   }
 
-  const { data } = supabase.storage.from("profile-photos").getPublicUrl(storagePath);
+  const { data } = supabase.storage.from(PROFILE_PHOTOS_BUCKET).getPublicUrl(storagePath);
   return { url: data.publicUrl };
+}
+
+async function ensureProfilePhotosBucket(supabase: NonNullable<ReturnType<typeof createServerSupabase>>) {
+  if (profilePhotosBucketReady) {
+    return null;
+  }
+
+  const { error: getError } = await supabase.storage.getBucket(PROFILE_PHOTOS_BUCKET);
+
+  if (!getError) {
+    profilePhotosBucketReady = true;
+    return null;
+  }
+
+  const statusCode = String((getError as { statusCode?: string | number }).statusCode ?? "");
+  const isMissingBucket = statusCode === "404" || /not found|does not exist/i.test(getError.message);
+
+  if (!isMissingBucket) {
+    return `Nuotraukų saugyklos nepavyko patikrinti: ${getError.message}`;
+  }
+
+  const { error: createError } = await supabase.storage.createBucket(PROFILE_PHOTOS_BUCKET, {
+    public: true,
+    fileSizeLimit: photoFieldMetadata.maxSizeMb * 1024 * 1024,
+    allowedMimeTypes: [...photoFieldMetadata.acceptedTypes]
+  });
+
+  if (createError && !/already exists/i.test(createError.message)) {
+    return `Nuotraukų saugyklos nepavyko sukurti: ${createError.message}`;
+  }
+
+  profilePhotosBucketReady = true;
+  return null;
 }
