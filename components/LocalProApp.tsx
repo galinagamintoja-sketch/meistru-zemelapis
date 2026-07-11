@@ -35,10 +35,35 @@ type LoginUser = {
   picture?: string;
 };
 
+type RegistrationErrorResponse = {
+  error?: string;
+  details?: {
+    fieldErrors?: Record<string, string[] | undefined>;
+    formErrors?: string[];
+  };
+};
+
 const photoFieldMetadata = {
   maxItems: 8,
   maxSizeMb: 5,
   acceptedTypes: ["image/jpeg", "image/png", "image/webp"] as const
+};
+
+const registrationFieldLabels: Record<string, string> = {
+  name: "vardą arba įmonės pavadinimą",
+  phone: "telefono numerį",
+  whatsapp: "WhatsApp numerį",
+  email: "el. paštą",
+  city: "pagrindinį miestą",
+  trade: "darbo sritį",
+  categorySlugs: "darbo sritį",
+  subcategorySlugs: "konkrečias paslaugas",
+  description: "trumpą aprašymą",
+  radiusKm: "darbo spindulį",
+  operatingCities: "aptarnaujamas vietas",
+  photoUrls: "nuotraukų URL",
+  photoUploads: "įkeltas nuotraukas",
+  consentAccepted: "sutikimą dėl profilio peržiūros"
 };
 
 const cities = ["Vilnius", "Kaunas", "Klaipėda", "Šiauliai", "Panevėžys", "Alytus", "Marijampolė", "Utena", "Tauragė", "Telšiai"];
@@ -274,7 +299,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
     if (!response.ok) {
       setSubmitTone("error");
-      setSubmitMessage(data.error ?? "Registracijos išsaugoti nepavyko.");
+      setSubmitMessage(formatRegistrationError(data));
       return;
     }
 
@@ -789,4 +814,47 @@ function formatPhotoUrl(value: string) {
   } catch {
     return value.length > 32 ? `${value.slice(0, 29)}...` : value;
   }
+}
+
+function formatRegistrationError(data: RegistrationErrorResponse) {
+  const fieldErrors = data.details?.fieldErrors ?? {};
+  const messages = Object.entries(fieldErrors)
+    .flatMap(([field, errors]) =>
+      (errors ?? []).map((error) => {
+        const label = registrationFieldLabels[field] ?? field;
+        return `Patikrinkite ${label}: ${translateValidationError(error)}`;
+      })
+    )
+    .slice(0, 4);
+
+  if (messages.length) {
+    return messages.join(" ");
+  }
+
+  const formError = data.details?.formErrors?.[0];
+  return formError ? translateValidationError(formError) : data.error ?? "Registracijos išsaugoti nepavyko.";
+}
+
+function translateValidationError(error: string) {
+  if (/required|invalid_type/i.test(error)) {
+    return "šis laukas privalomas.";
+  }
+
+  if (/invalid email|email/i.test(error)) {
+    return "įveskite teisingą el. pašto adresą.";
+  }
+
+  if (/invalid url|url/i.test(error)) {
+    return "įveskite teisingą nuotraukos nuorodą arba palikite lauką tuščią.";
+  }
+
+  if (/too_small|at least|minimum|min/i.test(error)) {
+    return "įvesta per mažai informacijos.";
+  }
+
+  if (/too_big|at most|maximum|max/i.test(error)) {
+    return "įvesta per daug informacijos arba failas per didelis.";
+  }
+
+  return error;
 }

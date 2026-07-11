@@ -65,6 +65,31 @@ describe("profile API routes", () => {
     expect(response.status).toBe(400);
   });
 
+  it("returns field-level validation details for bad registrations", async () => {
+    const { POST } = await import("../app/api/tradesperson/register/route");
+    const response = await POST(
+      new Request("http://localhost/api/tradesperson/register", {
+        method: "POST",
+        body: JSON.stringify({
+          ...validRegistration,
+          name: "",
+          phone: "12345",
+          email: "not-an-email",
+          operatingCities: [],
+          consentAccepted: false
+        })
+      })
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.details.fieldErrors.name.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.phone.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.email.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.operatingCities.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.consentAccepted.length).toBeGreaterThan(0);
+  });
+
   it("rejects admin profile access without an admin session", async () => {
     const { GET } = await import("../app/api/admin/profiles/route");
 

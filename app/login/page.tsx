@@ -41,9 +41,9 @@ export default function LoginPage() {
       .then((response) => response.json())
       .then((data) => {
         setUser(data.user ?? null);
-        setMessage(data.user ? "Prisijungta su „Google“." : "Pasirinkite „Google“ paskyrą, kad tęstumėte.");
+        setMessage(data.user ? "Prisijungta su „Google“." : "Pasirinkite „Google“ paskyrą. Slaptažodžio kurti nereikia.");
       })
-      .catch(() => setMessage("Pasirinkite „Google“ paskyrą, kad tęstumėte."));
+      .catch(() => setMessage("Pasirinkite „Google“ paskyrą. Slaptažodžio kurti nereikia."));
   }, []);
 
   useEffect(() => {
@@ -118,9 +118,9 @@ export default function LoginPage() {
         </a>
 
         <div className="login-copy">
-          <p className="eyebrow">Greitas prisijungimas</p>
-          <h1>Sveiki sugrįžę</h1>
-          <p>Prisijunkite su „Google“ paskyra ir tęskite darbą LocalPro.lt.</p>
+          <p className="eyebrow">Specialisto prisijungimas</p>
+          <h1>Prisijunkite arba registruokitės su „Google“</h1>
+          <p>Meistrams slaptažodžio kurti nereikia. „Google“ paskyra naudojama tik prisijungimui, o profilio duomenis užpildysite registracijos formoje.</p>
         </div>
 
         {user ? (
@@ -138,6 +138,7 @@ export default function LoginPage() {
         <p className="admin-message">{message}</p>
 
         <div className="login-actions">
+          <a href="/#register">Registruotis kaip specialistas</a>
           <a href="/">Tęsti į žemėlapį</a>
           <a href="/admin">Administravimas</a>
           {user ? (
