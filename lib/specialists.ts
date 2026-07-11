@@ -1,4 +1,5 @@
 import { categories, specialists as seedSpecialists } from "./seed-data";
+import { isObviousPublicTestProfile } from "./display";
 import { profileRowToSpecialist } from "./db-mappers";
 import { createServerSupabase } from "./supabase";
 import type { Specialist } from "./types";
@@ -83,18 +84,28 @@ export async function getSpecialists(filters: SpecialistFilters = {}) {
     throw new Error(error.message);
   }
 
-  return applyFilters((data ?? []).map(profileRowToSpecialist), filters);
+  return applyFilters(removePublicTestProfiles((data ?? []).map(profileRowToSpecialist), filters), filters);
 }
 
 export async function getSpecialist(id: string) {
-  const list = await getSpecialists({ includePending: true });
+  const list = await getSpecialists();
   return list.find((specialist) => specialist.id === id) ?? null;
 }
 
 function filterSeedSpecialists(filters: SpecialistFilters) {
-  return applyFilters(seedSpecialists, filters).filter((specialist) =>
+  const publicList = seedSpecialists.filter((specialist) =>
     filters.includePending ? true : specialist.status === "approved"
   );
+
+  return applyFilters(removePublicTestProfiles(publicList, filters), filters);
+}
+
+function removePublicTestProfiles(list: Specialist[], filters: SpecialistFilters) {
+  if (filters.includePending) {
+    return list;
+  }
+
+  return list.filter((specialist) => !isObviousPublicTestProfile(specialist));
 }
 
 function applyFilters(list: Specialist[], filters: SpecialistFilters) {

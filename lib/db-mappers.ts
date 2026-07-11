@@ -1,4 +1,5 @@
 import type { Specialist } from "./types";
+import { formatVerificationSummary } from "./display";
 
 type ProfileRow = {
   id: string;
@@ -81,7 +82,7 @@ export function profileRowToSpecialist(row: ProfileRow): Specialist {
     lat: row.latitude ?? 55.1694,
     lng: row.longitude ?? 23.8813,
     verification: row.verification_labels ?? [],
-    verificationLabel: (row.verification_labels ?? ["Kontaktas tikrinamas"]).join(", "),
+    verificationLabel: formatVerificationSummary(row.verification_labels ?? []),
     rating: row.review_score ?? 0,
     reviewCount: row.review_count ?? approvedReviews.length,
     color: "#37503f",

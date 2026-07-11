@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { Category, Specialist } from "../lib/types";
+import { formatMarkerCount, formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
 
 type Props = {
   initialSpecialists: Specialist[];
@@ -69,8 +70,8 @@ const registrationFieldLabels: Record<string, string> = {
 const cities = ["Vilnius", "Kaunas", "Klaipėda", "Šiauliai", "Panevėžys", "Alytus", "Marijampolė", "Utena", "Tauragė", "Telšiai"];
 const verificationOptions = [
   { value: "contact", label: "Kontaktas patvirtintas" },
-  { value: "portfolio", label: "Darbų nuotraukos" },
-  { value: "whatsapp", label: "WhatsApp kontaktas" }
+  { value: "portfolio", label: "Yra darbų nuotraukų" },
+  { value: "whatsapp", label: "Galima susisiekti per WhatsApp" }
 ];
 
 export default function LocalProApp({ initialSpecialists, categories }: Props) {
@@ -252,7 +253,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
         const marker = leaflet
           .marker([specialist.lat, specialist.lng], { icon, title: `${specialist.name} - ${specialist.trade}` })
-          .bindPopup(`<div class="map-popup"><strong>${specialist.name}</strong><span>${specialist.trade} - ${specialist.town}</span><span>${specialist.verificationLabel}</span></div>`);
+          .bindPopup(`<div class="map-popup"><strong>${specialist.name}</strong><span>${specialist.trade} - ${specialist.town}</span><span>${formatVerificationSummary(specialist.verification)}</span></div>`);
 
         marker.on("click", () => openSpecialistProfile(specialist.id));
         marker.addTo(markerLayer);
@@ -438,8 +439,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           <a href="#services">Paslaugos</a>
           <a href="#register">Registruotis</a>
           <a href="#how">Kaip veikia</a>
-          <a href="/login">Prisijungti</a>
-          <a href="/admin">Administravimas</a>
+          <a href="/login">Meistro paskyra</a>
         </nav>
       </header>
 
@@ -521,7 +521,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           <aside className="results-column">
             <div className="section-heading compact">
               <p className="eyebrow">Specialistai žemėlapyje</p>
-              <h2>{specialists.length ? <><span>{specialists.length}</span> specialistai</> : "Būkite pirmasis specialistas šioje vietoje"}</h2>
+              <h2>{specialists.length ? <span>{formatSpecialistCount(specialists.length)}</span> : "Būkite pirmasis specialistas šioje vietoje"}</h2>
               <p>{specialists.length ? "Pasirinkite specialistą sąraše arba žemėlapyje ir peržiūrėkite darbo zoną." : "Šio filtro rezultatai dar tušti. Registruokitės nemokamai ir jūsų profilis čia atsiras pirmas."}</p>
             </div>
             <div className="results-list" aria-live="polite">
@@ -541,9 +541,9 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                     <span className="tag">{specialist.trade}</span>
                     <span className="tag">{specialist.town}</span>
                     <span className="tag">{specialist.radius} km zona</span>
-                    <span className="tag">{specialist.verificationLabel}</span>
+                    <span className="tag">{formatVerificationSummary(specialist.verification)}</span>
                   </span>
-                  <span>{specialist.reviewCount} atsiliepimai - dirba: {specialist.operatingCities.join(", ")}. {specialist.serviceArea}</span>
+                  <span>{formatReviewCount(specialist.reviewCount)} - dirba: {specialist.operatingCities.join(", ")}. {specialist.serviceArea}</span>
                   <span className="open-profile-label">Atidaryti profilį</span>
                 </button>
               )) : (
@@ -559,7 +559,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           <section className="map-board" aria-label="OpenStreetMap LocalPro specialistų žemėlapis">
             <div className="map-toolbar">
               <span>LocalPro žemėlapis</span>
-              <span>{specialists.length ? `${specialists.length} žymekliai su darbo zonomis` : "Nėra atitikmenų"}</span>
+              <span>{specialists.length ? `${formatMarkerCount(specialists.length)} su darbo zonomis` : "Nėra atitikmenų"}</span>
             </div>
             <div className="real-map" ref={mapElementRef} aria-label="Interaktyvus OpenStreetMap su LocalPro specialistų žymekliais">
               <div className="map-hint">Traukite žemėlapį, artinkite arba naudokite +/-</div>
@@ -576,13 +576,13 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                 <div className="tag-row">
                   <span className="tag">{activeSpecialist.trade}</span>
                   <span className="tag">{activeSpecialist.town}</span>
-                  <span className="tag">{activeSpecialist.verificationLabel}</span>
+                  <span className="tag">{formatVerificationSummary(activeSpecialist.verification)}</span>
                   <span className="rating">{activeSpecialist.rating ? activeSpecialist.rating.toFixed(1) : "Naujas"} {stars(activeSpecialist.rating)}</span>
                 </div>
-                <p>{activeSpecialist.reviewCount} klientų atsiliepimai. Darbo zona: {activeSpecialist.serviceArea}.</p>
+                <p>{formatReviewCount(activeSpecialist.reviewCount)}. Darbo zona: {activeSpecialist.serviceArea}.</p>
                 <p>{activeSpecialist.description}</p>
                 <div className="verification-list">
-                  {activeSpecialist.verification.map((label) => <span key={label}>{label}</span>)}
+                  {activeSpecialist.verification.map((label) => <span key={label}>{formatVerificationBadge(label)}</span>)}
                 </div>
                 <div className="contact-list">
                   <a href={`tel:${activeSpecialist.phone.replaceAll(" ", "")}`} onClick={() => logEnquiry(activeSpecialist.id, "phone_click")}><span>Telefonas</span><strong>{activeSpecialist.phone}</strong></a>
