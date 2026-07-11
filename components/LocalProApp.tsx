@@ -29,6 +29,12 @@ type RegistrationDraft = {
   consentAccepted: boolean;
 };
 
+type LoginUser = {
+  email: string;
+  name: string;
+  picture?: string;
+};
+
 const photoFieldMetadata = {
   maxItems: 8,
   maxSizeMb: 5,
@@ -71,6 +77,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const markerLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const areaLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
+  const hasPrefilledGoogleProfile = useRef(false);
 
   const activeSpecialist = useMemo(
     () => specialists.find((specialist) => specialist.id === activeId) ?? specialists[0] ?? null,
@@ -87,6 +94,40 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     () => categories.filter((category) => formState.categorySlugs.includes(category.slug)).flatMap((category) => category.subcategories),
     [categories, formState.categorySlugs]
   );
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function prefillRegistrationFromSession() {
+      const response = await fetch("/api/auth/session", {
+        cache: "no-store",
+        signal: controller.signal
+      });
+      const data = (await response.json()) as { user?: LoginUser | null };
+      const user = data.user;
+
+      if (!user || hasPrefilledGoogleProfile.current) {
+        return;
+      }
+
+      setFormState((current) => {
+        hasPrefilledGoogleProfile.current = true;
+        return {
+          ...current,
+          name: current.name.trim() ? current.name : user.name,
+          email: current.email.trim() ? current.email : user.email
+        };
+      });
+    }
+
+    prefillRegistrationFromSession().catch((error) => {
+      if (error.name !== "AbortError") {
+        hasPrefilledGoogleProfile.current = true;
+      }
+    });
+
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
