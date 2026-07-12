@@ -67,7 +67,7 @@ const registrationFieldLabels: Record<string, string> = {
   consentAccepted: "sutikimą dėl profilio peržiūros"
 };
 
-const cities = ["Vilnius", "Kaunas", "Klaipėda", "Šiauliai", "Panevėžys", "Alytus", "Marijampolė", "Utena", "Tauragė", "Telšiai"];
+const cities = ["Vilnius", "Kaunas", "Klaipėda", "Šiauliai", "Panevėžys", "Lentvaris", "Alytus", "Marijampolė", "Utena", "Tauragė", "Telšiai"];
 const verificationOptions = [
   { value: "contact", label: "Kontaktas patvirtintas" },
   { value: "portfolio", label: "Yra darbų nuotraukų" },

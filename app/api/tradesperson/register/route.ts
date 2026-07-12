@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { registrationSchema, photoFieldMetadata, normalizeLithuanianPhone } from "../../../../lib/validators";
 import { createServerSupabase, hasSupabaseConfig } from "../../../../lib/supabase";
+import { cityCoordinates } from "../../../../lib/geo";
 
 const PROFILE_PHOTOS_BUCKET = "profile-photos";
 let profilePhotosBucketReady = false;
@@ -56,6 +57,8 @@ export async function POST(request: Request) {
     : categories.find((category) => category.name === categoryNames[0]) ?? categories[0];
   const normalizedPhone = normalizeLithuanianPhone(payload.phone) || payload.phone;
   const normalizedWhatsapp = payload.whatsapp ? normalizeLithuanianPhone(payload.whatsapp) || payload.whatsapp : normalizedPhone;
+  const coordinates = cityCoordinates(payload.city);
+  const operatingCities = uniqueList([payload.city, ...payload.operatingCities]);
 
   const { data: subcategories, error: subcategoriesError } = subcategorySlugs.length
     ? await supabase
@@ -88,6 +91,8 @@ export async function POST(request: Request) {
       email: payload.email,
       base_city: payload.city,
       radius_km: payload.radiusKm,
+      latitude: coordinates?.lat ?? null,
+      longitude: coordinates?.lng ?? null,
       description: payload.description,
       service_category_id: primaryCategory.id,
       public_status: "private",
@@ -118,7 +123,7 @@ export async function POST(request: Request) {
   }
 
   const { error: areaError } = await supabase.from("operating_areas").insert(
-    payload.operatingCities.map((city) => ({
+    operatingCities.map((city) => ({
       tradesperson_profile_id: profile.id,
       city,
       radius_km: payload.radiusKm

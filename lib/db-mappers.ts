@@ -1,5 +1,6 @@
 import type { Specialist } from "./types";
 import { formatVerificationSummary } from "./display";
+import { profileCoordinates } from "./geo";
 
 type ProfileRow = {
   id: string;
@@ -31,7 +32,8 @@ type ProfileRow = {
 };
 
 export function profileRowToSpecialist(row: ProfileRow): Specialist {
-  const operatingCities = row.operating_areas?.map((area) => area.city).filter(Boolean) ?? [row.base_city];
+  const operatingCities = uniqueList([row.base_city, ...(row.operating_areas?.map((area) => area.city).filter(Boolean) ?? [])]);
+  const coordinates = profileCoordinates(row.latitude, row.longitude, operatingCities);
   const approvedReviews = row.reviews?.filter((review) => review.moderation_status === "approved") ?? [];
   const category = Array.isArray(row.service_categories) ? row.service_categories[0] : row.service_categories;
   const serviceCategories =
@@ -79,8 +81,8 @@ export function profileRowToSpecialist(row: ProfileRow): Specialist {
     town: row.base_city,
     operatingCities,
     radius: row.radius_km,
-    lat: row.latitude ?? 55.1694,
-    lng: row.longitude ?? 23.8813,
+    lat: coordinates.lat,
+    lng: coordinates.lng,
     verification: row.verification_labels ?? [],
     verificationLabel: formatVerificationSummary(row.verification_labels ?? []),
     rating: row.review_score ?? 0,
@@ -97,4 +99,8 @@ export function profileRowToSpecialist(row: ProfileRow): Specialist {
     status: row.approval_status,
     source: row.source
   };
+}
+
+function uniqueList(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }

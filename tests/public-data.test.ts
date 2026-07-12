@@ -47,4 +47,37 @@ describe("public specialist listing", () => {
       })
     ).toBe(false);
   });
+
+  it("places profiles without stored coordinates at their base city", async () => {
+    const { profileRowToSpecialist } = await import("../lib/db-mappers");
+    const specialist = profileRowToSpecialist({
+      id: "edgaras",
+      display_name: "Edgaras",
+      company_name: null,
+      phone: "+37063601230",
+      whatsapp_number: null,
+      email: "edgaras@example.lt",
+      base_city: "Lentvaris",
+      radius_km: 35,
+      latitude: null,
+      longitude: null,
+      description: "Vidaus apdaila Lentvaryje.",
+      review_score: null,
+      review_count: null,
+      verification_labels: null,
+      public_status: "public",
+      approval_status: "approved",
+      source: "self-registration",
+      service_area_label: null,
+      service_categories: { name: "Apdaila", slug: "apdaila" },
+      profile_services: [],
+      operating_areas: [{ city: "Kaunas", radius_km: 35 }],
+      profile_photos: [],
+      reviews: []
+    });
+
+    expect(specialist.operatingCities).toEqual(["Lentvaris", "Kaunas"]);
+    expect(specialist.lat).toBeCloseTo(54.6436);
+    expect(specialist.lng).toBeCloseTo(25.0486);
+  });
 });
