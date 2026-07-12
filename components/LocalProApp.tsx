@@ -279,10 +279,16 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
             iconSize: [44, 44],
             iconAnchor: [22, 22]
           });
-          const clusterMarker = leaflet.marker([item.lat, item.lng], { icon: clusterIcon, title: formatSpecialistCount(item.count) });
+          const clusterMarker = leaflet
+            .marker([item.lat, item.lng], { icon: clusterIcon, title: formatSpecialistCount(item.count) })
+            .bindPopup(createClusterPopup(item.points.map((point) => point.specialist)));
           clusterMarker.on("click", () => {
             setMapPopupId("");
             const target = item.points[0];
+            if (map.getZoom() >= 13) {
+              clusterMarker.openPopup();
+              return;
+            }
             map.setView([target.lat, target.lng], Math.min(Math.max(map.getZoom() + 2, 10), 13), { animate: true });
           });
           markerLayer.addLayer(clusterMarker);
@@ -301,7 +307,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
         });
 
         const marker = leaflet
-          .marker([specialist.lat, specialist.lng], { icon, title: `${specialist.name} - ${specialist.trade}` })
+          .marker([item.lat, item.lng], { icon, title: `${specialist.name} - ${specialist.trade}` })
           .bindPopup(createMapPopup(specialist));
 
         marker.on("click", () => {
@@ -887,32 +893,40 @@ type MapMarkerItem =
       count: number;
       lat: number;
       lng: number;
-      points: Specialist[];
+      points: DisplayMarkerPoint[];
     }
   | {
       type: "specialist";
       id: string;
+      lat: number;
+      lng: number;
       specialist: Specialist;
     };
+
+type DisplayMarkerPoint = {
+  specialist: Specialist;
+  lat: number;
+  lng: number;
+};
 
 function createMapMarkerItems(specialists: Specialist[], map: import("leaflet").Map): MapMarkerItem[] {
   const zoom = map.getZoom();
   const cellSize = zoom >= 12 ? 44 : zoom >= 9 ? 64 : zoom >= 8 ? 150 : 220;
-  const groups = new Map<string, Specialist[]>();
+  const groups = new Map<string, DisplayMarkerPoint[]>();
 
-  specialists.forEach((specialist) => {
-    const point = map.project([specialist.lat, specialist.lng], zoom);
+  spreadDuplicateCoordinates(specialists, map).forEach((markerPoint) => {
+    const point = map.project([markerPoint.lat, markerPoint.lng], zoom);
     const key = `${Math.floor(point.x / cellSize)}:${Math.floor(point.y / cellSize)}`;
-    groups.set(key, [...(groups.get(key) ?? []), specialist]);
+    groups.set(key, [...(groups.get(key) ?? []), markerPoint]);
   });
 
   return Array.from(groups.entries()).map(([id, points]): MapMarkerItem => {
     if (points.length === 1) {
-      return { type: "specialist", id: points[0].id, specialist: points[0] };
+      return { type: "specialist", id: points[0].specialist.id, lat: points[0].lat, lng: points[0].lng, specialist: points[0].specialist };
     }
 
-    const lat = points.reduce((sum, specialist) => sum + specialist.lat, 0) / points.length;
-    const lng = points.reduce((sum, specialist) => sum + specialist.lng, 0) / points.length;
+    const lat = points.reduce((sum, point) => sum + point.lat, 0) / points.length;
+    const lng = points.reduce((sum, point) => sum + point.lng, 0) / points.length;
 
     return {
       type: "cluster",
@@ -922,6 +936,35 @@ function createMapMarkerItems(specialists: Specialist[], map: import("leaflet").
       lng,
       points
     };
+  });
+}
+
+function spreadDuplicateCoordinates(specialists: Specialist[], map: import("leaflet").Map): DisplayMarkerPoint[] {
+  const zoom = map.getZoom();
+  const groups = new Map<string, Specialist[]>();
+
+  specialists.forEach((specialist) => {
+    const key = `${specialist.lat.toFixed(5)}:${specialist.lng.toFixed(5)}`;
+    groups.set(key, [...(groups.get(key) ?? []), specialist]);
+  });
+
+  return Array.from(groups.values()).flatMap((group) => {
+    if (group.length === 1 || zoom < 12) {
+      return group.map((specialist) => ({ specialist, lat: specialist.lat, lng: specialist.lng }));
+    }
+
+    const radius = group.length === 2 ? 42 : 54;
+    const basePoint = map.project([group[0].lat, group[0].lng], zoom);
+
+    return group.map((specialist, index) => {
+      const angle = (Math.PI * 2 * index) / group.length - Math.PI / 2;
+      const displayPoint = map.unproject([basePoint.x + Math.cos(angle) * radius, basePoint.y + Math.sin(angle) * radius], zoom);
+      return {
+        specialist,
+        lat: displayPoint.lat,
+        lng: displayPoint.lng
+      };
+    });
   });
 }
 
@@ -951,6 +994,27 @@ function createMapPopup(specialist: Specialist) {
         <a href="#profile">Peržiūrėti profilį</a>
         <a href="https://wa.me/${escapeHtml(whatsapp)}" target="_blank" rel="noreferrer">Siųsti užklausą</a>
       </div>
+    </div>
+  `;
+}
+
+function createClusterPopup(specialists: Specialist[]) {
+  const items = specialists
+    .map(
+      (specialist) => `
+        <li>
+          <strong>${escapeHtml(specialist.companyName || specialist.name)}</strong>
+          <span>${escapeHtml(specialist.trade)} / ${escapeHtml(specialist.serviceArea || specialist.operatingCities.join(", "))}</span>
+          <a href="https://wa.me/${escapeHtml(specialist.whatsapp.replace(/[^\d]/g, ""))}" target="_blank" rel="noreferrer">Siųsti užklausą</a>
+        </li>
+      `
+    )
+    .join("");
+
+  return `
+    <div class="map-popup map-cluster-popup">
+      <strong>${escapeHtml(formatSpecialistCount(specialists.length))} šioje vietoje</strong>
+      <ul>${items}</ul>
     </div>
   `;
 }

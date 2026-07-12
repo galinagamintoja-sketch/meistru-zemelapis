@@ -22,6 +22,46 @@ export function cityCoordinates(city: string | null | undefined) {
   return cityCoordinateMap[normalizeCityKey(city)] ?? null;
 }
 
+export async function resolveCityCoordinates(city: string | null | undefined) {
+  const knownCoordinates = cityCoordinates(city);
+  if (knownCoordinates || !city?.trim()) {
+    return knownCoordinates;
+  }
+
+  const params = new URLSearchParams({
+    format: "jsonv2",
+    limit: "1",
+    countrycodes: "lt",
+    q: `${city.trim()}, Lithuania`
+  });
+
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+      headers: {
+        accept: "application/json",
+        "user-agent": "LocalPro.lt registration geocoder"
+      }
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const results = (await response.json()) as Array<{ lat?: string; lon?: string }>;
+    const first = results[0];
+    const lat = Number(first?.lat);
+    const lng = Number(first?.lon);
+
+    if (!isLithuaniaCoordinate(lat, lng)) {
+      return null;
+    }
+
+    return { lat, lng };
+  } catch {
+    return null;
+  }
+}
+
 export function profileCoordinates(latitude: number | null | undefined, longitude: number | null | undefined, cities: string[]) {
   if (typeof latitude === "number" && typeof longitude === "number") {
     return { lat: latitude, lng: longitude };
@@ -35,6 +75,10 @@ export function profileCoordinates(latitude: number | null | undefined, longitud
   }
 
   return LITHUANIA_CENTER;
+}
+
+function isLithuaniaCoordinate(lat: number, lng: number) {
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= 53.8 && lat <= 56.5 && lng >= 20.5 && lng <= 27;
 }
 
 function normalizeCityKey(city: string) {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { registrationSchema, photoFieldMetadata, normalizeLithuanianPhone } from "../../../../lib/validators";
 import { createServerSupabase, hasSupabaseConfig } from "../../../../lib/supabase";
-import { cityCoordinates } from "../../../../lib/geo";
+import { resolveCityCoordinates } from "../../../../lib/geo";
 
 const PROFILE_PHOTOS_BUCKET = "profile-photos";
 let profilePhotosBucketReady = false;
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     : categories.find((category) => category.name === categoryNames[0]) ?? categories[0];
   const normalizedPhone = normalizeLithuanianPhone(payload.phone) || payload.phone;
   const normalizedWhatsapp = payload.whatsapp ? normalizeLithuanianPhone(payload.whatsapp) || payload.whatsapp : normalizedPhone;
-  const coordinates = cityCoordinates(payload.city);
+  const coordinates = await resolveCityCoordinates(payload.city);
   const operatingCities = uniqueList([payload.city, ...payload.operatingCities]);
 
   const { data: subcategories, error: subcategoriesError } = subcategorySlugs.length

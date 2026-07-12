@@ -543,6 +543,28 @@ textarea {
   background: var(--clay);
 }
 
+.map-cluster-popup ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.map-cluster-popup li {
+  display: grid;
+  gap: 3px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.map-cluster-popup a {
+  color: var(--spruce);
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
 .map-hint {
   position: absolute;
   left: 14px;
