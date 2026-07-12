@@ -60,6 +60,10 @@ export async function POST(request: Request) {
   const coordinates = await resolveCityCoordinates(payload.city);
   const operatingCities = uniqueList([payload.city, ...payload.operatingCities]);
 
+  if (!coordinates) {
+    return NextResponse.json({ error: "Nepavyko rasti miesto žemėlapyje. Įrašykite tikslų Lietuvos miestą arba artimiausią didesnį miestą." }, { status: 400 });
+  }
+
   const { data: subcategories, error: subcategoriesError } = subcategorySlugs.length
     ? await supabase
         .from("service_subcategories")
@@ -91,8 +95,8 @@ export async function POST(request: Request) {
       email: payload.email,
       base_city: payload.city,
       radius_km: payload.radiusKm,
-      latitude: coordinates?.lat ?? null,
-      longitude: coordinates?.lng ?? null,
+      latitude: coordinates.lat,
+      longitude: coordinates.lng,
       description: payload.description,
       service_category_id: primaryCategory.id,
       public_status: "private",
