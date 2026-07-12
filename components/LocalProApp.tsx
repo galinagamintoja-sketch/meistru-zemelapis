@@ -80,6 +80,9 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [verification, setVerification] = useState("all");
   const [specialists, setSpecialists] = useState(initialSpecialists);
   const [activeId, setActiveId] = useState(initialSpecialists[0]?.id ?? "");
+  const [hoveredId, setHoveredId] = useState("");
+  const [mapPopupId, setMapPopupId] = useState("");
+  const [mapZoom, setMapZoom] = useState(0);
   const [loading, setLoading] = useState(false);
   const [formState, setFormState] = useState<RegistrationDraft>({
     name: "",
@@ -104,11 +107,32 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const markerLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const areaLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const hasPrefilledGoogleProfile = useRef(false);
+  const lastFitKeyRef = useRef("");
 
   const activeSpecialist = useMemo(
     () => specialists.find((specialist) => specialist.id === activeId) ?? specialists[0] ?? null,
     [activeId, specialists]
   );
+  const activeWorkPhotos = useMemo(() => {
+    if (!activeSpecialist) {
+      return [];
+    }
+
+    const imageUrls = activeSpecialist.photoUrls?.filter(Boolean) ?? [];
+    if (imageUrls.length) {
+      return imageUrls.map((url, index) => ({
+        id: `${url}-${index}`,
+        url,
+        label: index === 0 ? "Pagrindinė darbų nuotrauka" : "Darbų nuotrauka"
+      }));
+    }
+
+    return activeSpecialist.photos.map((label, index) => ({
+      id: `${label}-${index}`,
+      url: "",
+      label
+    }));
+  }, [activeSpecialist]);
   const selectedCategoryNames = useMemo(
     () =>
       categories
@@ -120,6 +144,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     () => categories.filter((category) => formState.categorySlugs.includes(category.slug)).flatMap((category) => category.subcategories),
     [categories, formState.categorySlugs]
   );
+  const specialistsKey = useMemo(() => specialists.map((specialist) => specialist.id).join("|"), [specialists]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -210,6 +235,8 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
       mapRef.current = map;
       markerLayerRef.current = leaflet.layerGroup().addTo(map);
       areaLayerRef.current = leaflet.layerGroup().addTo(map);
+      setMapZoom(map.getZoom());
+      map.on("zoomend", () => setMapZoom(map.getZoom()));
       setTimeout(() => map.invalidateSize(), 80);
     }
 
@@ -231,20 +258,42 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
       markerLayer.clearLayers();
       areaLayer.clearLayers();
 
-      specialists.forEach((specialist) => {
-        const isActive = specialist.id === activeId;
+      const highlightedSpecialist = specialists.find((specialist) => specialist.id === (hoveredId || activeId));
+      if (highlightedSpecialist) {
         leaflet
-          .circle([specialist.lat, specialist.lng], {
-            radius: specialist.radius * 1000,
-            color: specialist.color,
-            weight: isActive ? 3 : 2,
-            fillColor: specialist.color,
-            fillOpacity: isActive ? 0.16 : 0.08
+          .circle([highlightedSpecialist.lat, highlightedSpecialist.lng], {
+            radius: highlightedSpecialist.radius * 1000,
+            color: highlightedSpecialist.color,
+            weight: highlightedSpecialist.id === activeId ? 3 : 2,
+            fillColor: highlightedSpecialist.color,
+            fillOpacity: highlightedSpecialist.id === activeId ? 0.16 : 0.1
           })
           .addTo(areaLayer);
+      }
 
+      createMapMarkerItems(specialists, map).forEach((item) => {
+        if (item.type === "cluster") {
+          const clusterIcon = leaflet.divIcon({
+            html: `<span>${item.count}</span>`,
+            className: "trade-cluster",
+            iconSize: [44, 44],
+            iconAnchor: [22, 22]
+          });
+          const clusterMarker = leaflet.marker([item.lat, item.lng], { icon: clusterIcon, title: formatSpecialistCount(item.count) });
+          clusterMarker.on("click", () => {
+            setMapPopupId("");
+            const target = item.points[0];
+            map.setView([target.lat, target.lng], Math.min(Math.max(map.getZoom() + 2, 10), 13), { animate: true });
+          });
+          markerLayer.addLayer(clusterMarker);
+          return;
+        }
+
+        const specialist = item.specialist;
+        const isActive = specialist.id === activeId;
+        const isHovered = specialist.id === hoveredId;
         const icon = leaflet.divIcon({
-          className: "trade-marker",
+          className: `trade-marker${isActive ? " active" : ""}${isHovered ? " hovered" : ""}`,
           html: `<span style="background:${specialist.color}"><b>${specialist.trade.charAt(0)}</b></span>`,
           iconSize: [42, 42],
           iconAnchor: [21, 21],
@@ -253,33 +302,50 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
         const marker = leaflet
           .marker([specialist.lat, specialist.lng], { icon, title: `${specialist.name} - ${specialist.trade}` })
-          .bindPopup(`<div class="map-popup"><strong>${specialist.name}</strong><span>${specialist.trade} - ${specialist.town}</span><span>${formatVerificationSummary(specialist.verification)}</span></div>`);
+          .bindPopup(createMapPopup(specialist));
 
-        marker.on("click", () => openSpecialistProfile(specialist.id));
-        marker.addTo(markerLayer);
+        marker.on("click", () => {
+          setMapPopupId(specialist.id);
+          selectSpecialist(specialist.id, false);
+        });
+        marker.on("mouseover", () => setHoveredId(specialist.id));
+        marker.on("mouseout", () => setHoveredId(""));
+        markerLayer.addLayer(marker);
+
+        if (specialist.id === mapPopupId) {
+          window.setTimeout(() => marker.openPopup(), 0);
+        }
       });
 
-      if (specialists.length) {
+      if (specialists.length && lastFitKeyRef.current !== specialistsKey) {
         const bounds = leaflet.latLngBounds(specialists.map((specialist) => [specialist.lat, specialist.lng]));
         map.fitBounds(bounds.pad(0.25), { animate: true, maxZoom: 10 });
+        lastFitKeyRef.current = specialistsKey;
       }
 
       setTimeout(() => map.invalidateSize(), 50);
     }
 
     renderMap();
-  }, [activeId, specialists]);
+  }, [activeId, hoveredId, mapPopupId, mapZoom, specialists, specialistsKey]);
 
   function stars(rating: number) {
     return "★".repeat(Math.max(0, Math.round(rating)));
   }
 
   function openSpecialistProfile(specialistId: string) {
+    selectSpecialist(specialistId, true);
+  }
+
+  function selectSpecialist(specialistId: string, shouldScroll: boolean) {
     setActiveId(specialistId);
-    window.setTimeout(() => {
-      profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      window.history.replaceState(null, "", "#profile");
-    }, 0);
+    if (shouldScroll) {
+      setMapPopupId("");
+      window.setTimeout(() => {
+        profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        window.history.replaceState(null, "", "#profile");
+      }, 0);
+    }
   }
 
   async function submitRegistration(event: FormEvent<HTMLFormElement>) {
@@ -531,6 +597,8 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   className={`result-card ${specialist.id === activeId ? "active" : ""}`}
                   key={specialist.id}
                   onClick={() => openSpecialistProfile(specialist.id)}
+                  onMouseEnter={() => setHoveredId(specialist.id)}
+                  onMouseLeave={() => setHoveredId("")}
                   type="button"
                 >
                   <span className="meta-row">
@@ -593,8 +661,14 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               <div>
                 <p className="eyebrow">Darbų nuotraukos</p>
                 <div className="photo-grid">
-                  {activeSpecialist.photos.map((photo, index) => (
-                    <div className="work-photo" key={photo} style={{ "--photo-color": index === 0 ? activeSpecialist.color : index === 1 ? "#56717a" : "#b8763a" } as React.CSSProperties}>{photo}</div>
+                  {activeWorkPhotos.map((photo, index) => (
+                    <div
+                      className={photo.url ? "work-photo has-image" : "work-photo"}
+                      key={photo.id}
+                      style={{ "--photo-color": index === 0 ? activeSpecialist.color : index === 1 ? "#56717a" : "#b8763a" } as React.CSSProperties}
+                    >
+                      {photo.url ? <img src={photo.url} alt={photo.label} loading="lazy" /> : photo.label}
+                    </div>
                   ))}
                 </div>
                 <p className="eyebrow">Atsiliepimai</p>
@@ -804,6 +878,90 @@ function logEnquiry(specialistId: string, eventType: "phone_click" | "whatsapp_c
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ specialistId, eventType })
   }).catch(() => undefined);
+}
+
+type MapMarkerItem =
+  | {
+      type: "cluster";
+      id: string;
+      count: number;
+      lat: number;
+      lng: number;
+      points: Specialist[];
+    }
+  | {
+      type: "specialist";
+      id: string;
+      specialist: Specialist;
+    };
+
+function createMapMarkerItems(specialists: Specialist[], map: import("leaflet").Map): MapMarkerItem[] {
+  const zoom = map.getZoom();
+  const cellSize = zoom >= 12 ? 44 : zoom >= 9 ? 64 : zoom >= 8 ? 150 : 220;
+  const groups = new Map<string, Specialist[]>();
+
+  specialists.forEach((specialist) => {
+    const point = map.project([specialist.lat, specialist.lng], zoom);
+    const key = `${Math.floor(point.x / cellSize)}:${Math.floor(point.y / cellSize)}`;
+    groups.set(key, [...(groups.get(key) ?? []), specialist]);
+  });
+
+  return Array.from(groups.entries()).map(([id, points]): MapMarkerItem => {
+    if (points.length === 1) {
+      return { type: "specialist", id: points[0].id, specialist: points[0] };
+    }
+
+    const lat = points.reduce((sum, specialist) => sum + specialist.lat, 0) / points.length;
+    const lng = points.reduce((sum, specialist) => sum + specialist.lng, 0) / points.length;
+
+    return {
+      type: "cluster",
+      id,
+      count: points.length,
+      lat,
+      lng,
+      points
+    };
+  });
+}
+
+function createMapPopup(specialist: Specialist) {
+  const imageUrl = specialist.photoUrls?.find(Boolean);
+  const thumbnail = imageUrl
+    ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" />`
+    : `<span class="map-popup-thumb-fallback">${escapeHtml(specialist.trade.charAt(0))}</span>`;
+  const rating = specialist.rating ? `${specialist.rating.toFixed(1)} ★` : "Naujas";
+  const whatsapp = specialist.whatsapp.replace(/[^\d]/g, "");
+
+  return `
+    <div class="map-popup">
+      <div class="map-popup-main">
+        <div class="map-popup-thumb">${thumbnail}</div>
+        <div>
+          <strong>${escapeHtml(specialist.companyName || specialist.name)}</strong>
+          <span>${escapeHtml(specialist.trade)}</span>
+          <span>${escapeHtml(specialist.serviceArea || specialist.operatingCities.join(", "))}</span>
+        </div>
+      </div>
+      <div class="map-popup-meta">
+        <span>${escapeHtml(rating)} / ${escapeHtml(formatReviewCount(specialist.reviewCount))}</span>
+        <span>${escapeHtml(formatVerificationSummary(specialist.verification))}</span>
+      </div>
+      <div class="map-popup-actions">
+        <a href="#profile">Peržiūrėti profilį</a>
+        <a href="https://wa.me/${escapeHtml(whatsapp)}" target="_blank" rel="noreferrer">Siųsti užklausą</a>
+      </div>
+    </div>
+  `;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function formatPhotoUrl(value: string) {

@@ -408,6 +408,13 @@ textarea {
   box-shadow: 0 12px 25px rgba(33, 29, 24, 0.28);
 }
 
+.trade-marker.active span,
+.trade-marker.hovered span {
+  border-color: #f2dfb7;
+  transform: translateY(-2px) scale(1.08);
+  box-shadow: 0 18px 34px rgba(33, 29, 24, 0.34);
+}
+
 .trade-marker span::before {
   position: absolute;
   inset: 6px;
@@ -422,28 +429,118 @@ textarea {
   z-index: 1;
 }
 
+.trade-cluster {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+}
+
+.trade-cluster span {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 3px solid white;
+  border-radius: 999px;
+  background: var(--clay);
+  color: white;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 14px 30px rgba(33, 29, 24, 0.28);
+}
+
 .leaflet-popup-content {
   margin: 12px;
 }
 
 .map-popup {
   display: grid;
-  gap: 6px;
-  min-width: 190px;
+  gap: 10px;
+  width: 260px;
+  max-width: 72vw;
+}
+
+.map-popup-main {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.map-popup-thumb,
+.map-popup-thumb img,
+.map-popup-thumb-fallback {
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+}
+
+.map-popup-thumb {
+  overflow: hidden;
+  background: var(--soft);
+}
+
+.map-popup-thumb img {
+  display: block;
+  object-fit: cover;
+}
+
+.map-popup-thumb-fallback {
+  display: grid;
+  place-items: center;
+  background: var(--spruce);
+  color: white;
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 900;
+}
+
+.map-popup strong,
+.map-popup span {
+  display: block;
 }
 
 .map-popup strong {
+  margin-bottom: 3px;
   font-size: 15px;
+  line-height: 1.2;
 }
 
 .map-popup span {
   color: var(--muted);
   font-size: 13px;
+  line-height: 1.3;
 }
 
-.map-popup button[type="button"] {
+.map-popup-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.map-popup-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.map-popup-actions a {
+  display: inline-flex;
   min-height: 34px;
-  margin-top: 4px;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--spruce);
+  color: white;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+  text-decoration: none;
+}
+
+.map-popup-actions a:last-child {
+  background: var(--clay);
 }
 
 .map-hint {
@@ -562,6 +659,8 @@ textarea {
 
 .work-photo {
   display: grid;
+  position: relative;
+  overflow: hidden;
   min-height: 120px;
   place-items: end start;
   border: 1px solid var(--line);
@@ -574,6 +673,20 @@ textarea {
   font-size: 12px;
   font-weight: 900;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.work-photo.has-image {
+  min-height: 160px;
+  padding: 0;
+  background: #eee8dc;
+}
+
+.work-photo img {
+  width: 100%;
+  height: 100%;
+  min-height: 160px;
+  object-fit: cover;
+  display: block;
 }
 
 .reviews {
@@ -628,8 +741,7 @@ fieldset label {
   font-weight: 700;
 }
 
-.registration-form button[type="button"],
-.map-popup button[type="button"] {
+.registration-form button[type="button"] {
   min-height: 46px;
   border: 0;
   border-radius: 8px;
@@ -640,7 +752,6 @@ fieldset label {
 }
 
 .registration-form button[type="button"]:hover,
-.map-popup button[type="button"]:hover,
 .primary-action:hover {
   background: #a46332;
 }
