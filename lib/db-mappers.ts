@@ -34,6 +34,7 @@ type ProfileRow = {
 export function profileRowToSpecialist(row: ProfileRow): Specialist {
   const operatingCities = uniqueList([row.base_city, ...(row.operating_areas?.map((area) => area.city).filter(Boolean) ?? [])]);
   const coordinates = profileCoordinates(row.latitude, row.longitude, operatingCities);
+  const serviceArea = formatServiceArea(row.service_area_label, row.base_city, operatingCities, row.radius_km, row.source);
   const approvedReviews = row.reviews?.filter((review) => review.moderation_status === "approved") ?? [];
   const category = Array.isArray(row.service_categories) ? row.service_categories[0] : row.service_categories;
   const serviceCategories =
@@ -91,7 +92,7 @@ export function profileRowToSpecialist(row: ProfileRow): Specialist {
     phone: row.phone,
     email: row.email,
     whatsapp: row.whatsapp_number ?? row.phone.replace(/[^\d]/g, ""),
-    serviceArea: row.service_area_label ?? `${operatingCities.join(", ")} + ${row.radius_km} km`,
+    serviceArea,
     description: row.description ?? "",
     photos: photos?.length ? photos : ["Darbų pavyzdžiai laukiami"],
     photoUrls: photoUrls?.length ? photoUrls : undefined,
@@ -103,4 +104,18 @@ export function profileRowToSpecialist(row: ProfileRow): Specialist {
 
 function uniqueList(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function formatServiceArea(label: string | null, baseCity: string, operatingCities: string[], radiusKm: number, source: ProfileRow["source"]) {
+  const generated = `${operatingCities.join(", ")} + ${radiusKm} km`;
+
+  if (!label) {
+    return generated;
+  }
+
+  if (source === "self-registration" && !label.toLowerCase().includes(baseCity.toLowerCase())) {
+    return generated;
+  }
+
+  return label;
 }
