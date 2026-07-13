@@ -1,8 +1,8 @@
 import type { Specialist } from "./types";
 import { formatVerificationSummary } from "./display";
-import { profileCoordinates } from "./geo";
+import { approximatePublicCoordinates, profileCoordinates } from "./geo";
 
-type ProfileRow = {
+export type ProfileRow = {
   id: string;
   display_name: string;
   company_name: string | null;
@@ -10,6 +10,8 @@ type ProfileRow = {
   whatsapp_number: string | null;
   email: string;
   base_city: string;
+  street_name?: string | null;
+  postcode?: string | null;
   radius_km: number;
   latitude: number | null;
   longitude: number | null;
@@ -34,6 +36,7 @@ type ProfileRow = {
 export function profileRowToSpecialist(row: ProfileRow): Specialist {
   const operatingCities = uniqueList([row.base_city, ...(row.operating_areas?.map((area) => area.city).filter(Boolean) ?? [])]);
   const coordinates = profileCoordinates(row.latitude, row.longitude, operatingCities);
+  const publicCoordinates = approximatePublicCoordinates(row.id, coordinates);
   const serviceArea = formatServiceArea(row.service_area_label, row.base_city, operatingCities, row.radius_km, row.source);
   const approvedReviews = row.reviews?.filter((review) => review.moderation_status === "approved") ?? [];
   const category = Array.isArray(row.service_categories) ? row.service_categories[0] : row.service_categories;
@@ -80,11 +83,17 @@ export function profileRowToSpecialist(row: ProfileRow): Specialist {
     subcategorySlugs: subcategories.map((subcategory) => subcategory.slug),
     subcategoryNames: subcategories.map((subcategory) => subcategory.name),
     town: row.base_city,
+    district: row.base_city,
+    streetArea: formatStreetArea(row.street_name),
+    approximateLocation: formatApproximateLocation(row.base_city, row.street_name, row.postcode),
     operatingCities,
     radius: row.radius_km,
-    lat: coordinates.lat,
-    lng: coordinates.lng,
+    lat: publicCoordinates.lat,
+    lng: publicCoordinates.lng,
+    registeredLat: coordinates.lat,
+    registeredLng: coordinates.lng,
     verification: row.verification_labels ?? [],
+    isAvailableSoon: row.verification_labels?.includes("available-soon") ?? false,
     verificationLabel: formatVerificationSummary(row.verification_labels ?? []),
     rating: row.review_score ?? 0,
     reviewCount: row.review_count ?? approvedReviews.length,
@@ -118,4 +127,24 @@ function formatServiceArea(label: string | null, baseCity: string, operatingCiti
   }
 
   return label;
+}
+
+function formatStreetArea(street: string | null | undefined) {
+  if (!street?.trim()) {
+    return undefined;
+  }
+
+  return `${street.trim()} rajonas`;
+}
+
+function formatApproximateLocation(baseCity: string, street: string | null | undefined, postcode: string | null | undefined) {
+  if (street?.trim()) {
+    return `${baseCity}, ${street.trim()} rajonas`;
+  }
+
+  if (postcode?.trim()) {
+    return `${baseCity}, pašto kodo zona`;
+  }
+
+  return baseCity;
 }

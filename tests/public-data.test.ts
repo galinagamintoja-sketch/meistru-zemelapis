@@ -78,7 +78,9 @@ describe("public specialist listing", () => {
 
     expect(specialist.operatingCities).toEqual(["Lentvaris", "Kaunas"]);
     expect(specialist.serviceArea).toBe("Lentvaris, Kaunas + 35 km");
-    expect(specialist.lat).toBeCloseTo(54.6436);
-    expect(specialist.lng).toBeCloseTo(25.0486);
+    expect(specialist.registeredLat).toBeCloseTo(54.6436);
+    expect(specialist.registeredLng).toBeCloseTo(25.0486);
+    expect(specialist.lat).not.toBe(specialist.registeredLat);
+    expect(specialist.lng).not.toBe(specialist.registeredLng);
   });
 });

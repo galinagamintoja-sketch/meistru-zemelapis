@@ -14,6 +14,10 @@ type RegistrationDraft = {
   phone: string;
   email: string;
   city: string;
+  town: string;
+  street: string;
+  postcode: string;
+  houseNumber: string;
   trade: string;
   categorySlugs: string[];
   subcategorySlugs: string[];
@@ -26,6 +30,7 @@ type RegistrationDraft = {
   }>;
   description: string;
   radiusKm: number;
+  travelRange: "10" | "25" | "50" | "100" | "lt";
   operatingCities: string[];
   consentAccepted: boolean;
 };
@@ -61,6 +66,10 @@ const registrationFieldLabels: Record<string, string> = {
   subcategorySlugs: "konkrečias paslaugas",
   description: "trumpą aprašymą",
   radiusKm: "darbo spindulį",
+  town: "miestą arba gyvenvietę",
+  street: "gatvę",
+  postcode: "pašto kodą",
+  travelRange: "vykimo į darbus atstumą",
   operatingCities: "aptarnaujamas vietas",
   photoUrls: "nuotraukų URL",
   photoUploads: "įkeltas nuotraukas",
@@ -73,11 +82,26 @@ const verificationOptions = [
   { value: "portfolio", label: "Yra darbų nuotraukų" },
   { value: "whatsapp", label: "Galima susisiekti per WhatsApp" }
 ];
+const customerRadiusOptions = [5, 10, 20, 35, 50, 100];
+const travelRangeOptions = [
+  { value: "10", label: "Iki 10 km" },
+  { value: "25", label: "Iki 25 km" },
+  { value: "50", label: "Iki 50 km" },
+  { value: "100", label: "Iki 100 km" },
+  { value: "lt", label: "Visa Lietuva" }
+] as const;
 
 export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [trade, setTrade] = useState("all");
   const [city, setCity] = useState("all");
   const [verification, setVerification] = useState("all");
+  const [customerRadiusKm, setCustomerRadiusKm] = useState(20);
+  const [availableSoonOnly, setAvailableSoonOnly] = useState(false);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [minRating, setMinRating] = useState("0");
+  const [viewMode, setViewMode] = useState<"map" | "list">("map");
+  const [mapNeedsSearch, setMapNeedsSearch] = useState(false);
+  const [mapSearchPoint, setMapSearchPoint] = useState<{ lat: number; lng: number } | null>(null);
   const [specialists, setSpecialists] = useState(initialSpecialists);
   const [activeId, setActiveId] = useState(initialSpecialists[0]?.id ?? "");
   const [hoveredId, setHoveredId] = useState("");
@@ -89,13 +113,18 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     phone: "",
     email: "",
     city: "",
+    town: "",
+    street: "",
+    postcode: "",
+    houseNumber: "",
     trade: "",
     categorySlugs: [],
     subcategorySlugs: [],
     photoUrls: [""],
     photoUploads: [],
     description: "",
-    radiusKm: 35,
+    radiusKm: 25,
+    travelRange: "25",
     operatingCities: [] as string[],
     consentAccepted: false
   });
@@ -133,6 +162,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
       label
     }));
   }, [activeSpecialist]);
+  const activePhotoUrl = activeSpecialist?.photoUrls?.find(Boolean) ?? "";
   const selectedCategoryNames = useMemo(
     () =>
       categories
@@ -187,8 +217,16 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
       setLoading(true);
       const params = new URLSearchParams();
       if (trade !== "all") params.set("service", trade);
-      if (city !== "all") params.set("city", city);
+      if (city !== "all") params.set("location", city);
+      params.set("customerRadiusKm", String(customerRadiusKm));
+      if (mapSearchPoint) {
+        params.set("lat", String(mapSearchPoint.lat));
+        params.set("lng", String(mapSearchPoint.lng));
+      }
       if (verification !== "all") params.set("verification", verification);
+      if (verifiedOnly) params.set("verified", "true");
+      if (availableSoonOnly) params.set("availableSoon", "true");
+      if (minRating !== "0") params.set("minRating", minRating);
 
       const response = await fetch(`/api/specialists?${params.toString()}`, { signal: controller.signal });
       const data = await response.json();
@@ -205,7 +243,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     });
 
     return () => controller.abort();
-  }, [trade, city, verification]);
+  }, [trade, city, customerRadiusKm, verification, verifiedOnly, availableSoonOnly, minRating, mapSearchPoint]);
 
   useEffect(() => {
     let cancelled = false;
@@ -237,6 +275,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
       areaLayerRef.current = leaflet.layerGroup().addTo(map);
       setMapZoom(map.getZoom());
       map.on("zoomend", () => setMapZoom(map.getZoom()));
+      map.on("moveend", () => setMapNeedsSearch(true));
       setTimeout(() => map.invalidateSize(), 80);
     }
 
@@ -306,9 +345,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           popupAnchor: [0, -20]
         });
 
-        const marker = leaflet
-          .marker([item.lat, item.lng], { icon, title: `${specialist.name} - ${specialist.trade}` })
-          .bindPopup(createMapPopup(specialist));
+        const marker = leaflet.marker([item.lat, item.lng], { icon, title: `${specialist.name} - ${specialist.trade}` });
 
         marker.on("click", () => {
           setMapPopupId(specialist.id);
@@ -318,9 +355,6 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
         marker.on("mouseout", () => setHoveredId(""));
         markerLayer.addLayer(marker);
 
-        if (specialist.id === mapPopupId) {
-          window.setTimeout(() => marker.openPopup(), 0);
-        }
       });
 
       if (specialists.length && lastFitKeyRef.current !== specialistsKey) {
@@ -354,6 +388,16 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     }
   }
 
+  function searchCurrentMapArea() {
+    const center = mapRef.current?.getCenter();
+    if (!center) {
+      return;
+    }
+
+    setMapSearchPoint({ lat: center.lat, lng: center.lng });
+    setMapNeedsSearch(false);
+  }
+
   async function submitRegistration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitMessage("Siunčiama registracija...");
@@ -378,15 +422,6 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
     setSubmitTone("success");
     setSubmitMessage("Registracija priimta. Profilis pažymėtas kaip laukiantis administratoriaus patvirtinimo.");
-  }
-
-  function updateOperatingCity(value: string, checked: boolean) {
-    setFormState((current) => ({
-      ...current,
-      operatingCities: checked
-        ? Array.from(new Set([...current.operatingCities, value]))
-        : current.operatingCities.filter((item) => item !== value)
-    }));
   }
 
   function updateCategory(slug: string, checked: boolean) {
@@ -528,11 +563,11 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
           <form className="search-panel" aria-label="Rasti specialistą">
             <div className="panel-title">
-              <strong>Greita paieška</strong>
-              <span>{loading ? "Kraunama" : "Pagal zoną ir patikrą"}</span>
+              <strong>Kokio meistro ieškote?</strong>
+              <span>{loading ? "Kraunama" : "Aiški paieška pagal atstumą"}</span>
             </div>
             <label>
-              Darbo sritis
+              Kokio meistro ieškote?
               <select value={trade} onChange={(event) => setTrade(event.target.value)}>
                 <option value="all">Visos sritys</option>
                 {categories.map((category) => (
@@ -541,23 +576,70 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               </select>
             </label>
             <label>
-              Miestas / rajonas
-              <select value={city} onChange={(event) => setCity(event.target.value)}>
+              Kur reikalingas meistras?
+              <input
+                list="localpro-cities"
+                value={city === "all" ? "" : city}
+                onChange={(event) => {
+                  setCity(event.target.value.trim() || "all");
+                  setMapSearchPoint(null);
+                  setMapNeedsSearch(false);
+                }}
+                placeholder="Pvz. Vilnius, Lentvaris, Kaunas"
+                type="text"
+              />
+              <datalist id="localpro-cities">
+                {cities.map((item) => <option key={item} value={item} />)}
+              </datalist>
+            </label>
+            <label>
+              Paieškos spindulys
+              <select value={customerRadiusKm} onChange={(event) => setCustomerRadiusKm(Number(event.target.value))}>
+                {customerRadiusOptions.map((radius) => (
+                  <option key={radius} value={radius}>{radius} km</option>
+                ))}
+              </select>
+            </label>
+            <details className="filter-drawer">
+              <summary>Filtrai</summary>
+              <label>
+                Profilio signalai
+                <select value={verification} onChange={(event) => setVerification(event.target.value)}>
+                  <option value="all">Visi specialistai</option>
+                  {verificationOptions.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="check-line">
+                <input type="checkbox" checked={availableSoonOnly} onChange={(event) => setAvailableSoonOnly(event.target.checked)} />
+                Gali greitai pradėti
+              </label>
+              <label className="check-line">
+                <input type="checkbox" checked={verifiedOnly} onChange={(event) => setVerifiedOnly(event.target.checked)} />
+                Tik patikrinti
+              </label>
+              <label>
+                Minimalus įvertinimas
+                <select value={minRating} onChange={(event) => setMinRating(event.target.value)}>
+                  <option value="0">Bet koks</option>
+                  <option value="4">4.0+</option>
+                  <option value="4.5">4.5+</option>
+                  <option value="4.8">4.8+</option>
+                </select>
+              </label>
+            </details>
+            <noscript>
+              <label>
+                Miestas / rajonas
+                <select value={city} onChange={(event) => setCity(event.target.value)}>
                 <option value="all">Visa Lietuva</option>
                 {cities.map((item) => (
                   <option key={item} value={item}>{item}</option>
                 ))}
-              </select>
-            </label>
-            <label>
-              Profilio signalai
-              <select value={verification} onChange={(event) => setVerification(event.target.value)}>
-                <option value="all">Visi specialistai</option>
-                {verificationOptions.map((item) => (
-                  <option key={item.value} value={item.value}>{item.label}</option>
-                ))}
-              </select>
-            </label>
+                </select>
+              </label>
+            </noscript>
             <div className="hero-actions" aria-label="Pagrindiniai veiksmai">
               <a className="primary-action" href="#mapSection">Ieškoti žemėlapyje</a>
               <a className="secondary-action" href="#register">Tapti specialistu</a>
@@ -590,7 +672,14 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
         </section>
 
         <section className="map-layout" id="mapSection" aria-label="LocalPro specialistų žemėlapis ir rezultatai">
-          <aside className="results-column">
+          <div className="mobile-results-bar">
+            <span>{specialists.length ? formatSpecialistCount(specialists.length) : "Nėra atitikmenų"}</span>
+            <div className="segmented-control" aria-label="Rezultatų vaizdas">
+              <button className={viewMode === "map" ? "active" : ""} type="button" onClick={() => setViewMode("map")}>Žemėlapis</button>
+              <button className={viewMode === "list" ? "active" : ""} type="button" onClick={() => setViewMode("list")}>Sąrašas</button>
+            </div>
+          </div>
+          <aside className={`results-column ${viewMode === "list" ? "mobile-active" : ""}`}>
             <div className="section-heading compact">
               <p className="eyebrow">Specialistai žemėlapyje</p>
               <h2>{specialists.length ? <span>{formatSpecialistCount(specialists.length)}</span> : "Būkite pirmasis specialistas šioje vietoje"}</h2>
@@ -613,11 +702,16 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   </span>
                   <span className="meta-row">
                     <span className="tag">{specialist.trade}</span>
-                    <span className="tag">{specialist.town}</span>
-                    <span className="tag">{specialist.radius} km zona</span>
+                    <span className="tag">{specialist.approximateLocation ?? specialist.town}</span>
+                    <span className="tag">{formatTravelRange(specialist.radius)}</span>
+                    <span className="tag">{formatAvailability(specialist)}</span>
                     <span className="tag">{formatVerificationSummary(specialist.verification)}</span>
                   </span>
-                  <span>{formatReviewCount(specialist.reviewCount)} - dirba: {specialist.operatingCities.join(", ")}. {specialist.serviceArea}</span>
+                  <span>
+                    {formatReviewCount(specialist.reviewCount)}
+                    {typeof specialist.distanceKm === "number" ? ` - apie ${specialist.distanceKm.toFixed(1)} km nuo vietos` : ""}
+                    . {specialist.serviceArea}
+                  </span>
                   <span className="open-profile-label">Atidaryti profilį</span>
                 </button>
               )) : (
@@ -630,12 +724,36 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
             </div>
           </aside>
 
-          <section className="map-board" aria-label="OpenStreetMap LocalPro specialistų žemėlapis">
+          <section className={`map-board ${viewMode === "map" ? "mobile-active" : ""}`} aria-label="OpenStreetMap LocalPro specialistų žemėlapis">
             <div className="map-toolbar">
               <span>LocalPro žemėlapis</span>
               <span>{specialists.length ? `${formatMarkerCount(specialists.length)} su darbo zonomis` : "Nėra atitikmenų"}</span>
             </div>
             <div className="real-map" ref={mapElementRef} aria-label="Interaktyvus OpenStreetMap su LocalPro specialistų žymekliais">
+              {mapNeedsSearch ? (
+                <button className="search-this-area" type="button" onClick={searchCurrentMapArea}>
+                  Ieškoti šiame plote
+                </button>
+              ) : null}
+              {activeSpecialist ? (
+                <div className="selected-map-card">
+                  <div className="selected-card-photo">
+                    {activePhotoUrl ? <img src={activePhotoUrl} alt="" /> : activeSpecialist.trade.charAt(0)}
+                  </div>
+                  <div>
+                    <strong>{activeSpecialist.companyName || activeSpecialist.name}</strong>
+                    <span>{activeSpecialist.trade}</span>
+                    <span>{activeSpecialist.rating ? activeSpecialist.rating.toFixed(1) : "Naujas"} ★ / {formatReviewCount(activeSpecialist.reviewCount)}</span>
+                    <span>{formatVerificationSummary(activeSpecialist.verification)} · {activeSpecialist.approximateLocation ?? activeSpecialist.town}</span>
+                    <span>{formatAvailability(activeSpecialist)}</span>
+                    <span>{typeof activeSpecialist.distanceKm === "number" ? `${activeSpecialist.distanceKm.toFixed(1)} km` : "Atstumas tikslinamas"} · {formatTravelRange(activeSpecialist.radius)}</span>
+                  </div>
+                  <div className="selected-card-actions">
+                    <button type="button" onClick={() => openSpecialistProfile(activeSpecialist.id)}>Peržiūrėti profilį</button>
+                    <a href={`https://wa.me/${activeSpecialist.whatsapp}`} onClick={() => logEnquiry(activeSpecialist.id, "whatsapp_click")}>Siųsti užklausą</a>
+                  </div>
+                </div>
+              ) : null}
               <div className="map-hint">Traukite žemėlapį, artinkite arba naudokite +/-</div>
             </div>
           </section>
@@ -649,7 +767,9 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                 <h2>{activeSpecialist.name}</h2>
                 <div className="tag-row">
                   <span className="tag">{activeSpecialist.trade}</span>
-                  <span className="tag">{activeSpecialist.town}</span>
+                  <span className="tag">{activeSpecialist.approximateLocation ?? activeSpecialist.town}</span>
+                  <span className="tag">{formatTravelRange(activeSpecialist.radius)}</span>
+                  <span className="tag">{formatAvailability(activeSpecialist)}</span>
                   <span className="tag">{formatVerificationSummary(activeSpecialist.verification)}</span>
                   <span className="rating">{activeSpecialist.rating ? activeSpecialist.rating.toFixed(1) : "Naujas"} {stars(activeSpecialist.rating)}</span>
                 </div>
@@ -724,10 +844,24 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   <input value={formState.email} onChange={(event) => setFormState({ ...formState, email: event.target.value })} type="email" autoComplete="email" />
                 </label>
                 <label>
-                  Pagrindinis miestas *
-                  <input value={formState.city} onChange={(event) => setFormState({ ...formState, city: event.target.value })} type="text" autoComplete="address-level2" />
+                  Miestas arba gyvenvietė *
+                  <input value={formState.town} onChange={(event) => setFormState({ ...formState, town: event.target.value, city: event.target.value })} type="text" autoComplete="address-level2" />
                 </label>
               </div>
+              <div className="form-row">
+                <label>
+                  Gatvė *
+                  <input value={formState.street} onChange={(event) => setFormState({ ...formState, street: event.target.value })} type="text" autoComplete="address-line1" />
+                </label>
+                <label>
+                  Pašto kodas *
+                  <input value={formState.postcode} onChange={(event) => setFormState({ ...formState, postcode: event.target.value })} type="text" autoComplete="postal-code" />
+                </label>
+              </div>
+              <label>
+                Namo numeris privatiam geokodavimui
+                <input value={formState.houseNumber} onChange={(event) => setFormState({ ...formState, houseNumber: event.target.value })} type="text" autoComplete="address-line2" />
+              </label>
               <fieldset>
                 <legend>Darbo sritys *</legend>
                 {categories.map((category) => (
@@ -800,18 +934,24 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   Pridėti URL
                 </button>
               </fieldset>
-              <label>
-                Darbo spindulys *
-                <input type="range" min="5" max="100" value={formState.radiusKm} onChange={(event) => setFormState({ ...formState, radiusKm: Number(event.target.value) })} />
-                <span><strong>{formState.radiusKm}</strong> km aplink miestą</span>
-              </label>
               <fieldset>
-                <legend>Aptarnaujamos vietos *</legend>
-                <p className="field-note">Spindulys rodo bendrą darbo zoną žemėlapyje, o miestai padeda klientams greičiau rasti jus filtruose.</p>
-                {cities.slice(0, 6).map((item) => (
-                  <label key={item}>
-                    <input type="checkbox" checked={formState.operatingCities.includes(item)} onChange={(event) => updateOperatingCity(item, event.target.checked)} />
-                    {item}
+                <legend>Kokiu atstumu vykstate į darbus? *</legend>
+                <p className="field-note">Tikslus adresas viešai nerodomas. Klientai matys tik apytikslę vietą ir jūsų pasirinktą vykimo atstumą.</p>
+                {travelRangeOptions.map((option) => (
+                  <label key={option.value}>
+                    <input
+                      type="radio"
+                      name="travelRange"
+                      checked={formState.travelRange === option.value}
+                      onChange={() =>
+                        setFormState({
+                          ...formState,
+                          travelRange: option.value,
+                          radiusKm: option.value === "lt" ? 150 : Number(option.value)
+                        })
+                      }
+                    />
+                    {option.label}
                   </label>
                 ))}
               </fieldset>
@@ -835,8 +975,8 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                     const subcategory = selectedSubcategories.find((item) => item.slug === slug);
                     return <span className="tag" key={slug}>{subcategory?.name ?? slug}</span>;
                   }) : null}
-                  <span className="tag">{formState.city || "Miestas"}</span>
-                  <span className="tag">{formState.radiusKm} km zona</span>
+                  <span className="tag">{formState.town || "Miestas / gyvenvietė"}</span>
+                  <span className="tag">{formatTravelRange(formState.radiusKm)}</span>
                   <span className="tag">Laukia patikros</span>
                 </div>
                 <p>{formState.description || "Trumpas darbų aprašymas bus rodomas čia."}</p>
@@ -968,6 +1108,8 @@ function spreadDuplicateCoordinates(specialists: Specialist[], map: import("leaf
   });
 }
 
+// Kept as a fallback if we return to Leaflet popups; the primary mobile flow now uses the bottom card.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function createMapPopup(specialist: Specialist) {
   const imageUrl = specialist.photoUrls?.find(Boolean);
   const thumbnail = imageUrl
@@ -1026,6 +1168,14 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function formatTravelRange(radiusKm: number) {
+  return radiusKm >= 150 ? "Visa Lietuva" : `Iki ${radiusKm} km`;
+}
+
+function formatAvailability(specialist: Specialist) {
+  return specialist.isAvailableSoon ? "Gali greitai pradėti" : "Dėl laiko susitarti";
 }
 
 function formatPhotoUrl(value: string) {

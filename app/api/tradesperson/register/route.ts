@@ -57,8 +57,10 @@ export async function POST(request: Request) {
     : categories.find((category) => category.name === categoryNames[0]) ?? categories[0];
   const normalizedPhone = normalizeLithuanianPhone(payload.phone) || payload.phone;
   const normalizedWhatsapp = payload.whatsapp ? normalizeLithuanianPhone(payload.whatsapp) || payload.whatsapp : normalizedPhone;
-  const coordinates = await resolveCityCoordinates(payload.city);
-  const operatingCities = uniqueList([payload.city, ...payload.operatingCities]);
+  const baseTown = payload.town || payload.city;
+  const travelRadiusKm = payload.travelRange === "lt" ? 150 : Number(payload.travelRange);
+  const coordinates = await resolveCityCoordinates(baseTown);
+  const operatingCities = uniqueList([baseTown, ...(payload.operatingCities ?? [])]);
 
   if (!coordinates) {
     return NextResponse.json({ error: "Nepavyko rasti miesto žemėlapyje. Įrašykite tikslų Lietuvos miestą arba artimiausią didesnį miestą." }, { status: 400 });
@@ -86,15 +88,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Pasirinktos paslaugos turi atitikti darbo sritis." }, { status: 400 });
   }
 
-  const { data: profile, error } = await supabase
-    .from("tradesperson_profiles")
-    .insert({
+  const { data: profile, error } = await insertProfile(
+    {
       display_name: payload.name,
       phone: normalizedPhone,
       whatsapp_number: normalizedWhatsapp,
       email: payload.email,
-      base_city: payload.city,
-      radius_km: payload.radiusKm,
+      base_city: baseTown,
+      street_name: payload.street,
+      postcode: payload.postcode,
+      house_number_private: payload.houseNumber || null,
+      travel_range_label: payload.travelRange === "lt" ? "Visa Lietuva" : `Iki ${payload.travelRange} km`,
+      radius_km: travelRadiusKm,
       latitude: coordinates.lat,
       longitude: coordinates.lng,
       description: payload.description,
@@ -104,9 +109,9 @@ export async function POST(request: Request) {
       source: "self-registration",
       consent_at: new Date().toISOString(),
       verification_labels: []
-    })
-    .select("id")
-    .single();
+    },
+    supabase
+  );
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -130,7 +135,7 @@ export async function POST(request: Request) {
     operatingCities.map((city) => ({
       tradesperson_profile_id: profile.id,
       city,
-      radius_km: payload.radiusKm
+      radius_km: travelRadiusKm
     }))
   );
 
@@ -205,6 +210,48 @@ export async function POST(request: Request) {
 
 async function cleanupProfile(profileId: string, supabase: ReturnType<typeof createServerSupabase>) {
   await supabase?.from("tradesperson_profiles").delete().eq("id", profileId);
+}
+
+type ProfileInsert = {
+  display_name: string;
+  phone: string;
+  whatsapp_number: string;
+  email: string;
+  base_city: string;
+  street_name: string;
+  postcode: string;
+  house_number_private: string | null;
+  travel_range_label: string;
+  radius_km: number;
+  latitude: number;
+  longitude: number;
+  description: string;
+  service_category_id: string;
+  public_status: "private";
+  approval_status: "pending";
+  source: "self-registration";
+  consent_at: string;
+  verification_labels: string[];
+};
+
+async function insertProfile(profile: ProfileInsert, supabase: NonNullable<ReturnType<typeof createServerSupabase>>) {
+  const result = await supabase.from("tradesperson_profiles").insert(profile).select("id").single();
+
+  if (!result.error || !isMissingLocationPrivacyColumn(result.error.message)) {
+    return result;
+  }
+
+  const legacyProfile: Partial<ProfileInsert> = { ...profile };
+  delete legacyProfile.street_name;
+  delete legacyProfile.postcode;
+  delete legacyProfile.house_number_private;
+  delete legacyProfile.travel_range_label;
+
+  return supabase.from("tradesperson_profiles").insert(legacyProfile).select("id").single();
+}
+
+function isMissingLocationPrivacyColumn(message: string) {
+  return /street_name|postcode|travel_range_label|house_number_private/i.test(message);
 }
 
 function uniqueList(values: string[]) {

@@ -13,10 +13,17 @@ export type Specialist = {
   subcategorySlugs: string[];
   subcategoryNames?: string[];
   town: string;
+  district?: string;
+  streetArea?: string;
+  approximateLocation?: string;
   operatingCities: string[];
   radius: number;
   lat: number;
   lng: number;
+  registeredLat?: number;
+  registeredLng?: number;
+  distanceKm?: number;
+  isAvailableSoon?: boolean;
   verification: string[];
   verificationLabel: string;
   rating: number;
@@ -49,13 +56,18 @@ export type RegistrationPayload = {
   name: string;
   phone: string;
   email: string;
-  city: string;
+  city?: string;
+  town: string;
+  street: string;
+  postcode: string;
+  houseNumber?: string;
   trade: string;
   categorySlugs?: string[];
   subcategorySlugs?: string[];
   description: string;
   radiusKm: number;
-  operatingCities: string[];
+  travelRange: "10" | "25" | "50" | "100" | "lt";
+  operatingCities?: string[];
   photoUrls?: string[];
   photoUploads?: Array<{
     name: string;

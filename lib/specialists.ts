@@ -1,15 +1,53 @@
 import { categories, specialists as seedSpecialists } from "./seed-data";
 import { isObviousPublicTestProfile } from "./display";
-import { profileRowToSpecialist } from "./db-mappers";
+import { profileRowToSpecialist, type ProfileRow } from "./db-mappers";
+import { approximatePublicCoordinates, cityCoordinates, distanceKm, isNationwideTravelRange } from "./geo";
 import { createServerSupabase } from "./supabase";
 import type { Specialist } from "./types";
 
 type SpecialistFilters = {
   service?: string | null;
   city?: string | null;
+  location?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  customerRadiusKm?: number | null;
   verification?: string | null;
+  verifiedOnly?: boolean;
+  availableSoon?: boolean;
+  minRating?: number | null;
   includePending?: boolean;
 };
+
+const SPECIALIST_SELECT = `
+  id,
+  display_name,
+  company_name,
+  phone,
+  whatsapp_number,
+  email,
+  base_city,
+  street_name,
+  postcode,
+  radius_km,
+  latitude,
+  longitude,
+  description,
+  review_score,
+  review_count,
+  verification_labels,
+  public_status,
+  approval_status,
+  source,
+  service_area_label,
+  service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
+  profile_services(service_categories(name, slug), service_subcategories(name, slug)),
+  operating_areas(city, radius_km),
+  profile_photos(label, url, sort_order),
+  reviews(client_name, rating, text, moderation_status)
+`;
+
+const LEGACY_SPECIALIST_SELECT = SPECIALIST_SELECT.replace("street_name,\n  postcode,\n", "");
 
 export async function getCategories() {
   const supabase = createServerSupabase();
@@ -43,48 +81,40 @@ export async function getSpecialists(filters: SpecialistFilters = {}) {
     return filterSeedSpecialists(filters);
   }
 
-  let query = supabase
-    .from("tradesperson_profiles")
-    .select(
-      `
-        id,
-        display_name,
-        company_name,
-        phone,
-        whatsapp_number,
-        email,
-        base_city,
-        radius_km,
-        latitude,
-        longitude,
-        description,
-        review_score,
-        review_count,
-        verification_labels,
-        public_status,
-        approval_status,
-        source,
-        service_area_label,
-        service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
-        profile_services(service_categories(name, slug), service_subcategories(name, slug)),
-        operating_areas(city, radius_km),
-        profile_photos(label, url, sort_order),
-        reviews(client_name, rating, text, moderation_status)
-      `
-    )
-    .eq("public_status", "public");
+  let { data, error } = await runSpecialistQuery(SPECIALIST_SELECT, filters);
 
-  if (!filters.includePending) {
-    query = query.eq("approval_status", "approved");
+  if (error && isMissingLocationPrivacyColumn(error.message)) {
+    const legacyResult = await runSpecialistQuery(LEGACY_SPECIALIST_SELECT, filters);
+    data = legacyResult.data;
+    error = legacyResult.error;
   }
-
-  const { data, error } = await query.order("created_at", { ascending: false });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return applyFilters(removePublicTestProfiles((data ?? []).map(profileRowToSpecialist), filters), filters);
+  const rows = (data ?? []) as unknown as ProfileRow[];
+  return toPublicSpecialistList(applyFilters(removePublicTestProfiles(rows.map(profileRowToSpecialist), filters), filters));
+}
+
+function runSpecialistQuery(select: string, filters: SpecialistFilters) {
+  const supabase = createServerSupabase();
+
+  if (!supabase) {
+    return Promise.resolve({ data: null, error: new Error("Supabase is not configured") });
+  }
+
+  let query = supabase.from("tradesperson_profiles").select(select).eq("public_status", "public");
+
+  if (!filters.includePending) {
+    query = query.eq("approval_status", "approved");
+  }
+
+  return query.order("created_at", { ascending: false });
+}
+
+function isMissingLocationPrivacyColumn(message: string) {
+  return /street_name|postcode|travel_range_label|house_number_private/i.test(message);
 }
 
 export async function getSpecialist(id: string) {
@@ -97,7 +127,7 @@ function filterSeedSpecialists(filters: SpecialistFilters) {
     filters.includePending ? true : specialist.status === "approved"
   );
 
-  return applyFilters(removePublicTestProfiles(publicList, filters), filters);
+  return toPublicSpecialistList(applyFilters(removePublicTestProfiles(publicList.map(toPrivacySafeSeedSpecialist), filters), filters));
 }
 
 function removePublicTestProfiles(list: Specialist[], filters: SpecialistFilters) {
@@ -109,10 +139,14 @@ function removePublicTestProfiles(list: Specialist[], filters: SpecialistFilters
 }
 
 function applyFilters(list: Specialist[], filters: SpecialistFilters) {
+  const searchPoint = getSearchPoint(filters);
+  const customerRadiusKm = filters.customerRadiusKm && filters.customerRadiusKm > 0 ? filters.customerRadiusKm : null;
+
   return list.filter((specialist) => {
     const service = filters.service && filters.service !== "all" ? filters.service : null;
     const city = filters.city && filters.city !== "all" ? filters.city : null;
     const verification = filters.verification && filters.verification !== "all" ? filters.verification : null;
+    const registeredPoint = { lat: specialist.registeredLat ?? specialist.lat, lng: specialist.registeredLng ?? specialist.lng };
 
     const serviceMatch =
       !service ||
@@ -120,9 +154,66 @@ function applyFilters(list: Specialist[], filters: SpecialistFilters) {
       specialist.categorySlug === service ||
       specialist.categorySlugs?.includes(service) ||
       specialist.subcategorySlugs.includes(service);
-    const cityMatch = !city || specialist.operatingCities.includes(city);
+    const cityMatch = !city || specialist.town === city || specialist.operatingCities.includes(city);
     const verificationMatch = !verification || specialist.verification.includes(verification);
+    const verifiedMatch = !filters.verifiedOnly || specialist.verification.length > 0;
+    const availableMatch = !filters.availableSoon || specialist.isAvailableSoon || specialist.verification.includes("available-soon");
+    const ratingMatch = !filters.minRating || specialist.rating >= filters.minRating;
+    const profileInsideCustomerRadius =
+      !searchPoint || !customerRadiusKm || distanceKm(searchPoint, registeredPoint) <= customerRadiusKm;
+    const customerInsideTravelRange =
+      !searchPoint || isNationwideTravelRange(specialist.radius) || distanceKm(searchPoint, registeredPoint) <= specialist.radius;
 
-    return serviceMatch && cityMatch && verificationMatch;
+    return (
+      serviceMatch &&
+      cityMatch &&
+      verificationMatch &&
+      verifiedMatch &&
+      availableMatch &&
+      ratingMatch &&
+      profileInsideCustomerRadius &&
+      customerInsideTravelRange
+    );
+  }).map((specialist) => {
+    if (!searchPoint) {
+      return specialist;
+    }
+
+    return {
+      ...specialist,
+      distanceKm: distanceKm(searchPoint, { lat: specialist.registeredLat ?? specialist.lat, lng: specialist.registeredLng ?? specialist.lng })
+    };
+  });
+}
+
+function getSearchPoint(filters: SpecialistFilters) {
+  if (typeof filters.lat === "number" && typeof filters.lng === "number") {
+    return { lat: filters.lat, lng: filters.lng };
+  }
+
+  return cityCoordinates(filters.location || filters.city);
+}
+
+function toPrivacySafeSeedSpecialist(specialist: Specialist) {
+  const publicCoordinates = approximatePublicCoordinates(specialist.id, { lat: specialist.lat, lng: specialist.lng });
+
+  return {
+    ...specialist,
+    lat: publicCoordinates.lat,
+    lng: publicCoordinates.lng,
+    registeredLat: specialist.lat,
+    registeredLng: specialist.lng,
+    isAvailableSoon: specialist.isAvailableSoon ?? ["jonas", "darius", "asta"].includes(specialist.id),
+    approximateLocation: specialist.approximateLocation ?? specialist.town,
+    streetArea: specialist.streetArea ?? undefined
+  };
+}
+
+function toPublicSpecialistList(list: Specialist[]) {
+  return list.map((item) => {
+    const specialist = { ...item };
+    delete specialist.registeredLat;
+    delete specialist.registeredLng;
+    return specialist;
   });
 }

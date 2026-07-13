@@ -7,8 +7,24 @@ export async function GET(request: Request) {
   const specialists = await getSpecialists({
     service: searchParams.get("service"),
     city: searchParams.get("city"),
-    verification: searchParams.get("verification")
+    location: searchParams.get("location"),
+    lat: parseOptionalNumber(searchParams.get("lat")),
+    lng: parseOptionalNumber(searchParams.get("lng")),
+    customerRadiusKm: parseOptionalNumber(searchParams.get("customerRadiusKm") ?? searchParams.get("radius")),
+    verification: searchParams.get("verification"),
+    verifiedOnly: searchParams.get("verified") === "true",
+    availableSoon: searchParams.get("availableSoon") === "true",
+    minRating: parseOptionalNumber(searchParams.get("minRating"))
   });
 
   return NextResponse.json({ specialists });
+}
+
+function parseOptionalNumber(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }

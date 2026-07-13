@@ -77,6 +77,38 @@ export function profileCoordinates(latitude: number | null | undefined, longitud
   return LITHUANIA_CENTER;
 }
 
+export function distanceKm(from: { lat: number; lng: number }, to: { lat: number; lng: number }) {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(to.lat - from.lat);
+  const dLng = toRadians(to.lng - from.lng);
+  const lat1 = toRadians(from.lat);
+  const lat2 = toRadians(to.lat);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export function approximatePublicCoordinates(id: string, coordinates: { lat: number; lng: number }) {
+  const hash = Array.from(id).reduce((sum, character) => sum + character.charCodeAt(0), 0);
+  const angle = (hash % 360) * (Math.PI / 180);
+  const offsetKm = 0.35 + (hash % 7) * 0.08;
+
+  return {
+    lat: coordinates.lat + (Math.cos(angle) * offsetKm) / 111,
+    lng: coordinates.lng + (Math.sin(angle) * offsetKm) / (111 * Math.cos(toRadians(coordinates.lat)))
+  };
+}
+
+export function isNationwideTravelRange(value: number | string | null | undefined) {
+  return String(value ?? "").toLowerCase() === "lt" || Number(value) >= 150;
+}
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
 function isLithuaniaCoordinate(lat: number, lng: number) {
   return Number.isFinite(lat) && Number.isFinite(lng) && lat >= 53.8 && lat <= 56.5 && lng >= 20.5 && lng <= 27;
 }

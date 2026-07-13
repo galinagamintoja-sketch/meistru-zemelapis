@@ -226,6 +226,7 @@ select,
 input[type="text"],
 input[type="tel"],
 input[type="email"],
+input[type="url"],
 textarea {
   width: 100%;
   min-height: 44px;
@@ -234,6 +235,32 @@ textarea {
   padding: 0 12px;
   color: var(--ink);
   background: #fffdf7;
+}
+
+.filter-drawer {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fffdf7;
+}
+
+.filter-drawer summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.filter-drawer[open] summary {
+  margin-bottom: 8px;
+}
+
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
 }
 
 textarea {
@@ -275,13 +302,40 @@ textarea {
 
 .map-layout {
   display: grid;
-  grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 40%) minmax(0, 60%);
   gap: 18px;
   padding: 0 clamp(18px, 4vw, 56px) 50px;
 }
 
 .results-column {
   min-width: 0;
+}
+
+.mobile-results-bar {
+  display: none;
+}
+
+.segmented-control {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf7;
+}
+
+.segmented-control button {
+  min-height: 36px;
+  border: 0;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.segmented-control button.active {
+  background: var(--ink);
+  color: white;
 }
 
 .section-heading {
@@ -381,6 +435,96 @@ textarea {
   border-radius: 0 0 8px 8px;
   background: #d9e4dd;
   box-shadow: var(--shadow);
+}
+
+.search-this-area {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  z-index: 650;
+  min-height: 40px;
+  transform: translateX(-50%);
+  border: 0;
+  border-radius: 8px;
+  padding: 0 14px;
+  background: var(--ink);
+  color: white;
+  font-weight: 900;
+  box-shadow: 0 12px 28px rgba(33, 29, 24, 0.2);
+}
+
+.selected-map-card {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 640;
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 10px;
+  width: min(430px, calc(100% - 28px));
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 250, 240, 0.97);
+  box-shadow: var(--shadow);
+}
+
+.selected-card-photo {
+  display: grid;
+  width: 76px;
+  height: 76px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--spruce);
+  color: white;
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 900;
+}
+
+.selected-card-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.selected-map-card strong,
+.selected-map-card span {
+  display: block;
+}
+
+.selected-map-card span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.selected-card-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.selected-card-actions button,
+.selected-card-actions a {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: var(--spruce);
+  color: white;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+  text-decoration: none;
+}
+
+.selected-card-actions a {
+  background: var(--clay);
 }
 
 .real-map .leaflet-control-zoom a {
@@ -838,11 +982,33 @@ fieldset label {
 @media (max-width: 1040px) {
   .hero,
   .solutions-grid,
-  .map-layout,
   .profile-card,
   .register-grid,
   .workflow-grid {
     grid-template-columns: 1fr;
+  }
+
+  .map-layout {
+    display: block;
+  }
+
+  .mobile-results-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    font-weight: 900;
+  }
+
+  .results-column,
+  .map-board {
+    display: none;
+  }
+
+  .results-column.mobile-active,
+  .map-board.mobile-active {
+    display: block;
   }
 
   .stage-nav {
@@ -881,6 +1047,13 @@ fieldset label {
 
   .real-map {
     min-height: 520px;
+  }
+
+  .selected-map-card {
+    right: 10px;
+    bottom: 52px;
+    left: 10px;
+    width: auto;
   }
 
   .photo-grid,

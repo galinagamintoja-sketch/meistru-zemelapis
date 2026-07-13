@@ -49,18 +49,25 @@ export const photoUploadSchema = z.object({
   dataUrl: z.string().startsWith("data:image/").max(8_000_000)
 });
 
+export const travelRangeSchema = z.enum(["10", "25", "50", "100", "lt"]);
+
 export const registrationSchema = z.object({
   name: z.string().trim().min(2).max(140),
   phone: lithuanianPhoneSchema,
   whatsapp: z.string().trim().max(40).optional().default("").refine((value) => !value || isLithuanianPhone(value), "Įveskite lietuvišką WhatsApp numerį"),
   email: z.string().trim().email().max(180),
-  city: z.string().trim().min(2).max(80),
+  city: z.string().trim().max(80).optional().default(""),
+  town: z.string().trim().min(2).max(80),
+  street: z.string().trim().min(2).max(120),
+  postcode: z.string().trim().min(4).max(12),
+  houseNumber: z.string().trim().max(20).optional().default(""),
   trade: z.string().trim().min(2).max(120).optional().default(""),
   categorySlugs: z.array(z.string().trim().min(2).max(80)).max(8).optional().default([]),
   subcategorySlugs: z.array(z.string().trim().min(2).max(80)).max(20).optional().default([]),
   description: z.string().trim().min(10).max(1200),
-  radiusKm: z.coerce.number().min(5).max(150),
-  operatingCities: z.array(z.string().trim().min(2).max(80)).min(1).max(20),
+  radiusKm: z.coerce.number().min(5).max(150).optional().default(25),
+  travelRange: travelRangeSchema,
+  operatingCities: z.array(z.string().trim().min(2).max(80)).max(20).optional().default([]),
   photoUrls: z.array(photoUrlSchema).max(photoFieldMetadata.maxItems).optional().default([]),
   photoUploads: z.array(photoUploadSchema).max(photoFieldMetadata.maxItems).optional().default([]),
   consentAccepted: z.literal(true)
