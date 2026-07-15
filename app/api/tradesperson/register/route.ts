@@ -74,6 +74,7 @@ export async function POST(request: Request) {
           })
         : await resolveLithuanianCoordinates(payload.address);
   const operatingCities = uniqueList([baseTown, ...(payload.operatingCities ?? [])]);
+  const now = new Date().toISOString();
 
   const { data: subcategories, error: subcategoriesError } = subcategorySlugs.length
     ? await supabase
@@ -118,7 +119,12 @@ export async function POST(request: Request) {
       public_status: "private",
       approval_status: "pending",
       source: "self-registration",
-      consent_at: new Date().toISOString(),
+      consent_at: now,
+      terms_accepted_at: now,
+      privacy_acknowledged_at: now,
+      public_contact_consent_at: now,
+      marketing_consent_at: payload.marketingConsent ? now : null,
+      whatsapp_communication_consent_at: payload.whatsappCommunicationConsent ? now : null,
       verification_labels: []
     },
     supabase
@@ -183,13 +189,49 @@ export async function POST(request: Request) {
     }
   }
 
-  const { error: consentError } = await supabase.from("consent_logs").insert({
-    tradesperson_profile_id: profile.id,
-    consent_type: "self_registration_publish_review",
-    consent_text: "Tradesperson submitted LocalPro registration and agreed to admin review before publishing.",
-    captured_channel: "website",
-    captured_at: new Date().toISOString()
-  });
+  const consentRows = [
+    {
+      tradesperson_profile_id: profile.id,
+      consent_type: "terms_accepted",
+      consent_text: "Tradesperson accepted LocalPro terms during registration.",
+      captured_channel: "website",
+      captured_at: now
+    },
+    {
+      tradesperson_profile_id: profile.id,
+      consent_type: "privacy_acknowledged",
+      consent_text: "Tradesperson acknowledged the LocalPro privacy notice during registration.",
+      captured_channel: "website",
+      captured_at: now
+    },
+    {
+      tradesperson_profile_id: profile.id,
+      consent_type: "public_contact_display",
+      consent_text: "Tradesperson gave explicit permission to publicly display selected contact details after admin approval.",
+      captured_channel: "website",
+      captured_at: now
+    },
+    ...(payload.marketingConsent
+      ? [{
+          tradesperson_profile_id: profile.id,
+          consent_type: "marketing_messages",
+          consent_text: "Tradesperson opted in to optional LocalPro marketing messages.",
+          captured_channel: "website",
+          captured_at: now
+        }]
+      : []),
+    ...(payload.whatsappCommunicationConsent
+      ? [{
+          tradesperson_profile_id: profile.id,
+          consent_type: "whatsapp_communication",
+          consent_text: "Tradesperson opted in to WhatsApp communication about the registration.",
+          captured_channel: "website",
+          captured_at: now
+        }]
+      : [])
+  ];
+
+  const { error: consentError } = await supabase.from("consent_logs").insert(consentRows);
 
   if (consentError) {
     await cleanupProfile(profile.id, supabase);
@@ -244,6 +286,11 @@ type ProfileInsert = {
   approval_status: "pending";
   source: "self-registration";
   consent_at: string;
+  terms_accepted_at: string;
+  privacy_acknowledged_at: string;
+  public_contact_consent_at: string;
+  marketing_consent_at: string | null;
+  whatsapp_communication_consent_at: string | null;
   verification_labels: string[];
 };
 
@@ -261,12 +308,17 @@ async function insertProfile(profile: ProfileInsert, supabase: NonNullable<Retur
   delete legacyProfile.postcode;
   delete legacyProfile.house_number_private;
   delete legacyProfile.travel_range_label;
+  delete legacyProfile.terms_accepted_at;
+  delete legacyProfile.privacy_acknowledged_at;
+  delete legacyProfile.public_contact_consent_at;
+  delete legacyProfile.marketing_consent_at;
+  delete legacyProfile.whatsapp_communication_consent_at;
 
   return supabase.from("tradesperson_profiles").insert(legacyProfile).select("id").single();
 }
 
 function isMissingLocationPrivacyColumn(message: string) {
-  return /registered_address|google_place_id|street_name|postcode|travel_range_label|house_number_private/i.test(message);
+  return /registered_address|google_place_id|street_name|postcode|travel_range_label|house_number_private|terms_accepted_at|privacy_acknowledged_at|public_contact_consent_at|marketing_consent_at|whatsapp_communication_consent_at/i.test(message);
 }
 
 function uniqueList(values: string[]) {

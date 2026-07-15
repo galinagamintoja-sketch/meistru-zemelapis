@@ -174,6 +174,25 @@ export default function AdminPage() {
     await loadProfiles();
   }
 
+  async function moderatePhoto(profileId: string, photoId: string, moderationStatus: "approved" | "rejected") {
+    setMessage(moderationStatus === "approved" ? "Nuotrauka tvirtinama..." : "Nuotrauka atmetama...");
+
+    const response = await fetch("/api/admin/profiles", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: profileId, action: "moderate_photo", photoId, moderationStatus })
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      setMessage(data.error ?? "Nuotraukos busenos pakeisti nepavyko.");
+      return;
+    }
+
+    nextLoadMessageRef.current = moderationStatus === "approved" ? "Nuotrauka patvirtinta." : "Nuotrauka atmesta.";
+    await loadProfiles();
+  }
+
   async function saveProfile(id: string) {
     const draft = drafts[id];
     if (!draft) {
@@ -688,6 +707,22 @@ export default function AdminPage() {
                 <fieldset className="admin-wide">
                   <legend>Nuotraukų URL</legend>
                   <p className="field-note">JPG, PNG arba WebP, iki 8 nuotraukų, iki 5 MB kiekviena. Naudokite viešus URL.</p>
+                  {profile.photoRecords?.length ? (
+                    <div className="admin-photo-moderation">
+                      {profile.photoRecords.map((photo) => (
+                        <div className="admin-photo-row" key={photo.id}>
+                          <span>{photo.label || photo.url}</span>
+                          <span>{photo.moderationStatus}</span>
+                          <button type="button" className="admin-secondary" onClick={() => moderatePhoto(profile.id, photo.id, "approved")}>
+                            Patvirtinti nuotrauka
+                          </button>
+                          <button type="button" className="admin-danger" onClick={() => moderatePhoto(profile.id, photo.id, "rejected")}>
+                            Atmesti nuotrauka
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   {draft.photoUrls.map((photoUrl, index) => (
                     <div className="form-row" key={`photo-${profile.id}-${index}`}>
                       <label>

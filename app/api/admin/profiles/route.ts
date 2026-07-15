@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { specialists as seedSpecialists } from "../../../../lib/seed-data";
 import { requireAdminSession } from "../../../../lib/auth-session";
-import { profileRowToSpecialist } from "../../../../lib/db-mappers";
+import { profileRowToSpecialist, type ProfileRow } from "../../../../lib/db-mappers";
 import { createServerSupabase } from "../../../../lib/supabase";
 import { isLithuanianPhone, normalizeLithuanianPhone, photoFieldMetadata } from "../../../../lib/validators";
 
 const validStatuses = new Set(["pending", "approved", "rejected", "suspended", "all"]);
-const validActions = new Set(["approve", "reject", "suspend", "verify_contact", "verify_whatsapp", "update"]);
+const validActions = new Set(["approve", "reject", "suspend", "verify_contact", "verify_whatsapp", "update", "moderate_photo"]);
 const validSources = new Set(["self-registration", "whatsapp-onboarding", "admin-created", "imported-lead"]);
 
 export async function GET(request: Request) {
@@ -50,12 +50,16 @@ export async function GET(request: Request) {
         verification_labels,
         public_status,
         approval_status,
+        is_demo,
         source,
         service_area_label,
+        terms_accepted_at,
+        privacy_acknowledged_at,
+        public_contact_consent_at,
         service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
         profile_services(service_categories(name, slug), service_subcategories(name, slug)),
         operating_areas(city, radius_km),
-        profile_photos(label, url, sort_order),
+        profile_photos(id, label, url, moderation_status, sort_order),
         reviews(client_name, rating, text, moderation_status)
       `
     )
@@ -71,7 +75,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ mode: "database", profiles: (data ?? []).map(profileRowToSpecialist) });
+  return NextResponse.json({ mode: "database", profiles: ((data ?? []) as unknown as ProfileRow[]).map((row) => profileRowToSpecialist(row, { includeUnapprovedPhotos: true })) });
 }
 
 export async function POST(request: Request) {
@@ -437,6 +441,32 @@ export async function PATCH(request: Request) {
     }
   }
 
+  if (action === "moderate_photo") {
+    const photoId = String(body.photoId ?? "");
+    const moderationStatus = String(body.moderationStatus ?? "");
+
+    if (!photoId || !["approved", "rejected", "pending"].includes(moderationStatus)) {
+      return NextResponse.json({ error: "Invalid photo moderation request" }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("profile_photos")
+      .update({ moderation_status: moderationStatus })
+      .eq("id", photoId)
+      .eq("tradesperson_profile_id", id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+  }
+
+  if (action === "approve") {
+    const validation = await validateProfileForPublication(supabase, id);
+    if (validation.length) {
+      return NextResponse.json({ error: "Profilio negalima publikuoti.", validationErrors: validation }, { status: 400 });
+    }
+  }
+
   const patch =
     action === "approve"
       ? { approval_status: "approved", public_status: "public", approved_at: new Date().toISOString() }
@@ -550,4 +580,64 @@ function isProbablyPhotoUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+async function validateProfileForPublication(supabase: NonNullable<ReturnType<typeof createServerSupabase>>, id: string) {
+  const errors: string[] = [];
+  const { data: profile, error } = await supabase
+    .from("tradesperson_profiles")
+    .select(`
+      display_name,
+      company_name,
+      phone,
+      latitude,
+      longitude,
+      service_category_id,
+      description,
+      public_contact_consent_at,
+      profile_services(service_subcategory_id),
+      profile_photos(moderation_status)
+    `)
+    .eq("id", id)
+    .single();
+
+  if (error || !profile) {
+    return ["Profilis nerastas."];
+  }
+
+  if (!cleanText(profile.display_name) && !cleanText(profile.company_name)) {
+    errors.push("Truksta asmens arba imones pavadinimo.");
+  }
+
+  if (!isLithuanianPhone(String(profile.phone ?? ""))) {
+    errors.push("Truksta galiojancio telefono numerio.");
+  }
+
+  if (typeof profile.latitude !== "number" || typeof profile.longitude !== "number") {
+    errors.push("Truksta geokoduotos pagrindines darbo vietos.");
+  }
+
+  if (!profile.service_category_id) {
+    errors.push("Truksta pagrindines darbo srities.");
+  }
+
+  const serviceTagCount = (profile.profile_services ?? []).filter((service: { service_subcategory_id: string | null }) => service.service_subcategory_id).length;
+  if (serviceTagCount < 3) {
+    errors.push("Reikia bent 3 konkreciu paslaugu zymu.");
+  }
+
+  if (cleanText(profile.description).length < 80) {
+    errors.push("Aprasymas turi buti bent 80 simboliu.");
+  }
+
+  if (!profile.public_contact_consent_at) {
+    errors.push("Truksta aiskaus sutikimo viesai rodyti kontaktus.");
+  }
+
+  const rejectedPhotos = (profile.profile_photos ?? []).some((photo: { moderation_status: string }) => photo.moderation_status === "rejected");
+  if (rejectedPhotos) {
+    errors.push("Profilis turi atmestu viesu nuotrauku.");
+  }
+
+  return errors;
 }

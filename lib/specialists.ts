@@ -36,12 +36,13 @@ const SPECIALIST_SELECT = `
   verification_labels,
   public_status,
   approval_status,
+  is_demo,
   source,
   service_area_label,
   service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
   profile_services(service_categories(name, slug), service_subcategories(name, slug)),
   operating_areas(city, radius_km),
-  profile_photos(label, url, sort_order),
+  profile_photos(id, label, url, moderation_status, sort_order),
   reviews(client_name, rating, text, moderation_status)
 `;
 
@@ -84,7 +85,7 @@ export async function getSpecialists(filters: SpecialistFilters = {}) {
   }
 
   const rows = (data ?? []) as unknown as ProfileRow[];
-  return toPublicSpecialistList(applyFilters(removePublicTestProfiles(rows.map(profileRowToSpecialist), filters), filters));
+  return toPublicSpecialistList(applyFilters(removePublicTestProfiles(rows.map((row) => profileRowToSpecialist(row)), filters), filters));
 }
 
 function runSpecialistQuery(select: string, filters: SpecialistFilters) {
@@ -98,6 +99,7 @@ function runSpecialistQuery(select: string, filters: SpecialistFilters) {
 
   if (!filters.includePending) {
     query = query.eq("approval_status", "approved");
+    query = query.eq("is_demo", false);
   }
 
   return query.order("created_at", { ascending: false });

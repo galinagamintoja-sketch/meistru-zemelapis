@@ -37,6 +37,11 @@ type RegistrationDraft = {
   travelRange: "10" | "25" | "50" | "100" | "lt";
   operatingCities: string[];
   consentAccepted: boolean;
+  termsAccepted: boolean;
+  privacyAcknowledged: boolean;
+  publicContactConsent: boolean;
+  marketingConsent: boolean;
+  whatsappCommunicationConsent: boolean;
 };
 
 type LoginUser = {
@@ -170,7 +175,12 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     radiusKm: 25,
     travelRange: "25",
     operatingCities: [] as string[],
-    consentAccepted: false
+    consentAccepted: false,
+    termsAccepted: false,
+    privacyAcknowledged: false,
+    publicContactConsent: false,
+    marketingConsent: false,
+    whatsappCommunicationConsent: false
   });
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitTone, setSubmitTone] = useState<"success" | "error" | "">("");
@@ -1261,8 +1271,32 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               </fieldset>
               <label>
                 <span>
-                  <input type="checkbox" checked={formState.consentAccepted} onChange={(event) => setFormState({ ...formState, consentAccepted: event.target.checked })} />
-                  Sutinku, kad LocalPro peržiūrėtų pateiktą informaciją ir po patvirtinimo viešai rodytų mano profilį bei kontaktus.
+                  <input type="checkbox" checked={formState.termsAccepted} onChange={(event) => setFormState({ ...formState, termsAccepted: event.target.checked, consentAccepted: event.target.checked && formState.privacyAcknowledged && formState.publicContactConsent })} />
+                  Sutinku su LocalPro naudojimosi salygomis.
+                </span>
+              </label>
+              <label>
+                <span>
+                  <input type="checkbox" checked={formState.privacyAcknowledged} onChange={(event) => setFormState({ ...formState, privacyAcknowledged: event.target.checked, consentAccepted: formState.termsAccepted && event.target.checked && formState.publicContactConsent })} />
+                  Susipazinau su privatumo politika.
+                </span>
+              </label>
+              <label>
+                <span>
+                  <input type="checkbox" checked={formState.publicContactConsent} onChange={(event) => setFormState({ ...formState, publicContactConsent: event.target.checked, consentAccepted: formState.termsAccepted && formState.privacyAcknowledged && event.target.checked })} />
+                  Sutinku, kad po patvirtinimo profilyje viesai butu rodomi mano pasirinkti kontaktai.
+                </span>
+              </label>
+              <label>
+                <span>
+                  <input type="checkbox" checked={formState.marketingConsent} onChange={(event) => setFormState({ ...formState, marketingConsent: event.target.checked })} />
+                  Sutinku gauti neprivalomus LocalPro naujienu ir pasiulymu pranesimus.
+                </span>
+              </label>
+              <label>
+                <span>
+                  <input type="checkbox" checked={formState.whatsappCommunicationConsent} onChange={(event) => setFormState({ ...formState, whatsappCommunicationConsent: event.target.checked })} />
+                  Sutinku, kad del registracijos klausimu su manimi butu susisiekta WhatsApp.
                 </span>
               </label>
               <button type="submit">Siųsti registraciją</button>
@@ -1318,6 +1352,11 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
             <div><strong>Kontaktas</strong><p>Klientas mato darbo zoną ir pats susisiekia telefonu arba per WhatsApp.</p></div>
           </div>
         </section>
+        <footer className="site-footer">
+          <a href="/privacy">Privatumo politika</a>
+          <a href="/terms">Naudojimosi salygos</a>
+          <span>Teisinis tekstas yra juodrastis ir turi buti perziuretas specialisto.</span>
+        </footer>
       </main>
     </div>
   );

@@ -36,9 +36,16 @@ export type Specialist = {
   description: string;
   photos: string[];
   photoUrls?: string[];
+  photoRecords?: Array<{
+    id: string;
+    url: string;
+    label?: string | null;
+    moderationStatus: "pending" | "approved" | "rejected";
+  }>;
   reviews: Array<[string, number, string]>;
   status: ProfileStatus;
   source: ProfileSource;
+  isDemo?: boolean;
 };
 
 export type Category = {
@@ -81,4 +88,9 @@ export type RegistrationPayload = {
   }>;
   whatsapp?: string;
   consentAccepted: boolean;
+  termsAccepted?: boolean;
+  privacyAcknowledged?: boolean;
+  publicContactConsent?: boolean;
+  marketingConsent?: boolean;
+  whatsappCommunicationConsent?: boolean;
 };

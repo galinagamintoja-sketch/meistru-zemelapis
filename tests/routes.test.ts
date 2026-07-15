@@ -19,7 +19,10 @@ const validRegistration = {
   travelRange: "25",
   photoUrls: [],
   photoUploads: [],
-  consentAccepted: true
+  consentAccepted: true,
+  termsAccepted: true,
+  privacyAcknowledged: true,
+  publicContactConsent: true
 };
 
 function signedCookie(email: string) {
@@ -94,7 +97,10 @@ describe("profile API routes", () => {
           town: "",
           street: "",
           postcode: "",
-          consentAccepted: false
+          consentAccepted: false,
+          termsAccepted: false,
+          privacyAcknowledged: false,
+          publicContactConsent: false
         })
       })
     );
@@ -105,7 +111,9 @@ describe("profile API routes", () => {
     expect(data.details.fieldErrors.phone.length).toBeGreaterThan(0);
     expect(data.details.fieldErrors.email.length).toBeGreaterThan(0);
     expect(data.details.fieldErrors.address.length).toBeGreaterThan(0);
-    expect(data.details.fieldErrors.consentAccepted.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.termsAccepted.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.privacyAcknowledged.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.publicContactConsent.length).toBeGreaterThan(0);
   });
 
   it("rejects admin profile access without an admin session", async () => {

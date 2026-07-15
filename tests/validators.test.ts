@@ -19,7 +19,10 @@ const validRegistration = {
   travelRange: "25",
   photoUrls: [],
   photoUploads: [],
-  consentAccepted: true
+  consentAccepted: true,
+  termsAccepted: true,
+  privacyAcknowledged: true,
+  publicContactConsent: true
 };
 
 describe("registration validation", () => {
@@ -33,7 +36,9 @@ describe("registration validation", () => {
     expect(registrationSchema.safeParse({ ...validRegistration, phone: "12345" }).success).toBe(false);
   });
 
-  it("requires GDPR consent", () => {
-    expect(registrationSchema.safeParse({ ...validRegistration, consentAccepted: false }).success).toBe(false);
+  it("requires terms, privacy, and public contact consent", () => {
+    expect(registrationSchema.safeParse({ ...validRegistration, consentAccepted: false, termsAccepted: false }).success).toBe(false);
+    expect(registrationSchema.safeParse({ ...validRegistration, consentAccepted: false, privacyAcknowledged: false }).success).toBe(false);
+    expect(registrationSchema.safeParse({ ...validRegistration, consentAccepted: false, publicContactConsent: false }).success).toBe(false);
   });
 });
