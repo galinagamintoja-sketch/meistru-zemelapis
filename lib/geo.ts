@@ -1,4 +1,5 @@
 const LITHUANIA_CENTER = { lat: 55.1694, lng: 23.8813 };
+const GOOGLE_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 
 const cityCoordinateMap: Record<string, { lat: number; lng: number }> = {
   alytus: { lat: 54.3964, lng: 24.0456 },
@@ -28,11 +29,80 @@ export async function resolveCityCoordinates(city: string | null | undefined) {
     return knownCoordinates;
   }
 
+  return resolveLithuanianCoordinates(`${city.trim()}, Lithuania`);
+}
+
+export async function resolveRegisteredAddressCoordinates(address: {
+  town: string;
+  street: string;
+  postcode: string;
+  houseNumber?: string | null;
+}) {
+  const streetLine = [address.street, address.houseNumber].filter(Boolean).join(" ");
+  const query = [streetLine, address.postcode, address.town, "Lithuania"].filter(Boolean).join(", ");
+
+  return resolveLithuanianCoordinates(query);
+}
+
+export async function resolveLithuanianCoordinates(query: string | null | undefined) {
+  if (!query?.trim()) {
+    return null;
+  }
+
+  const googleCoordinates = await resolveWithGoogleGeocoding(query);
+  if (googleCoordinates) {
+    return googleCoordinates;
+  }
+
+  return resolveWithNominatim(query);
+}
+
+async function resolveWithGoogleGeocoding(query: string) {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    address: query.trim(),
+    components: "country:LT",
+    region: "lt",
+    key: apiKey
+  });
+
+  try {
+    const response = await fetch(`${GOOGLE_GEOCODING_URL}?${params.toString()}`, {
+      headers: { accept: "application/json" }
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as {
+      status?: string;
+      results?: Array<{ geometry?: { location?: { lat?: number; lng?: number } } }>;
+    };
+    const location = data.status === "OK" ? data.results?.[0]?.geometry?.location : null;
+    const lat = Number(location?.lat);
+    const lng = Number(location?.lng);
+
+    if (!isLithuaniaCoordinate(lat, lng)) {
+      return null;
+    }
+
+    return { lat, lng };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveWithNominatim(query: string) {
   const params = new URLSearchParams({
     format: "jsonv2",
     limit: "1",
     countrycodes: "lt",
-    q: `${city.trim()}, Lithuania`
+    q: query.trim()
   });
 
   try {

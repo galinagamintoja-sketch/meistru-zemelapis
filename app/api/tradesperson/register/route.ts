@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { registrationSchema, photoFieldMetadata, normalizeLithuanianPhone } from "../../../../lib/validators";
 import { createServerSupabase, hasSupabaseConfig } from "../../../../lib/supabase";
-import { resolveCityCoordinates } from "../../../../lib/geo";
+import { resolveRegisteredAddressCoordinates } from "../../../../lib/geo";
 
 const PROFILE_PHOTOS_BUCKET = "profile-photos";
 let profilePhotosBucketReady = false;
@@ -59,7 +59,12 @@ export async function POST(request: Request) {
   const normalizedWhatsapp = payload.whatsapp ? normalizeLithuanianPhone(payload.whatsapp) || payload.whatsapp : normalizedPhone;
   const baseTown = payload.town || payload.city;
   const travelRadiusKm = payload.travelRange === "lt" ? 150 : Number(payload.travelRange);
-  const coordinates = await resolveCityCoordinates(baseTown);
+  const coordinates = await resolveRegisteredAddressCoordinates({
+    town: baseTown,
+    street: payload.street,
+    postcode: payload.postcode,
+    houseNumber: payload.houseNumber
+  });
   const operatingCities = uniqueList([baseTown, ...(payload.operatingCities ?? [])]);
 
   if (!coordinates) {

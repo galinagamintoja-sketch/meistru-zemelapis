@@ -66,6 +66,16 @@ describe("profile API routes", () => {
     expect(response.status).toBe(400);
   });
 
+  it("resolves known Lithuanian locations without exposing the Google key", async () => {
+    const { GET } = await import("../app/api/geo/resolve/route");
+    const response = await GET(new Request("http://localhost/api/geo/resolve?location=Vilnius"));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.coordinates.lat).toBeCloseTo(54.6872, 3);
+    expect(data.coordinates.lng).toBeCloseTo(25.2797, 3);
+  });
+
   it("returns field-level validation details for bad registrations", async () => {
     const { POST } = await import("../app/api/tradesperson/register/route");
     const response = await POST(

@@ -49,6 +49,13 @@ type RegistrationErrorResponse = {
   };
 };
 
+type LocationResolveResponse = {
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+};
+
 const photoFieldMetadata = {
   maxItems: 8,
   maxSizeMb: 5,
@@ -108,6 +115,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [mapPopupId, setMapPopupId] = useState("");
   const [mapZoom, setMapZoom] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [locationResolving, setLocationResolving] = useState(false);
   const [formState, setFormState] = useState<RegistrationDraft>({
     name: "",
     phone: "",
@@ -244,6 +252,54 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
     return () => controller.abort();
   }, [trade, city, customerRadiusKm, verification, verifiedOnly, availableSoonOnly, minRating, mapSearchPoint]);
+
+  useEffect(() => {
+    const location = city === "all" ? "" : city.trim();
+    if (!location) {
+      setLocationResolving(false);
+      setMapSearchPoint(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setLocationResolving(true);
+      try {
+        const response = await fetch(`/api/geo/resolve?location=${encodeURIComponent(location)}`, {
+          cache: "no-store",
+          signal: controller.signal
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as LocationResolveResponse;
+        if (!data.coordinates) {
+          return;
+        }
+
+        setMapSearchPoint(data.coordinates);
+        setMapNeedsSearch(false);
+        mapRef.current?.setView([data.coordinates.lat, data.coordinates.lng], Math.max(mapRef.current.getZoom(), 11), {
+          animate: true
+        });
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") {
+          setMapSearchPoint(null);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLocationResolving(false);
+        }
+      }
+    }, 550);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [city]);
 
   useEffect(() => {
     let cancelled = false;
@@ -564,7 +620,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           <form className="search-panel" aria-label="Rasti specialistą">
             <div className="panel-title">
               <strong>Kokio meistro ieškote?</strong>
-              <span>{loading ? "Kraunama" : "Aiški paieška pagal atstumą"}</span>
+              <span>{loading ? "Kraunama" : locationResolving ? "Tikslinama vieta" : "Aiški paieška pagal atstumą"}</span>
             </div>
             <label>
               Kokio meistro ieškote?
