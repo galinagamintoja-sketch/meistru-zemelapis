@@ -892,6 +892,47 @@ textarea {
   gap: 12px;
 }
 
+.address-autocomplete {
+  position: relative;
+}
+
+.address-loading {
+  margin-top: 6px;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.address-suggestions {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  margin: -6px 0 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf7;
+  box-shadow: 0 14px 34px rgba(33, 29, 24, 0.14);
+  list-style: none;
+}
+
+.address-suggestions button {
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.address-suggestions li[aria-selected="true"] button,
+.address-suggestions button:hover {
+  background: rgba(55, 80, 63, 0.08);
+}
+
 fieldset {
   margin: 0;
   border: 1px solid var(--line);

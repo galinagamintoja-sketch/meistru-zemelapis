@@ -13,6 +13,10 @@ type RegistrationDraft = {
   name: string;
   phone: string;
   email: string;
+  address: string;
+  placeId: string;
+  latitude: number | null;
+  longitude: number | null;
   city: string;
   town: string;
   street: string;
@@ -56,6 +60,24 @@ type LocationResolveResponse = {
   };
 };
 
+type PlacesSuggestion = {
+  id: string;
+  label: string;
+  placePrediction: {
+    placeId?: string;
+    text?: { toString: () => string };
+    toPlace: () => {
+      id?: string;
+      formattedAddress?: string;
+      location?: {
+        lat: () => number;
+        lng: () => number;
+      };
+      fetchFields: (options: { fields: string[] }) => Promise<void>;
+    };
+  };
+};
+
 const photoFieldMetadata = {
   maxItems: 8,
   maxSizeMb: 5,
@@ -67,6 +89,7 @@ const registrationFieldLabels: Record<string, string> = {
   phone: "telefono numerį",
   whatsapp: "WhatsApp numerį",
   email: "el. paštą",
+  address: "adresą",
   city: "pagrindinį miestą",
   trade: "darbo sritį",
   categorySlugs: "darbo sritį",
@@ -97,6 +120,10 @@ const travelRangeOptions = [
   { value: "100", label: "Iki 100 km" },
   { value: "lt", label: "Visa Lietuva" }
 ] as const;
+const googlePlacesApiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ?? "";
+const googlePlacesCountry = process.env.NEXT_PUBLIC_GOOGLE_PLACES_COUNTRY ?? "LT";
+const googlePlacesFields = ["formattedAddress", "id", "location"];
+let googlePlacesScriptPromise: Promise<void> | null = null;
 
 export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [trade, setTrade] = useState("all");
@@ -116,10 +143,19 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [mapZoom, setMapZoom] = useState(0);
   const [loading, setLoading] = useState(false);
   const [locationResolving, setLocationResolving] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState<PlacesSuggestion[]>([]);
+  const [addressSearchOpen, setAddressSearchOpen] = useState(false);
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [addressActiveIndex, setAddressActiveIndex] = useState(-1);
+  const [addressStatus, setAddressStatus] = useState("");
   const [formState, setFormState] = useState<RegistrationDraft>({
     name: "",
     phone: "",
     email: "",
+    address: "",
+    placeId: "",
+    latitude: null,
+    longitude: null,
     city: "",
     town: "",
     street: "",
@@ -145,6 +181,8 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const areaLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const hasPrefilledGoogleProfile = useRef(false);
   const lastFitKeyRef = useRef("");
+  const placesSessionTokenRef = useRef<any>(null);
+  const selectedPlaceCacheRef = useRef(new Map<string, Pick<RegistrationDraft, "address" | "placeId" | "latitude" | "longitude" | "town" | "street" | "postcode">>());
 
   const activeSpecialist = useMemo(
     () => specialists.find((specialist) => specialist.id === activeId) ?? specialists[0] ?? null,
@@ -302,6 +340,53 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   }, [city]);
 
   useEffect(() => {
+    const input = formState.address.trim();
+    if (!input || formState.placeId || input.length < 3 || !googlePlacesApiKey) {
+      setAddressSuggestions([]);
+      setAddressSearchOpen(false);
+      setAddressLoading(false);
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      setAddressLoading(true);
+      setAddressStatus("");
+
+      try {
+        const places = await loadGooglePlacesLibrary();
+        const AutocompleteSuggestion = places.AutocompleteSuggestion;
+        const AutocompleteSessionToken = places.AutocompleteSessionToken;
+        placesSessionTokenRef.current ??= new AutocompleteSessionToken();
+
+        const response = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
+          input,
+          includedRegionCodes: [googlePlacesCountry.toLowerCase()],
+          sessionToken: placesSessionTokenRef.current
+        });
+        const suggestions = (response.suggestions ?? [])
+          .filter((suggestion: PlacesSuggestion) => suggestion.placePrediction)
+          .map((suggestion: PlacesSuggestion) => ({
+            ...suggestion,
+            id: suggestion.placePrediction.placeId ?? suggestion.label,
+            label: suggestion.placePrediction.text?.toString() ?? suggestion.label
+          }));
+
+        setAddressSuggestions(suggestions);
+        setAddressSearchOpen(Boolean(suggestions.length));
+        setAddressActiveIndex(suggestions.length ? 0 : -1);
+      } catch {
+        setAddressSuggestions([]);
+        setAddressSearchOpen(false);
+        setAddressStatus("Adreso paieška laikinai neveikia. Galite adresą įrašyti ranka.");
+      } finally {
+        setAddressLoading(false);
+      }
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [formState.address, formState.placeId]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function setupMap() {
@@ -454,18 +539,117 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     setMapNeedsSearch(false);
   }
 
+  function updateRegistrationAddress(value: string) {
+    setFormState((current) => ({
+      ...current,
+      address: value,
+      placeId: "",
+      latitude: null,
+      longitude: null
+    }));
+    placesSessionTokenRef.current = null;
+  }
+
+  async function selectAddressSuggestion(suggestion: PlacesSuggestion) {
+    const placeId = suggestion.placePrediction.placeId ?? suggestion.id;
+    const cached = selectedPlaceCacheRef.current.get(placeId);
+
+    if (cached) {
+      setFormState((current) => ({ ...current, ...cached }));
+      closeAddressSuggestions();
+      return;
+    }
+
+    setAddressLoading(true);
+    try {
+      const place = suggestion.placePrediction.toPlace();
+      await place.fetchFields({ fields: googlePlacesFields });
+      const address = place.formattedAddress ?? suggestion.label;
+      const latitude = place.location?.lat() ?? null;
+      const longitude = place.location?.lng() ?? null;
+      const derived = deriveAddressParts(address);
+      const selected = {
+        address,
+        placeId: place.id ?? placeId,
+        latitude,
+        longitude,
+        town: derived.town,
+        street: derived.street,
+        postcode: derived.postcode
+      };
+
+      selectedPlaceCacheRef.current.set(selected.placeId, selected);
+      setFormState((current) => ({ ...current, ...selected, city: selected.town || current.city }));
+      placesSessionTokenRef.current = null;
+      closeAddressSuggestions();
+      setAddressStatus("");
+    } catch {
+      setAddressStatus("Adreso pasirinkti nepavyko. Galite adresą palikti įrašytą ranka.");
+    } finally {
+      setAddressLoading(false);
+    }
+  }
+
+  function closeAddressSuggestions() {
+    setAddressSearchOpen(false);
+    setAddressSuggestions([]);
+    setAddressActiveIndex(-1);
+  }
+
+  async function resolveManualAddressBeforeSubmit() {
+    if (formState.latitude !== null && formState.longitude !== null) {
+      return formState;
+    }
+
+    const address = formState.address.trim();
+    if (!address || !googlePlacesApiKey) {
+      return formState;
+    }
+
+    try {
+      await loadGooglePlacesScript();
+      const geocoder = new (window as any).google.maps.Geocoder();
+      const response = await geocoder.geocode({
+        address,
+        componentRestrictions: { country: googlePlacesCountry },
+        region: googlePlacesCountry.toLowerCase()
+      });
+      const result = response.results?.[0];
+      const location = result?.geometry?.location;
+      if (!location) {
+        return formState;
+      }
+
+      const derived = deriveAddressParts(result.formatted_address ?? address);
+      const resolved = {
+        ...formState,
+        address: result.formatted_address ?? address,
+        latitude: location.lat(),
+        longitude: location.lng(),
+        town: formState.town || derived.town,
+        street: formState.street || derived.street,
+        postcode: formState.postcode || derived.postcode
+      };
+      setFormState(resolved);
+      return resolved;
+    } catch {
+      return formState;
+    }
+  }
+
   async function submitRegistration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitMessage("Siunčiama registracija...");
     setSubmitTone("");
+    const registrationPayload = await resolveManualAddressBeforeSubmit();
 
     const response = await fetch("/api/tradesperson/register", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        ...formState,
-        trade: formState.trade || selectedCategoryNames[0] || formState.categorySlugs[0] || "",
-        photoUrls: formState.photoUrls.map((url) => url.trim()).filter(Boolean)
+        ...registrationPayload,
+        trade: registrationPayload.trade || selectedCategoryNames[0] || registrationPayload.categorySlugs[0] || "",
+        photoUrls: registrationPayload.photoUrls.map((url) => url.trim()).filter(Boolean)
       })
     });
     const data = await response.json();
@@ -886,7 +1070,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
             <form className="registration-form" aria-label="LocalPro specialisto registracijos forma" onSubmit={submitRegistration}>
               <div className="form-row">
                 <label>
-                  Vardas arba įmonės pavadinimas *
+                  Vardas arba imones pavadinimas *
                   <input value={formState.name} onChange={(event) => setFormState({ ...formState, name: event.target.value })} type="text" autoComplete="name" />
                 </label>
                 <label>
@@ -896,28 +1080,69 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               </div>
               <div className="form-row">
                 <label>
-                  El. paštas *
+                  El. pastas *
                   <input value={formState.email} onChange={(event) => setFormState({ ...formState, email: event.target.value })} type="email" autoComplete="email" />
                 </label>
-                <label>
-                  Miestas arba gyvenvietė *
-                  <input value={formState.town} onChange={(event) => setFormState({ ...formState, town: event.target.value, city: event.target.value })} type="text" autoComplete="address-level2" />
+                <label className="address-autocomplete">
+                  Registracijos adresas *
+                  <input
+                    aria-activedescendant={addressActiveIndex >= 0 ? `address-suggestion-${addressActiveIndex}` : undefined}
+                    aria-autocomplete="list"
+                    aria-controls="address-suggestions"
+                    aria-expanded={addressSearchOpen}
+                    role="combobox"
+                    value={formState.address}
+                    onBlur={() => window.setTimeout(closeAddressSuggestions, 120)}
+                    onChange={(event) => updateRegistrationAddress(event.target.value)}
+                    onFocus={() => setAddressSearchOpen(Boolean(addressSuggestions.length))}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        closeAddressSuggestions();
+                      }
+                      if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        setAddressActiveIndex((current) => Math.min(current + 1, addressSuggestions.length - 1));
+                      }
+                      if (event.key === "ArrowUp") {
+                        event.preventDefault();
+                        setAddressActiveIndex((current) => Math.max(current - 1, 0));
+                      }
+                      if (event.key === "Enter" && addressSearchOpen && addressSuggestions[addressActiveIndex]) {
+                        event.preventDefault();
+                        selectAddressSuggestion(addressSuggestions[addressActiveIndex]).catch(() => {
+                          setAddressStatus("Adreso pasirinkti nepavyko. Galite adresa palikti irasyta ranka.");
+                        });
+                      }
+                    }}
+                    placeholder="Pvz. Traku g. 10, Lentvaris"
+                    type="text"
+                    autoComplete="street-address"
+                  />
+                  {addressLoading ? <span className="address-loading">Ieskoma...</span> : null}
                 </label>
               </div>
-              <div className="form-row">
-                <label>
-                  Gatvė *
-                  <input value={formState.street} onChange={(event) => setFormState({ ...formState, street: event.target.value })} type="text" autoComplete="address-line1" />
-                </label>
-                <label>
-                  Pašto kodas *
-                  <input value={formState.postcode} onChange={(event) => setFormState({ ...formState, postcode: event.target.value })} type="text" autoComplete="postal-code" />
-                </label>
-              </div>
-              <label>
-                Namo numeris privatiam geokodavimui
-                <input value={formState.houseNumber} onChange={(event) => setFormState({ ...formState, houseNumber: event.target.value })} type="text" autoComplete="address-line2" />
-              </label>
+              {addressSearchOpen && addressSuggestions.length ? (
+                <ul className="address-suggestions" id="address-suggestions" role="listbox">
+                  {addressSuggestions.map((suggestion, index) => (
+                    <li
+                      aria-selected={index === addressActiveIndex}
+                      id={`address-suggestion-${index}`}
+                      key={suggestion.id}
+                      role="option"
+                    >
+                      <button
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => selectAddressSuggestion(suggestion)}
+                      >
+                        {suggestion.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <p className="field-note">Tikslus adresas naudojamas privaciam geokodavimui. Viesai rodoma tik apytiksle vieta.</p>
+              {addressStatus ? <p className="status-message error">{addressStatus}</p> : null}
               <fieldset>
                 <legend>Darbo sritys *</legend>
                 {categories.map((category) => (
@@ -1224,6 +1449,55 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+async function loadGooglePlacesLibrary() {
+  await loadGooglePlacesScript();
+  return (window as any).google.maps.importLibrary("places");
+}
+
+function loadGooglePlacesScript() {
+  if (!googlePlacesApiKey) {
+    return Promise.reject(new Error("Google Places API key is not configured."));
+  }
+
+  if ((window as any).google?.maps?.importLibrary) {
+    return Promise.resolve();
+  }
+
+  if (googlePlacesScriptPromise) {
+    return googlePlacesScriptPromise;
+  }
+
+  googlePlacesScriptPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>("script[data-localpro-google-places]");
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Google Places failed to load.")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googlePlacesApiKey)}&v=weekly&libraries=places&loading=async`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.localproGooglePlaces = "true";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Google Places failed to load."));
+    document.head.appendChild(script);
+  });
+
+  return googlePlacesScriptPromise;
+}
+
+function deriveAddressParts(address: string) {
+  const parts = address.split(",").map((part) => part.trim()).filter(Boolean);
+  const street = parts[0] ?? "";
+  const townLine = parts.find((part) => /\bLT-?\d{5}\b/i.test(part)) ?? parts[1] ?? "";
+  const postcode = townLine.match(/\bLT-?\d{5}\b/i)?.[0] ?? "";
+  const town = townLine.replace(/\bLT-?\d{5}\b/i, "").trim() || parts[1] || "";
+
+  return { street, postcode, town };
 }
 
 function formatTravelRange(radiusKm: number) {

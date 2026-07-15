@@ -5,6 +5,10 @@ const validRegistration = {
   name: "Test Meistras",
   phone: "+37061234567",
   email: "test@example.lt",
+  address: "Gedimino pr. 1, Vilnius, Lithuania",
+  placeId: "test-place-id",
+  latitude: 54.6872,
+  longitude: 25.2797,
   town: "Vilnius",
   street: "Gedimino pr.",
   postcode: "01103",
@@ -86,6 +90,7 @@ describe("profile API routes", () => {
           name: "",
           phone: "12345",
           email: "not-an-email",
+          address: "",
           town: "",
           street: "",
           postcode: "",
@@ -99,9 +104,7 @@ describe("profile API routes", () => {
     expect(data.details.fieldErrors.name.length).toBeGreaterThan(0);
     expect(data.details.fieldErrors.phone.length).toBeGreaterThan(0);
     expect(data.details.fieldErrors.email.length).toBeGreaterThan(0);
-    expect(data.details.fieldErrors.town.length).toBeGreaterThan(0);
-    expect(data.details.fieldErrors.street.length).toBeGreaterThan(0);
-    expect(data.details.fieldErrors.postcode.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.address.length).toBeGreaterThan(0);
     expect(data.details.fieldErrors.consentAccepted.length).toBeGreaterThan(0);
   });
 

@@ -58,7 +58,7 @@ export async function resolveLithuanianCoordinates(query: string | null | undefi
 }
 
 async function resolveWithGoogleGeocoding(query: string) {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
     return null;
   }

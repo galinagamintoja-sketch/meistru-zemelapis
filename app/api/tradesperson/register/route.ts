@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { registrationSchema, photoFieldMetadata, normalizeLithuanianPhone } from "../../../../lib/validators";
 import { createServerSupabase, hasSupabaseConfig } from "../../../../lib/supabase";
-import { resolveRegisteredAddressCoordinates } from "../../../../lib/geo";
+import { resolveLithuanianCoordinates, resolveRegisteredAddressCoordinates } from "../../../../lib/geo";
 
 const PROFILE_PHOTOS_BUCKET = "profile-photos";
 let profilePhotosBucketReady = false;
@@ -57,19 +57,23 @@ export async function POST(request: Request) {
     : categories.find((category) => category.name === categoryNames[0]) ?? categories[0];
   const normalizedPhone = normalizeLithuanianPhone(payload.phone) || payload.phone;
   const normalizedWhatsapp = payload.whatsapp ? normalizeLithuanianPhone(payload.whatsapp) || payload.whatsapp : normalizedPhone;
-  const baseTown = payload.town || payload.city;
+  const addressParts = deriveAddressParts(payload.address);
+  const baseTown = payload.town || payload.city || addressParts.town || "Lietuva";
+  const streetName = payload.street || addressParts.street || payload.address;
+  const postcode = payload.postcode || addressParts.postcode;
   const travelRadiusKm = payload.travelRange === "lt" ? 150 : Number(payload.travelRange);
-  const coordinates = await resolveRegisteredAddressCoordinates({
-    town: baseTown,
-    street: payload.street,
-    postcode: payload.postcode,
-    houseNumber: payload.houseNumber
-  });
+  const coordinates =
+    typeof payload.latitude === "number" && typeof payload.longitude === "number"
+      ? { lat: payload.latitude, lng: payload.longitude }
+      : payload.street || payload.postcode || payload.town
+        ? await resolveRegisteredAddressCoordinates({
+            town: baseTown,
+            street: streetName,
+            postcode,
+            houseNumber: payload.houseNumber
+          })
+        : await resolveLithuanianCoordinates(payload.address);
   const operatingCities = uniqueList([baseTown, ...(payload.operatingCities ?? [])]);
-
-  if (!coordinates) {
-    return NextResponse.json({ error: "Nepavyko rasti miesto žemėlapyje. Įrašykite tikslų Lietuvos miestą arba artimiausią didesnį miestą." }, { status: 400 });
-  }
 
   const { data: subcategories, error: subcategoriesError } = subcategorySlugs.length
     ? await supabase
@@ -100,13 +104,15 @@ export async function POST(request: Request) {
       whatsapp_number: normalizedWhatsapp,
       email: payload.email,
       base_city: baseTown,
-      street_name: payload.street,
-      postcode: payload.postcode,
+      registered_address: payload.address,
+      google_place_id: payload.placeId || null,
+      street_name: streetName,
+      postcode,
       house_number_private: payload.houseNumber || null,
       travel_range_label: payload.travelRange === "lt" ? "Visa Lietuva" : `Iki ${payload.travelRange} km`,
       radius_km: travelRadiusKm,
-      latitude: coordinates.lat,
-      longitude: coordinates.lng,
+      latitude: coordinates?.lat ?? null,
+      longitude: coordinates?.lng ?? null,
       description: payload.description,
       service_category_id: primaryCategory.id,
       public_status: "private",
@@ -223,13 +229,15 @@ type ProfileInsert = {
   whatsapp_number: string;
   email: string;
   base_city: string;
+  registered_address: string;
+  google_place_id: string | null;
   street_name: string;
   postcode: string;
   house_number_private: string | null;
   travel_range_label: string;
   radius_km: number;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   description: string;
   service_category_id: string;
   public_status: "private";
@@ -247,6 +255,8 @@ async function insertProfile(profile: ProfileInsert, supabase: NonNullable<Retur
   }
 
   const legacyProfile: Partial<ProfileInsert> = { ...profile };
+  delete legacyProfile.registered_address;
+  delete legacyProfile.google_place_id;
   delete legacyProfile.street_name;
   delete legacyProfile.postcode;
   delete legacyProfile.house_number_private;
@@ -256,11 +266,21 @@ async function insertProfile(profile: ProfileInsert, supabase: NonNullable<Retur
 }
 
 function isMissingLocationPrivacyColumn(message: string) {
-  return /street_name|postcode|travel_range_label|house_number_private/i.test(message);
+  return /registered_address|google_place_id|street_name|postcode|travel_range_label|house_number_private/i.test(message);
 }
 
 function uniqueList(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function deriveAddressParts(address: string) {
+  const parts = address.split(",").map((part) => part.trim()).filter(Boolean);
+  const street = parts[0] ?? "";
+  const townLine = parts.find((part) => /\bLT-?\d{5}\b/i.test(part)) ?? parts[1] ?? "";
+  const postcode = townLine.match(/\bLT-?\d{5}\b/i)?.[0] ?? "";
+  const town = townLine.replace(/\bLT-?\d{5}\b/i, "").trim() || parts[1] || parts[0] || "";
+
+  return { street, postcode, town };
 }
 
 async function uploadProfilePhoto(

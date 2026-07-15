@@ -56,6 +56,10 @@ export type RegistrationPayload = {
   name: string;
   phone: string;
   email: string;
+  address: string;
+  placeId?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   city?: string;
   town: string;
   street: string;
