@@ -137,7 +137,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [mapNeedsSearch, setMapNeedsSearch] = useState(false);
   const [mapSearchPoint, setMapSearchPoint] = useState<{ lat: number; lng: number } | null>(null);
   const [specialists, setSpecialists] = useState(initialSpecialists);
-  const [activeId, setActiveId] = useState(initialSpecialists[0]?.id ?? "");
+  const [activeId, setActiveId] = useState("");
   const [hoveredId, setHoveredId] = useState("");
   const [mapPopupId, setMapPopupId] = useState("");
   const [mapZoom, setMapZoom] = useState(0);
@@ -185,7 +185,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const selectedPlaceCacheRef = useRef(new Map<string, Pick<RegistrationDraft, "address" | "placeId" | "latitude" | "longitude" | "town" | "street" | "postcode">>());
 
   const activeSpecialist = useMemo(
-    () => specialists.find((specialist) => specialist.id === activeId) ?? specialists[0] ?? null,
+    () => specialists.find((specialist) => specialist.id === activeId) ?? null,
     [activeId, specialists]
   );
   const activeWorkPhotos = useMemo(() => {
@@ -278,7 +278,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
       const data = await response.json();
       const list = data.specialists ?? [];
       setSpecialists(list);
-      setActiveId((current) => (list.some((specialist: Specialist) => specialist.id === current) ? current : list[0]?.id ?? ""));
+      setActiveId((current) => (list.some((specialist: Specialist) => specialist.id === current) ? current : ""));
       setLoading(false);
     }
 
@@ -438,7 +438,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
       markerLayer.clearLayers();
       areaLayer.clearLayers();
 
-      const highlightedSpecialist = specialists.find((specialist) => specialist.id === (hoveredId || activeId));
+      const highlightedSpecialist = specialists.find((specialist) => specialist.id === activeId);
       if (highlightedSpecialist) {
         leaflet
           .circle([highlightedSpecialist.lat, highlightedSpecialist.lng], {
@@ -520,6 +520,11 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
   function selectSpecialist(specialistId: string, shouldScroll: boolean) {
     setActiveId(specialistId);
+    const specialist = specialists.find((item) => item.id === specialistId);
+    const map = mapRef.current;
+    if (specialist && map) {
+      map.setView([specialist.lat, specialist.lng], Math.max(map.getZoom(), 12), { animate: true });
+    }
     if (shouldScroll) {
       setMapPopupId("");
       window.setTimeout(() => {
@@ -527,6 +532,13 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
         window.history.replaceState(null, "", "#profile");
       }, 0);
     }
+  }
+
+  function clearSelectedSpecialist() {
+    setActiveId("");
+    setHoveredId("");
+    setMapPopupId("");
+    window.history.replaceState(null, "", "#mapSection");
   }
 
   function searchCurrentMapArea() {
@@ -801,7 +813,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               {loading || locationResolving ? <span>{loading ? "Kraunama" : "Tikslinama vieta"}</span> : null}
             </div>
             <label>
-              Kokio meistro ieškote?
+              Kokio darbo reikia?
               <select value={trade} onChange={(event) => setTrade(event.target.value)}>
                 <option value="all">Visos sritys</option>
                 {categories.map((category) => (
@@ -942,7 +954,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
             <div className="real-map" ref={mapElementRef} aria-label="Interaktyvus OpenStreetMap su LocalPro specialistų žymekliais">
               {mapNeedsSearch ? (
                 <button className="search-this-area" type="button" onClick={searchCurrentMapArea}>
-                  Ieškoti šiame plote
+                  Ieškoti šioje žemėlapio vietoje
                 </button>
               ) : null}
               {activeSpecialist ? (
@@ -961,6 +973,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   <div className="selected-card-actions">
                     <button type="button" onClick={() => openSpecialistProfile(activeSpecialist.id)}>Peržiūrėti profilį</button>
                     <a href={`https://wa.me/${activeSpecialist.whatsapp}`} onClick={() => logEnquiry(activeSpecialist.id, "whatsapp_click")}>Siųsti užklausą</a>
+                    <button type="button" onClick={clearSelectedSpecialist}>Uždaryti</button>
                   </div>
                 </div>
               ) : null}
@@ -1021,9 +1034,9 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           ) : (
             <article className="profile-card empty-profile">
               <div className="profile-summary">
-                <p className="eyebrow">Nėra profilio</p>
-                <h2>Šiam filtrui dar nėra patvirtinto specialisto.</h2>
-                <p>Pakeiskite miestą arba darbo sritį, arba registruokite pirmą specialistą šioje zonoje.</p>
+                <p className="eyebrow">Specialisto profilis</p>
+                <h2>Pasirinkite specialistą žemėlapyje arba sąraše.</h2>
+                <p>Profilis atsidarys tik pasirinkus konkretų meistrą.</p>
               </div>
             </article>
           )}

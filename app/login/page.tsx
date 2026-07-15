@@ -118,9 +118,9 @@ export default function LoginPage() {
         </a>
 
         <div className="login-copy">
-          <p className="eyebrow">Specialisto prisijungimas</p>
-          <h1>Prisijunkite arba registruokitės su „Google“</h1>
-          <p>Meistrams slaptažodžio kurti nereikia. „Google“ paskyra naudojama tik prisijungimui, o profilio duomenis užpildysite registracijos formoje.</p>
+          <p className="eyebrow">Meistro paskyra</p>
+          <h1>Prisijunkite su Google</h1>
+          <p>Specialisto profilis kuriamas pagrindineje registracijos formoje. Google prisijungimas naudojamas sugrizti prie paskyros ir administruoti profili.</p>
         </div>
 
         {user ? (
@@ -138,7 +138,7 @@ export default function LoginPage() {
         <p className="admin-message">{message}</p>
 
         <div className="login-actions">
-          <a href="/#register">Registruotis kaip specialistas</a>
+          <a href="/#register">Pildyti registracijos forma</a>
           <a href="/">Tęsti į žemėlapį</a>
           <a href="/admin">Administravimas</a>
           {user ? (
