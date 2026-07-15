@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { Category, Specialist } from "../lib/types";
-import { formatMarkerCount, formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
+import { formatMasterCount, formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
 
 type Props = {
   initialSpecialists: Specialist[];
@@ -778,12 +778,11 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           <span className="brand-mark" aria-hidden="true">LP</span>
           <span>
             <strong>LocalPro.lt</strong>
-            <small>Patikrinti specialistai Lietuvos miestuose</small>
+            <small>Meistrų žemėlapis</small>
           </span>
         </a>
         <nav className="stage-nav" aria-label="Puslapio skyriai">
           <a href="#search">Rasti specialistą</a>
-          <a href="#services">Paslaugos</a>
           <a href="#register">Registruotis</a>
           <a href="#how">Kaip veikia</a>
           <a href="/login">Meistro paskyra</a>
@@ -793,18 +792,13 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
       <main>
         <section className="hero" id="search">
           <div className="hero-copy">
-            <p className="eyebrow">Žemėlapis pirmiausia</p>
             <h1>Patikimi meistrai jūsų mieste.</h1>
-            <p>
-              LocalPro.lt jungia klientus su patikrintais statybos, remonto ir namų priežiūros specialistais pagal miestą,
-              darbo zoną ir paslaugą.
-            </p>
           </div>
 
           <form className="search-panel" aria-label="Rasti specialistą">
             <div className="panel-title">
               <strong>Kokio meistro ieškote?</strong>
-              <span>{loading ? "Kraunama" : locationResolving ? "Tikslinama vieta" : "Aiški paieška pagal atstumą"}</span>
+              {loading || locationResolving ? <span>{loading ? "Kraunama" : "Tikslinama vieta"}</span> : null}
             </div>
             <label>
               Kokio meistro ieškote?
@@ -887,30 +881,6 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           </form>
         </section>
 
-        <section className="solutions-section" id="services">
-          <div className="section-heading compact">
-            <p className="eyebrow">Sprendimai</p>
-            <h2>Viena vieta klientams, specialistams ir statybos verslui.</h2>
-          </div>
-          <div className="solutions-grid">
-            <article>
-              <strong>Ieškotojams</strong>
-              <p>Raskite specialistą pagal miestą, paslaugą ir realią darbo zoną žemėlapyje.</p>
-            </article>
-            <article>
-              <strong>Specialistams</strong>
-              <p>Nemokamai sukurkite profilį, parodykite darbus ir gaukite tiesioginius kontaktus.</p>
-            </article>
-            <article>
-              <strong>Patikrai</strong>
-              <p>Profiliai pirmiausia peržiūrimi administratoriaus, todėl žemėlapyje lieka tik tvarkingi specialistų įrašai.</p>
-            </article>
-          </div>
-          <div className="service-pills" aria-label="Paslaugų kategorijos">
-            {categories.map((category) => <span key={category.id}>{category.name}</span>)}
-          </div>
-        </section>
-
         <section className="map-layout" id="mapSection" aria-label="LocalPro specialistų žemėlapis ir rezultatai">
           <div className="mobile-results-bar">
             <span>{specialists.length ? formatSpecialistCount(specialists.length) : "Nėra atitikmenų"}</span>
@@ -967,7 +937,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           <section className={`map-board ${viewMode === "map" ? "mobile-active" : ""}`} aria-label="OpenStreetMap LocalPro specialistų žemėlapis">
             <div className="map-toolbar">
               <span>LocalPro žemėlapis</span>
-              <span>{specialists.length ? `${formatMarkerCount(specialists.length)} su darbo zonomis` : "Nėra atitikmenų"}</span>
+              <span>{specialists.length ? formatMasterCount(specialists.length) : "Nėra atitikmenų"}</span>
             </div>
             <div className="real-map" ref={mapElementRef} aria-label="Interaktyvus OpenStreetMap su LocalPro specialistų žymekliais">
               {mapNeedsSearch ? (
@@ -994,7 +964,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   </div>
                 </div>
               ) : null}
-              <div className="map-hint">Traukite žemėlapį, artinkite arba naudokite +/-</div>
+              <div className="map-hint">Darbo zonos yra apytikslės. Prieš užsakydami patvirtinkite adresą su specialistu.</div>
             </div>
           </section>
         </section>
