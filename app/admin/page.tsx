@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import type { Category, Specialist } from "../../lib/types";
 
-type StatusFilter = "pending" | "approved" | "rejected" | "all";
+type StatusFilter = "pending" | "approved" | "rejected" | "suspended" | "all";
 type EditDraft = {
   name: string;
   companyName: string;
@@ -38,6 +38,7 @@ const statuses: Array<{ value: StatusFilter; label: string }> = [
   { value: "pending", label: "Laukiantys" },
   { value: "approved", label: "Patvirtinti" },
   { value: "rejected", label: "Atmesti" },
+  { value: "suspended", label: "Sustabdyti" },
   { value: "all", label: "Visi" }
 ];
 const profileSources = [
@@ -145,8 +146,8 @@ export default function AdminPage() {
     setCategories(data.categories ?? []);
   }
 
-  async function runAction(id: string, action: "approve" | "reject" | "delete") {
-    const label = action === "approve" ? "Tvirtinama" : action === "reject" ? "Atmetama" : "Trinama";
+  async function runAction(id: string, action: "approve" | "reject" | "suspend") {
+    const label = action === "approve" ? "Tvirtinama" : action === "reject" ? "Atmetama" : "Stabdoma";
     setMessage(`${label}...`);
 
     const response = await fetch("/api/admin/profiles", {
@@ -168,7 +169,7 @@ export default function AdminPage() {
         ? "Profilis patvirtintas ir publikuotas."
         : action === "reject"
           ? "Profilis atmestas ir paslėptas."
-          : "Profilis ištrintas."
+          : "Profilis sustabdytas ir paslėptas."
     );
     await loadProfiles();
   }
@@ -577,12 +578,8 @@ export default function AdminPage() {
                   <button className="admin-danger" type="button" onClick={() => runAction(profile.id, "reject")}>
                     Atmesti
                   </button>
-                  <button className="admin-danger" type="button" onClick={() => {
-                    if (window.confirm("Ištrinti profilį visam laikui?")) {
-                      runAction(profile.id, "delete");
-                    }
-                  }}>
-                    Ištrinti
+                  <button className="admin-danger" type="button" onClick={() => runAction(profile.id, "suspend")}>
+                    Sustabdyti
                   </button>
                 </div>
               </div>

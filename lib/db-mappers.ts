@@ -84,8 +84,8 @@ export function profileRowToSpecialist(row: ProfileRow): Specialist {
     subcategoryNames: subcategories.map((subcategory) => subcategory.name),
     town: row.base_city,
     district: row.base_city,
-    streetArea: formatStreetArea(row.street_name),
-    approximateLocation: formatApproximateLocation(row.base_city, row.street_name, row.postcode),
+    streetArea: undefined,
+    approximateLocation: formatApproximateLocation(row.base_city),
     operatingCities,
     radius: row.radius_km,
     lat: publicCoordinates.lat,
@@ -129,22 +129,6 @@ function formatServiceArea(label: string | null, baseCity: string, operatingCiti
   return label;
 }
 
-function formatStreetArea(street: string | null | undefined) {
-  if (!street?.trim()) {
-    return undefined;
-  }
-
-  return `${street.trim()} rajonas`;
-}
-
-function formatApproximateLocation(baseCity: string, street: string | null | undefined, postcode: string | null | undefined) {
-  if (street?.trim()) {
-    return `${baseCity}, ${street.trim()} rajonas`;
-  }
-
-  if (postcode?.trim()) {
-    return `${baseCity}, pašto kodo zona`;
-  }
-
+function formatApproximateLocation(baseCity: string) {
   return baseCity;
 }

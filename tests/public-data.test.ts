@@ -83,4 +83,16 @@ describe("public specialist listing", () => {
     expect(specialist.lat).not.toBe(specialist.registeredLat);
     expect(specialist.lng).not.toBe(specialist.registeredLng);
   });
+
+  it("does not expose exact registered coordinates or street-level areas in public listings", async () => {
+    const { getSpecialists } = await import("../lib/specialists");
+    const specialists = await getSpecialists();
+    const [specialist] = specialists;
+
+    expect(specialist).toBeDefined();
+    expect(specialist).not.toHaveProperty("registeredLat");
+    expect(specialist).not.toHaveProperty("registeredLng");
+    expect(specialist).not.toHaveProperty("streetArea");
+    expect(specialist.approximateLocation).toBe(specialist.town);
+  });
 });

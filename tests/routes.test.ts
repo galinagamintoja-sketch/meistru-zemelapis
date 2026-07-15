@@ -132,4 +132,20 @@ describe("profile API routes", () => {
 
     expect(response.status).toBe(200);
   });
+
+  it("rejects destructive admin delete actions", async () => {
+    const { PATCH } = await import("../app/api/admin/profiles/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/admin/profiles", {
+        method: "PATCH",
+        headers: {
+          cookie: signedCookie("admin@example.lt"),
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ id: "test-profile-id", action: "delete" })
+      })
+    );
+
+    expect(response.status).toBe(400);
+  });
 });

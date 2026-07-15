@@ -6,7 +6,7 @@ import { createServerSupabase } from "../../../../lib/supabase";
 import { isLithuanianPhone, normalizeLithuanianPhone, photoFieldMetadata } from "../../../../lib/validators";
 
 const validStatuses = new Set(["pending", "approved", "rejected", "suspended", "all"]);
-const validActions = new Set(["approve", "reject", "suspend", "verify_contact", "verify_whatsapp", "update", "delete"]);
+const validActions = new Set(["approve", "reject", "suspend", "verify_contact", "verify_whatsapp", "update"]);
 const validSources = new Set(["self-registration", "whatsapp-onboarding", "admin-created", "imported-lead"]);
 
 export async function GET(request: Request) {
@@ -258,23 +258,6 @@ export async function PATCH(request: Request) {
 
   if (!supabase) {
     return NextResponse.json({ ok: true, mode: "seed", message: "Admin action accepted in demo mode." });
-  }
-
-  if (action === "delete") {
-    const { error } = await supabase.from("tradesperson_profiles").delete().eq("id", id);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    await supabase.from("admin_actions").insert({
-      tradesperson_profile_id: null,
-      action,
-      notes: `Deleted profile ${id}`,
-      created_by_role: `admin:${adminSession.email}`
-    });
-
-    return NextResponse.json({ ok: true });
   }
 
   if (action === "update") {

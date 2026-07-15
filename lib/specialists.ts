@@ -27,8 +27,6 @@ const SPECIALIST_SELECT = `
   whatsapp_number,
   email,
   base_city,
-  street_name,
-  postcode,
   radius_km,
   latitude,
   longitude,
@@ -46,8 +44,6 @@ const SPECIALIST_SELECT = `
   profile_photos(label, url, sort_order),
   reviews(client_name, rating, text, moderation_status)
 `;
-
-const LEGACY_SPECIALIST_SELECT = SPECIALIST_SELECT.replace("street_name,\n  postcode,\n", "");
 
 export async function getCategories() {
   const supabase = createServerSupabase();
@@ -81,13 +77,7 @@ export async function getSpecialists(filters: SpecialistFilters = {}) {
     return filterSeedSpecialists(filters);
   }
 
-  let { data, error } = await runSpecialistQuery(SPECIALIST_SELECT, filters);
-
-  if (error && isMissingLocationPrivacyColumn(error.message)) {
-    const legacyResult = await runSpecialistQuery(LEGACY_SPECIALIST_SELECT, filters);
-    data = legacyResult.data;
-    error = legacyResult.error;
-  }
+  const { data, error } = await runSpecialistQuery(SPECIALIST_SELECT, filters);
 
   if (error) {
     throw new Error(error.message);
@@ -111,10 +101,6 @@ function runSpecialistQuery(select: string, filters: SpecialistFilters) {
   }
 
   return query.order("created_at", { ascending: false });
-}
-
-function isMissingLocationPrivacyColumn(message: string) {
-  return /street_name|postcode|travel_range_label|house_number_private/i.test(message);
 }
 
 export async function getSpecialist(id: string) {
@@ -214,6 +200,7 @@ function toPublicSpecialistList(list: Specialist[]) {
     const specialist = { ...item };
     delete specialist.registeredLat;
     delete specialist.registeredLng;
+    delete specialist.streetArea;
     return specialist;
   });
 }
