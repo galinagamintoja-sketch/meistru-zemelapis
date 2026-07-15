@@ -174,6 +174,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   });
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitTone, setSubmitTone] = useState<"success" | "error" | "">("");
+  const [submittedProfileId, setSubmittedProfileId] = useState("");
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const profileSectionRef = useRef<HTMLElement | null>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
@@ -653,6 +654,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     event.preventDefault();
     setSubmitMessage("Siunčiama registracija...");
     setSubmitTone("");
+    setSubmittedProfileId("");
     const registrationPayload = await resolveManualAddressBeforeSubmit();
 
     const response = await fetch("/api/tradesperson/register", {
@@ -673,7 +675,8 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     }
 
     setSubmitTone("success");
-    setSubmitMessage("Registracija priimta. Profilis pažymėtas kaip laukiantis administratoriaus patvirtinimo.");
+    setSubmittedProfileId(data.profile?.id ?? "");
+    setSubmitMessage("Registracija gauta. Profilį patikrinsime per 1-2 darbo dienas.");
   }
 
   function updateCategory(slug: string, checked: boolean) {
@@ -1046,10 +1049,19 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           <div className="section-heading">
             <p className="eyebrow">Specialistams</p>
             <h2>Registruokitės nemokamai ir atsiraskite LocalPro žemėlapyje.</h2>
-            <p>Sukurkite aiškų profilį su miestu, darbo zona, paslaugomis ir vieno paspaudimo kontaktu. Nuotraukas galima pridėti dabar arba vėliau per administratorių.</p>
+            <p>Registracijai paskyros nereikia. Prisijungimą galėsite susikurti vėliau, kad redaguotumėte profilį.</p>
           </div>
 
           <div className="register-grid">
+            {submitTone === "success" ? (
+              <article className="registration-form success-panel" aria-live="polite">
+                <p className="eyebrow">Registracija gauta</p>
+                <h3>Profilį patikrinsime per 1-2 darbo dienas.</h3>
+                <p>Patvirtinimą arba klausimus išsiųsime telefonu arba el. paštu. Jei reikės pataisyti informaciją, susisieksime prieš publikuodami profilį žemėlapyje.</p>
+                {submittedProfileId ? <p className="field-note">Registracijos numeris: {submittedProfileId}</p> : null}
+                <a className="primary-action" href="/">Grįžti į žemėlapį</a>
+              </article>
+            ) : (
             <form className="registration-form" aria-label="LocalPro specialisto registracijos forma" onSubmit={submitRegistration}>
               <div className="form-row">
                 <label>
@@ -1124,7 +1136,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   ))}
                 </ul>
               ) : null}
-              <p className="field-note">Tikslus adresas naudojamas privaciam geokodavimui. Viesai rodoma tik apytiksle vieta.</p>
+              <p className="field-note">Tai pagrindinė darbo vieta. Tikslus adresas naudojamas privačiam geokodavimui; viešai rodoma tik apytikslė vieta.</p>
               {addressStatus ? <p className="status-message error">{addressStatus}</p> : null}
               <fieldset>
                 <legend>Darbo sritys *</legend>
@@ -1200,7 +1212,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               </fieldset>
               <fieldset>
                 <legend>Kokiu atstumu vykstate į darbus? *</legend>
-                <p className="field-note">Tikslus adresas viešai nerodomas. Klientai matys tik apytikslę vietą ir jūsų pasirinktą vykimo atstumą.</p>
+                <p className="field-note">Darbo zona skaičiuojama kaip spindulys aplink pagrindinę darbo vietą.</p>
                 {travelRangeOptions.map((option) => (
                   <label key={option.value}>
                     <input
@@ -1222,12 +1234,13 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               <label>
                 <span>
                   <input type="checkbox" checked={formState.consentAccepted} onChange={(event) => setFormState({ ...formState, consentAccepted: event.target.checked })} />
-                  Sutinku, kad LocalPro peržiūrėtų informaciją ir publikuotų profilį tik po patvirtinimo.
+                  Sutinku, kad LocalPro peržiūrėtų pateiktą informaciją ir po patvirtinimo viešai rodytų mano profilį bei kontaktus.
                 </span>
               </label>
               <button type="submit">Siųsti registraciją</button>
               {submitMessage ? <p className={`status-message ${submitTone}`}>{submitMessage}</p> : null}
             </form>
+            )}
 
             <aside className="registration-preview" aria-label="Registracijos peržiūra">
               <p className="eyebrow">Profilio peržiūra</p>
@@ -1239,7 +1252,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                     const subcategory = selectedSubcategories.find((item) => item.slug === slug);
                     return <span className="tag" key={slug}>{subcategory?.name ?? slug}</span>;
                   }) : null}
-                  <span className="tag">{formState.town || "Miestas / gyvenvietė"}</span>
+                  <span className="tag">{formState.town || formState.address || "Pagrindinė darbo vieta"}</span>
                   <span className="tag">{formatTravelRange(formState.radiusKm)}</span>
                   <span className="tag">Laukia patikros</span>
                 </div>
