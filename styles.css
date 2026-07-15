@@ -38,6 +38,17 @@ textarea {
   font: inherit;
 }
 
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+.leaflet-marker-icon:focus-visible {
+  outline: 3px solid #1f6feb;
+  outline-offset: 3px;
+}
+
 .app-shell {
   min-height: 100vh;
 }
@@ -374,6 +385,7 @@ textarea {
 }
 
 .result-card:hover,
+.result-card:focus-visible,
 .result-card.active {
   border-color: var(--clay);
   box-shadow: 0 16px 36px rgba(33, 29, 24, 0.14);
@@ -553,10 +565,23 @@ textarea {
 }
 
 .trade-marker.active span,
-.trade-marker.hovered span {
+.trade-marker.hovered span,
+.trade-marker:focus span,
+.trade-marker:focus-visible span {
   border-color: #f2dfb7;
   transform: translateY(-2px) scale(1.08);
   box-shadow: 0 18px 34px rgba(33, 29, 24, 0.34);
+}
+
+.trade-marker:focus,
+.trade-cluster:focus {
+  outline: none;
+}
+
+.trade-marker:focus-visible span,
+.trade-cluster:focus-visible span {
+  outline: 3px solid #1f6feb;
+  outline-offset: 3px;
 }
 
 .trade-marker span::before {

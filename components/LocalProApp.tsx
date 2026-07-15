@@ -461,7 +461,12 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
             iconAnchor: [22, 22]
           });
           const clusterMarker = leaflet
-            .marker([item.lat, item.lng], { icon: clusterIcon, title: formatSpecialistCount(item.count) })
+            .marker([item.lat, item.lng], {
+              icon: clusterIcon,
+              keyboard: true,
+              title: `${formatSpecialistCount(item.count)} šioje žemėlapio vietoje`,
+              alt: `${formatSpecialistCount(item.count)} šioje žemėlapio vietoje`
+            })
             .bindPopup(createClusterPopup(item.points.map((point) => point.specialist)));
           clusterMarker.on("click", () => {
             setMapPopupId("");
@@ -471,6 +476,12 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               return;
             }
             map.setView([target.lat, target.lng], Math.min(Math.max(map.getZoom() + 2, 10), 13), { animate: true });
+          });
+          clusterMarker.on("keypress", (event: import("leaflet").LeafletKeyboardEvent) => {
+            if (event.originalEvent.key === "Enter" || event.originalEvent.key === " ") {
+              event.originalEvent.preventDefault();
+              clusterMarker.fire("click");
+            }
           });
           markerLayer.addLayer(clusterMarker);
           return;
@@ -487,14 +498,31 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           popupAnchor: [0, -20]
         });
 
-        const marker = leaflet.marker([item.lat, item.lng], { icon, title: `${specialist.name} - ${specialist.trade}` });
+        const markerLabel = `${specialist.name}, ${specialist.trade}, ${specialist.approximateLocation ?? specialist.town}`;
+        const marker = leaflet
+          .marker([item.lat, item.lng], {
+            icon,
+            keyboard: true,
+            title: markerLabel,
+            alt: markerLabel
+          })
+          .bindPopup(createMapPopup(specialist));
 
         marker.on("click", () => {
           setMapPopupId(specialist.id);
           selectSpecialist(specialist.id, false);
         });
+        marker.on("keypress", (event: import("leaflet").LeafletKeyboardEvent) => {
+          if (event.originalEvent.key === "Enter" || event.originalEvent.key === " ") {
+            event.originalEvent.preventDefault();
+            marker.fire("click");
+            marker.openPopup();
+          }
+        });
         marker.on("mouseover", () => setHoveredId(specialist.id));
         marker.on("mouseout", () => setHoveredId(""));
+        marker.on("focus", () => setHoveredId(specialist.id));
+        marker.on("blur", () => setHoveredId(""));
         markerLayer.addLayer(marker);
 
       });
@@ -963,7 +991,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               {activeSpecialist ? (
                 <div className="selected-map-card">
                   <div className="selected-card-photo">
-                    {activePhotoUrl ? <img src={activePhotoUrl} alt="" /> : activeSpecialist.trade.charAt(0)}
+                    {activePhotoUrl ? <img src={activePhotoUrl} alt={`${activeSpecialist.name} darbų nuotrauka`} /> : activeSpecialist.trade.charAt(0)}
                   </div>
                   <div>
                     <strong>{activeSpecialist.companyName || activeSpecialist.name}</strong>
@@ -1390,7 +1418,7 @@ function spreadDuplicateCoordinates(specialists: Specialist[], map: import("leaf
 function createMapPopup(specialist: Specialist) {
   const imageUrl = specialist.photoUrls?.find(Boolean);
   const thumbnail = imageUrl
-    ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" />`
+    ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(`${specialist.name} darbų nuotrauka`)}" loading="lazy" />`
     : `<span class="map-popup-thumb-fallback">${escapeHtml(specialist.trade.charAt(0))}</span>`;
   const rating = specialist.rating ? `${specialist.rating.toFixed(1)} ★` : "Naujas";
   const whatsapp = specialist.whatsapp.replace(/[^\d]/g, "");
