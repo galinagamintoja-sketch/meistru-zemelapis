@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Category, Specialist } from "../lib/types";
 import { formatMasterCount, formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
 
@@ -82,6 +82,58 @@ type PlacesSuggestion = {
     };
   };
 };
+
+type GooglePlacesLibrary = {
+  AutocompleteSuggestion: {
+    fetchAutocompleteSuggestions: (options: {
+      input: string;
+      includedRegionCodes: string[];
+      sessionToken: object | null;
+    }) => Promise<{ suggestions?: PlacesSuggestion[] }>;
+  };
+  AutocompleteSessionToken: new () => object;
+};
+
+type GoogleGeocoderResult = {
+  formatted_address?: string;
+  geometry?: {
+    location?: {
+      lat: () => number;
+      lng: () => number;
+    };
+  };
+};
+
+type GoogleMapsApi = {
+  accounts?: {
+    id: {
+      initialize: (config: {
+        client_id: string;
+        callback: (response: { credential?: string }) => void;
+        auto_select?: boolean;
+        cancel_on_tap_outside?: boolean;
+      }) => void;
+      prompt: () => void;
+      renderButton: (element: HTMLElement, options: Record<string, string | number | boolean>) => void;
+    };
+  };
+  maps?: {
+    importLibrary: (name: "places") => Promise<GooglePlacesLibrary>;
+    Geocoder: new () => {
+      geocode: (options: {
+        address: string;
+        componentRestrictions: { country: string };
+        region: string;
+      }) => Promise<{ results?: GoogleGeocoderResult[] }>;
+    };
+  };
+};
+
+declare global {
+  interface Window {
+    google?: GoogleMapsApi;
+  }
+}
 
 const photoFieldMetadata = {
   maxItems: 8,
@@ -192,7 +244,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const areaLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const hasPrefilledGoogleProfile = useRef(false);
   const lastFitKeyRef = useRef("");
-  const placesSessionTokenRef = useRef<any>(null);
+  const placesSessionTokenRef = useRef<object | null>(null);
   const selectedPlaceCacheRef = useRef(new Map<string, Pick<RegistrationDraft, "address" | "placeId" | "latitude" | "longitude" | "town" | "street" | "postcode">>());
 
   const activeSpecialist = useMemo(
@@ -232,6 +284,22 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     [categories, formState.categorySlugs]
   );
   const specialistsKey = useMemo(() => specialists.map((specialist) => specialist.id).join("|"), [specialists]);
+
+  const selectSpecialist = useCallback((specialistId: string, shouldScroll: boolean) => {
+    setActiveId(specialistId);
+    const specialist = specialists.find((item) => item.id === specialistId);
+    const map = mapRef.current;
+    if (specialist && map) {
+      map.setView([specialist.lat, specialist.lng], Math.max(map.getZoom(), 12), { animate: true });
+    }
+    if (shouldScroll) {
+      setMapPopupId("");
+      window.setTimeout(() => {
+        profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        window.history.replaceState(null, "", "#profile");
+      }, 0);
+    }
+  }, [specialists]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -547,7 +615,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     }
 
     renderMap();
-  }, [activeId, hoveredId, mapPopupId, mapZoom, specialists, specialistsKey]);
+  }, [activeId, hoveredId, mapPopupId, mapZoom, selectSpecialist, specialists, specialistsKey]);
 
   function stars(rating: number) {
     return "★".repeat(Math.max(0, Math.round(rating)));
@@ -555,22 +623,6 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
   function openSpecialistProfile(specialistId: string) {
     selectSpecialist(specialistId, true);
-  }
-
-  function selectSpecialist(specialistId: string, shouldScroll: boolean) {
-    setActiveId(specialistId);
-    const specialist = specialists.find((item) => item.id === specialistId);
-    const map = mapRef.current;
-    if (specialist && map) {
-      map.setView([specialist.lat, specialist.lng], Math.max(map.getZoom(), 12), { animate: true });
-    }
-    if (shouldScroll) {
-      setMapPopupId("");
-      window.setTimeout(() => {
-        profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        window.history.replaceState(null, "", "#profile");
-      }, 0);
-    }
   }
 
   function clearSelectedSpecialist() {
@@ -659,7 +711,11 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
     try {
       await loadGooglePlacesScript();
-      const geocoder = new (window as any).google.maps.Geocoder();
+      const maps = window.google?.maps;
+      if (!maps) {
+        return formState;
+      }
+      const geocoder = new maps.Geocoder();
       const response = await geocoder.geocode({
         address,
         componentRestrictions: { country: googlePlacesCountry },
@@ -1453,7 +1509,6 @@ function spreadDuplicateCoordinates(specialists: Specialist[], map: import("leaf
 }
 
 // Kept as a fallback if we return to Leaflet popups; the primary mobile flow now uses the bottom card.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function createMapPopup(specialist: Specialist) {
   const imageUrl = specialist.photoUrls?.find(Boolean);
   const thumbnail = imageUrl
@@ -1516,7 +1571,7 @@ function escapeHtml(value: string) {
 
 async function loadGooglePlacesLibrary() {
   await loadGooglePlacesScript();
-  return (window as any).google.maps.importLibrary("places");
+  return window.google?.maps?.importLibrary("places") ?? Promise.reject(new Error("Google Places API is not available."));
 }
 
 function loadGooglePlacesScript() {
@@ -1524,7 +1579,7 @@ function loadGooglePlacesScript() {
     return Promise.reject(new Error("Google Places API key is not configured."));
   }
 
-  if ((window as any).google?.maps?.importLibrary) {
+  if (window.google?.maps?.importLibrary) {
     return Promise.resolve();
   }
 

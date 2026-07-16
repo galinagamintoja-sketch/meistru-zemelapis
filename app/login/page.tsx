@@ -1,32 +1,13 @@
 "use client";
 
 import Script from "next/script";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type LoginUser = {
   email: string;
   name: string;
   picture?: string;
 };
-
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: {
-            client_id: string;
-            callback: (response: { credential?: string }) => void;
-            auto_select?: boolean;
-            cancel_on_tap_outside?: boolean;
-          }) => void;
-          prompt: () => void;
-          renderButton: (element: HTMLElement, options: Record<string, string | number | boolean>) => void;
-        };
-      };
-    };
-  }
-}
 
 const googleClientId = "76961729881-oaec897h8tshgs511etc8ssskb0mvk21.apps.googleusercontent.com";
 
@@ -46,14 +27,8 @@ export default function LoginPage() {
       .catch(() => setMessage("Pasirinkite „Google“ paskyrą. Slaptažodžio kurti nereikia."));
   }, []);
 
-  useEffect(() => {
-    if (isReady) {
-      renderGoogleButton();
-    }
-  }, [isReady]);
-
-  function renderGoogleButton() {
-    if (!window.google || !buttonRef.current) {
+  const renderGoogleButton = useCallback(() => {
+    if (!window.google?.accounts || !buttonRef.current) {
       return;
     }
 
@@ -73,7 +48,13 @@ export default function LoginPage() {
       width: 320
     });
     window.google.accounts.id.prompt();
-  }
+  }, []);
+
+  useEffect(() => {
+    if (isReady) {
+      renderGoogleButton();
+    }
+  }, [isReady, renderGoogleButton]);
 
   async function handleGoogleCredential(response: { credential?: string }) {
     if (!response.credential) {
