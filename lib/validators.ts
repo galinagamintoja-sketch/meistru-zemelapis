@@ -82,9 +82,9 @@ export const registrationSchema = z.object({
   whatsappCommunicationConsent: z.boolean().optional().default(false)
 }).superRefine((payload, context) => {
   const requiredConsents = [
-    ["termsAccepted", payload.termsAccepted || payload.consentAccepted, "Patvirtinkite, kad sutinkate su naudojimosi salygomis."],
-    ["privacyAcknowledged", payload.privacyAcknowledged || payload.consentAccepted, "Patvirtinkite, kad susipazinote su privatumo politika."],
-    ["publicContactConsent", payload.publicContactConsent || payload.consentAccepted, "Patvirtinkite, kad sutinkate viesai rodyti pasirinktus kontaktus."]
+    ["termsAccepted", payload.termsAccepted, "Patvirtinkite, kad sutinkate su naudojimosi salygomis."],
+    ["privacyAcknowledged", payload.privacyAcknowledged, "Patvirtinkite, kad susipazinote su privatumo politika."],
+    ["publicContactConsent", payload.publicContactConsent, "Patvirtinkite, kad sutinkate viesai rodyti pasirinktus kontaktus."]
   ] as const;
 
   for (const [path, accepted, message] of requiredConsents) {

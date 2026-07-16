@@ -116,6 +116,28 @@ describe("profile API routes", () => {
     expect(data.details.fieldErrors.publicContactConsent.length).toBeGreaterThan(0);
   });
 
+  it("rejects registrations that only send the legacy bundled consent", async () => {
+    const { POST } = await import("../app/api/tradesperson/register/route");
+    const response = await POST(
+      new Request("http://localhost/api/tradesperson/register", {
+        method: "POST",
+        body: JSON.stringify({
+          ...validRegistration,
+          consentAccepted: true,
+          termsAccepted: false,
+          privacyAcknowledged: false,
+          publicContactConsent: false
+        })
+      })
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.details.fieldErrors.termsAccepted.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.privacyAcknowledged.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.publicContactConsent.length).toBeGreaterThan(0);
+  });
+
   it("rejects admin profile access without an admin session", async () => {
     const { GET } = await import("../app/api/admin/profiles/route");
 

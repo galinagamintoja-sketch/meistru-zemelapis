@@ -6,6 +6,9 @@ alter table tradesperson_profiles
   add column if not exists marketing_consent_at timestamptz,
   add column if not exists whatsapp_communication_consent_at timestamptz;
 
+alter table profile_photos
+  add column if not exists removed_from_profile_at timestamptz;
+
 comment on column tradesperson_profiles.is_demo is
   'Marks seed/demo/test profiles. Normal production public search must exclude these records.';
 
@@ -18,12 +21,36 @@ comment on column tradesperson_profiles.marketing_consent_at is
 comment on column tradesperson_profiles.whatsapp_communication_consent_at is
   'Optional WhatsApp communication consent. Must not be bundled with public profile publication.';
 
+comment on column profile_photos.removed_from_profile_at is
+  'Soft removal timestamp used to hide a photo from the public profile while preserving moderation history.';
+
 update tradesperson_profiles
 set is_demo = true
-where display_name in (
-  'Jonas Apdaila',
-  'Darius Santechnika',
-  'Vytautas Pilna Renovacija'
+where source = 'admin-created'
+  and (
+    (display_name = 'Jonas Apdaila' and email = 'jonas@localpro.lt' and phone = '+370 636 01230')
+    or (display_name = 'Darius Santechnika' and email = 'darius@localpro.lt' and phone = '+370 612 22110')
+    or (display_name = 'Vytautas Pilna Renovacija' and email = 'vytautas@localpro.lt' and phone = '+370 677 19024')
+  );
+
+create or replace view phase1_profiles_missing_public_contact_consent as
+select
+  id,
+  display_name,
+  company_name,
+  email,
+  phone,
+  source,
+  approval_status,
+  public_status,
+  created_at
+from tradesperson_profiles
+where approval_status = 'approved'
+  and public_status = 'public'
+  and public_contact_consent_at is null;
+
+comment on view phase1_profiles_missing_public_contact_consent is
+  'Review before production migration: approved public profiles without explicit public-contact consent. Public APIs and RLS exclude these records until genuine consent is recorded.';
 );
 
 drop policy if exists "Public can read services for approved public profiles" on profile_services;
@@ -39,6 +66,7 @@ using (
       and p.approval_status = 'approved'
       and p.public_status = 'public'
       and p.is_demo = false
+      and p.public_contact_consent_at is not null
   )
 );
 
@@ -55,6 +83,7 @@ using (
       and p.approval_status = 'approved'
       and p.public_status = 'public'
       and p.is_demo = false
+      and p.public_contact_consent_at is not null
   )
 );
 
@@ -65,6 +94,7 @@ for select
 to anon, authenticated
 using (
   moderation_status = 'approved'
+  and removed_from_profile_at is null
   and exists (
     select 1
     from tradesperson_profiles p
@@ -72,6 +102,7 @@ using (
       and p.approval_status = 'approved'
       and p.public_status = 'public'
       and p.is_demo = false
+      and p.public_contact_consent_at is not null
   )
 );
 
@@ -89,5 +120,6 @@ using (
       and p.approval_status = 'approved'
       and p.public_status = 'public'
       and p.is_demo = false
+      and p.public_contact_consent_at is not null
   )
 );

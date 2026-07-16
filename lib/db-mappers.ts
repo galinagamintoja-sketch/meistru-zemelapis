@@ -22,6 +22,7 @@ export type ProfileRow = {
   public_status: string;
   approval_status: "pending" | "approved" | "rejected" | "suspended";
   is_demo?: boolean | null;
+  public_contact_consent_at?: string | null;
   source: "self-registration" | "whatsapp-onboarding" | "admin-created" | "imported-lead";
   service_area_label: string | null;
   service_categories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
@@ -30,7 +31,7 @@ export type ProfileRow = {
     service_subcategories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
   }>;
   operating_areas?: Array<{ city: string; radius_km: number | null }>;
-  profile_photos?: Array<{ id?: string | null; label: string | null; url: string | null; moderation_status?: "pending" | "approved" | "rejected" | null; sort_order: number | null }>;
+  profile_photos?: Array<{ id?: string | null; label: string | null; url: string | null; moderation_status?: "pending" | "approved" | "rejected" | null; sort_order: number | null; removed_from_profile_at?: string | null }>;
   reviews?: Array<{ client_name: string; rating: number; text: string | null; moderation_status: string }>;
 };
 
@@ -64,6 +65,7 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
       )
       .filter((subcategory): subcategory is { name: string; slug: string } => Boolean(subcategory)) ?? [];
   const visiblePhotoRows = (row.profile_photos ?? [])
+    .filter((photo) => !photo.removed_from_profile_at)
     .filter((photo) => options.includeUnapprovedPhotos || (photo.moderation_status ?? "approved") === "approved")
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   const photos = visiblePhotoRows

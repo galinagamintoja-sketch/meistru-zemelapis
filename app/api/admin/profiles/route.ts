@@ -59,7 +59,7 @@ export async function GET(request: Request) {
         service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
         profile_services(service_categories(name, slug), service_subcategories(name, slug)),
         operating_areas(city, radius_km),
-        profile_photos(id, label, url, moderation_status, sort_order),
+        profile_photos(id, label, url, moderation_status, sort_order, removed_from_profile_at),
         reviews(client_name, rating, text, moderation_status)
       `
     )
@@ -217,7 +217,8 @@ export async function POST(request: Request) {
         label: null,
         alt_text: `${name} nuotrauka`,
         sort_order: index + 1,
-        moderation_status: "approved"
+        moderation_status: "pending",
+        removed_from_profile_at: null
       }))
     );
 
@@ -416,27 +417,10 @@ export async function PATCH(request: Request) {
     }
 
     if (photoUrls !== undefined) {
-      const { error: deletePhotosError } = await supabase.from("profile_photos").delete().eq("tradesperson_profile_id", id);
+      const photoSyncError = await syncProfilePhotos(supabase, id, photoUrls, cleanText(updates.name));
 
-      if (deletePhotosError) {
-        return NextResponse.json({ error: deletePhotosError.message }, { status: 500 });
-      }
-
-      if (photoUrls.length) {
-        const { error: photoError } = await supabase.from("profile_photos").insert(
-          photoUrls.map((url, index) => ({
-            tradesperson_profile_id: id,
-            url,
-            label: null,
-            alt_text: updates.name ? `${updates.name} nuotrauka` : null,
-            sort_order: index + 1,
-            moderation_status: "approved"
-          }))
-        );
-
-        if (photoError) {
-          return NextResponse.json({ error: photoError.message }, { status: 500 });
-        }
+      if (photoSyncError) {
+        return NextResponse.json({ error: photoSyncError }, { status: 500 });
       }
     }
   }
@@ -596,7 +580,7 @@ async function validateProfileForPublication(supabase: NonNullable<ReturnType<ty
       description,
       public_contact_consent_at,
       profile_services(service_subcategory_id),
-      profile_photos(moderation_status)
+      profile_photos(moderation_status, removed_from_profile_at)
     `)
     .eq("id", id)
     .single();
@@ -634,10 +618,81 @@ async function validateProfileForPublication(supabase: NonNullable<ReturnType<ty
     errors.push("Truksta aiskaus sutikimo viesai rodyti kontaktus.");
   }
 
-  const rejectedPhotos = (profile.profile_photos ?? []).some((photo: { moderation_status: string }) => photo.moderation_status === "rejected");
+  const rejectedPhotos = (profile.profile_photos ?? []).some((photo: { moderation_status: string; removed_from_profile_at?: string | null }) => !photo.removed_from_profile_at && photo.moderation_status === "rejected");
   if (rejectedPhotos) {
     errors.push("Profilis turi atmestu viesu nuotrauku.");
   }
 
   return errors;
+}
+
+async function syncProfilePhotos(
+  supabase: NonNullable<ReturnType<typeof createServerSupabase>>,
+  profileId: string,
+  photoUrls: string[],
+  profileName: string
+) {
+  const { data: existingPhotos, error: existingError } = await supabase
+    .from("profile_photos")
+    .select("id,url,moderation_status")
+    .eq("tradesperson_profile_id", profileId);
+
+  if (existingError) {
+    return existingError.message;
+  }
+
+  const existingByUrl = new Map(
+    (existingPhotos ?? [])
+      .filter((photo: { id?: string | null; url?: string | null }) => photo.id && photo.url)
+      .map((photo: { id: string; url: string; moderation_status?: string }) => [photo.url, photo])
+  );
+  const selectedUrls = new Set(photoUrls);
+
+  for (const photo of existingByUrl.values()) {
+    if (!selectedUrls.has(photo.url)) {
+      const { error } = await supabase
+        .from("profile_photos")
+        .update({ removed_from_profile_at: new Date().toISOString() })
+        .eq("id", photo.id)
+        .eq("tradesperson_profile_id", profileId);
+
+      if (error) {
+        return error.message;
+      }
+    }
+  }
+
+  for (const [index, url] of photoUrls.entries()) {
+    const existing = existingByUrl.get(url);
+
+    if (existing) {
+      const { error } = await supabase
+        .from("profile_photos")
+        .update({ sort_order: index + 1, removed_from_profile_at: null })
+        .eq("id", existing.id)
+        .eq("tradesperson_profile_id", profileId);
+
+      if (error) {
+        return error.message;
+      }
+
+      continue;
+    }
+
+    const { error } = await supabase.from("profile_photos").insert({
+      tradesperson_profile_id: profileId,
+      url,
+      label: null,
+      alt_text: profileName ? `${profileName} nuotrauka` : null,
+      sort_order: index + 1,
+      moderation_status: "pending",
+      removed_from_profile_at: null
+    });
+
+    if (error) {
+      return error.message;
+    }
+  }
+
+  return null;
 }

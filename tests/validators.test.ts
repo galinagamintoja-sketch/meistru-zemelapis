@@ -41,4 +41,16 @@ describe("registration validation", () => {
     expect(registrationSchema.safeParse({ ...validRegistration, consentAccepted: false, privacyAcknowledged: false }).success).toBe(false);
     expect(registrationSchema.safeParse({ ...validRegistration, consentAccepted: false, publicContactConsent: false }).success).toBe(false);
   });
+
+  it("does not accept the legacy bundled consent as separate required consent", () => {
+    expect(
+      registrationSchema.safeParse({
+        ...validRegistration,
+        consentAccepted: true,
+        termsAccepted: false,
+        privacyAcknowledged: false,
+        publicContactConsent: false
+      }).success
+    ).toBe(false);
+  });
 });

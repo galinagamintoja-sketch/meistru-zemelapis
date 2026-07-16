@@ -37,12 +37,13 @@ const SPECIALIST_SELECT = `
   public_status,
   approval_status,
   is_demo,
+  public_contact_consent_at,
   source,
   service_area_label,
   service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
   profile_services(service_categories(name, slug), service_subcategories(name, slug)),
   operating_areas(city, radius_km),
-  profile_photos(id, label, url, moderation_status, sort_order),
+  profile_photos(id, label, url, moderation_status, sort_order, removed_from_profile_at),
   reviews(client_name, rating, text, moderation_status)
 `;
 
@@ -81,6 +82,10 @@ export async function getSpecialists(filters: SpecialistFilters = {}) {
   const { data, error } = await runSpecialistQuery(SPECIALIST_SELECT, filters);
 
   if (error) {
+    if (isMissingPhase1MigrationError(error.message)) {
+      return [];
+    }
+
     throw new Error(error.message);
   }
 
@@ -100,6 +105,7 @@ function runSpecialistQuery(select: string, filters: SpecialistFilters) {
   if (!filters.includePending) {
     query = query.eq("approval_status", "approved");
     query = query.eq("is_demo", false);
+    query = query.not("public_contact_consent_at", "is", null);
   }
 
   return query.order("created_at", { ascending: false });
@@ -205,4 +211,8 @@ function toPublicSpecialistList(list: Specialist[]) {
     delete specialist.streetArea;
     return specialist;
   });
+}
+
+function isMissingPhase1MigrationError(message: string) {
+  return /public_contact_consent_at|is_demo|removed_from_profile_at/i.test(message) && /does not exist|schema cache/i.test(message);
 }
