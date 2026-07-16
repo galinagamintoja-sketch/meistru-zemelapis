@@ -46,6 +46,7 @@ export type Specialist = {
   status: ProfileStatus;
   source: ProfileSource;
   isDemo?: boolean;
+  publicContactConsentAt?: string | null;
 };
 
 export type Category = {

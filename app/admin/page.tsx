@@ -33,6 +33,12 @@ type AddDraft = {
   radius: string;
   source: string;
 };
+type ConsentDraft = {
+  channel: "website" | "whatsapp" | "telephone" | "written_form";
+  consentText: string;
+  capturedAt: string;
+  evidenceReference: string;
+};
 
 const statuses: Array<{ value: StatusFilter; label: string }> = [
   { value: "pending", label: "Laukiantys" },
@@ -68,6 +74,7 @@ export default function AdminPage() {
   const [profiles, setProfiles] = useState<Specialist[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [drafts, setDrafts] = useState<Record<string, EditDraft>>({});
+  const [consentDrafts, setConsentDrafts] = useState<Record<string, ConsentDraft>>({});
   const [addDraft, setAddDraft] = useState<AddDraft>(emptyAddDraft);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [addSucceeded, setAddSucceeded] = useState(false);
@@ -131,6 +138,7 @@ export default function AdminPage() {
       const nextProfiles: Specialist[] = data.profiles ?? [];
       setProfiles(nextProfiles);
       setDrafts(Object.fromEntries(nextProfiles.map((profile) => [profile.id, profileToDraft(profile)])));
+      setConsentDrafts((current) => Object.fromEntries(nextProfiles.map((profile) => [profile.id, current[profile.id] ?? emptyConsentDraft()])));
       setMessage(nextLoadMessageRef.current ?? profilesLoadedMessage(nextProfiles.length, data.mode));
       nextLoadMessageRef.current = null;
     } catch {
@@ -190,6 +198,33 @@ export default function AdminPage() {
     }
 
     nextLoadMessageRef.current = moderationStatus === "approved" ? "Nuotrauka patvirtinta." : "Nuotrauka atmesta.";
+    await loadProfiles();
+  }
+
+  async function recordPublicContactConsent(profileId: string) {
+    const draft = consentDrafts[profileId] ?? emptyConsentDraft();
+    setMessage("Irasomas viesu kontaktu sutikimas...");
+
+    const response = await fetch("/api/admin/profiles", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: profileId,
+        action: "record_public_contact_consent",
+        consentChannel: draft.channel,
+        consentText: draft.consentText,
+        capturedAt: draft.capturedAt,
+        evidenceReference: draft.evidenceReference
+      })
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      setMessage(data.error ?? "Sutikimo irasyti nepavyko.");
+      return;
+    }
+
+    nextLoadMessageRef.current = "Viesu kontaktu sutikimas irasytas.";
     await loadProfiles();
   }
 
@@ -319,6 +354,16 @@ export default function AdminPage() {
       return nextDraft;
     });
     setAddSucceeded(false);
+  }
+
+  function updateConsentDraft(id: string, field: keyof ConsentDraft, value: string) {
+    setConsentDrafts((current) => ({
+      ...current,
+      [id]: {
+        ...(current[id] ?? emptyConsentDraft()),
+        [field]: value
+      }
+    }));
   }
 
   function updateDraftPhotoUrl(id: string, index: number, value: string) {
@@ -613,9 +658,56 @@ export default function AdminPage() {
                 <div><dt>Miestas / zona</dt><dd>{profile.town} / {profile.operatingCities.join(", ")}</dd></div>
                 <div><dt>Patikra</dt><dd>{profile.verificationLabel || "Laukiama"}</dd></div>
                 <div><dt>Vieša būsena</dt><dd>{formatPublicStatus(profile)}</dd></div>
+                <div><dt>Viešų kontaktų sutikimas</dt><dd>{profile.publicContactConsentAt ? formatDateTime(profile.publicContactConsentAt) : "Nėra"}</dd></div>
               </dl>
 
               <p className="admin-description">{profile.description || "Aprašymo dar nėra."}</p>
+
+              <section className="admin-consent-panel">
+                <p className="field-note">
+                  Record this only after the specialist explicitly agreed that selected contact details may be displayed publicly.
+                </p>
+                <div className="admin-edit">
+                  <label>
+                    Sutikimo kanalas
+                    <select
+                      value={(consentDrafts[profile.id] ?? emptyConsentDraft()).channel}
+                      onChange={(event) => updateConsentDraft(profile.id, "channel", event.target.value)}
+                    >
+                      <option value="website">Website</option>
+                      <option value="whatsapp">WhatsApp</option>
+                      <option value="telephone">Telephone</option>
+                      <option value="written_form">Written form</option>
+                    </select>
+                  </label>
+                  <label>
+                    Užfiksuota
+                    <input
+                      type="datetime-local"
+                      value={(consentDrafts[profile.id] ?? emptyConsentDraft()).capturedAt}
+                      onChange={(event) => updateConsentDraft(profile.id, "capturedAt", event.target.value)}
+                    />
+                  </label>
+                  <label className="admin-wide">
+                    Sutikimo tekstas arba nuoroda į tekstą
+                    <textarea
+                      rows={3}
+                      value={(consentDrafts[profile.id] ?? emptyConsentDraft()).consentText}
+                      onChange={(event) => updateConsentDraft(profile.id, "consentText", event.target.value)}
+                    />
+                  </label>
+                  <label className="admin-wide">
+                    Įrodymo / pokalbio nuoroda
+                    <input
+                      value={(consentDrafts[profile.id] ?? emptyConsentDraft()).evidenceReference}
+                      onChange={(event) => updateConsentDraft(profile.id, "evidenceReference", event.target.value)}
+                    />
+                  </label>
+                  <button type="button" className="admin-secondary" onClick={() => recordPublicContactConsent(profile.id)}>
+                    Įrašyti viešų kontaktų sutikimą
+                  </button>
+                </div>
+              </section>
 
               <form className="admin-edit" onSubmit={(event) => {
                 event.preventDefault();
@@ -770,6 +862,25 @@ function profileToDraft(profile: Specialist): EditDraft {
     serviceArea: profile.serviceArea,
     description: profile.description
   };
+}
+
+function emptyConsentDraft(): ConsentDraft {
+  return {
+    channel: "whatsapp",
+    consentText: "",
+    capturedAt: toDateTimeLocalValue(new Date()),
+    evidenceReference: ""
+  };
+}
+
+function toDateTimeLocalValue(date: Date) {
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("lt-LT");
 }
 
 function selectedSubcategories(categories: Category[], categorySlugs: string[]) {

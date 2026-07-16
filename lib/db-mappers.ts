@@ -121,7 +121,8 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
     reviews: approvedReviews.map((review) => [review.client_name, review.rating, review.text ?? ""] as [string, number, string]),
     status: row.approval_status,
     source: row.source,
-    isDemo: Boolean(row.is_demo)
+    isDemo: Boolean(row.is_demo),
+    publicContactConsentAt: row.public_contact_consent_at ?? null
   };
 }
 

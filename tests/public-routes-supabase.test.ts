@@ -239,4 +239,55 @@ describe("public routes with mocked Supabase queries", () => {
     expect(operations).toContainEqual(expect.objectContaining({ table: "profile_photos", type: "insert", values: expect.objectContaining({ url: "https://example.lt/new.jpg", moderation_status: "pending" }) }));
     expect(operations).toContainEqual(expect.objectContaining({ table: "profile_photos", type: "update", values: expect.objectContaining({ removed_from_profile_at: expect.any(String) }) }));
   });
+
+  it("records public contact consent with consent and admin audit rows", async () => {
+    const operations: Array<Record<string, unknown>> = [];
+    installSupabaseMock({ tradesperson_profiles: [], consent_logs: [], admin_actions: [] }, operations);
+
+    const { PATCH } = await import("../app/api/admin/profiles/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/admin/profiles", {
+        method: "PATCH",
+        headers: {
+          cookie: signedCookie("admin@example.lt"),
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          id: "profile-id",
+          action: "record_public_contact_consent",
+          consentChannel: "whatsapp",
+          consentText: "Specialist explicitly agreed that selected contact details may be displayed publicly on LocalPro.",
+          capturedAt: "2026-07-16T06:30:00.000Z",
+          evidenceReference: "wa:conversation-123/message-456"
+        })
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(operations).toContainEqual(expect.objectContaining({
+      table: "tradesperson_profiles",
+      type: "update",
+      values: { public_contact_consent_at: "2026-07-16T06:30:00.000Z" }
+    }));
+    expect(operations).toContainEqual(expect.objectContaining({
+      table: "consent_logs",
+      type: "insert",
+      values: expect.objectContaining({
+        tradesperson_profile_id: "profile-id",
+        consent_type: "public_contact_display",
+        captured_channel: "whatsapp",
+        evidence_reference: "wa:conversation-123/message-456",
+        captured_by_role: "admin:admin@example.lt"
+      })
+    }));
+    expect(operations).toContainEqual(expect.objectContaining({
+      table: "admin_actions",
+      type: "insert",
+      values: expect.objectContaining({
+        tradesperson_profile_id: "profile-id",
+        action: "record_public_contact_consent",
+        created_by_role: "admin:admin@example.lt"
+      })
+    }));
+  });
 });

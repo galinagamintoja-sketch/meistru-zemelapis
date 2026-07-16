@@ -6,8 +6,9 @@ import { createServerSupabase } from "../../../../lib/supabase";
 import { isLithuanianPhone, normalizeLithuanianPhone, photoFieldMetadata } from "../../../../lib/validators";
 
 const validStatuses = new Set(["pending", "approved", "rejected", "suspended", "all"]);
-const validActions = new Set(["approve", "reject", "suspend", "verify_contact", "verify_whatsapp", "update", "moderate_photo"]);
+const validActions = new Set(["approve", "reject", "suspend", "verify_contact", "verify_whatsapp", "update", "moderate_photo", "record_public_contact_consent"]);
 const validSources = new Set(["self-registration", "whatsapp-onboarding", "admin-created", "imported-lead"]);
+const validConsentChannels = new Set(["website", "whatsapp", "telephone", "written_form"]);
 
 export async function GET(request: Request) {
   if (!requireAdminSession(request)) {
@@ -442,6 +443,67 @@ export async function PATCH(request: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+  }
+
+  if (action === "record_public_contact_consent") {
+    const channel = cleanText(body.consentChannel);
+    const consentText = cleanText(body.consentText);
+    const evidenceReference = cleanText(body.evidenceReference);
+    const capturedAtRaw = cleanText(body.capturedAt);
+    const capturedAt = capturedAtRaw ? new Date(capturedAtRaw) : new Date();
+
+    if (!validConsentChannels.has(channel)) {
+      return NextResponse.json({ error: "Choose a valid consent channel." }, { status: 400 });
+    }
+
+    if (consentText.length < 20) {
+      return NextResponse.json({ error: "Consent wording or reference is required." }, { status: 400 });
+    }
+
+    if (Number.isNaN(capturedAt.getTime())) {
+      return NextResponse.json({ error: "Captured timestamp is invalid." }, { status: 400 });
+    }
+
+    const capturedAtIso = capturedAt.toISOString();
+    const { error: updateError } = await supabase
+      .from("tradesperson_profiles")
+      .update({ public_contact_consent_at: capturedAtIso })
+      .eq("id", id);
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    const { error: consentError } = await supabase.from("consent_logs").insert({
+      tradesperson_profile_id: id,
+      consent_type: "public_contact_display",
+      consent_text: consentText,
+      captured_channel: channel,
+      captured_at: capturedAtIso,
+      evidence_reference: evidenceReference || null,
+      captured_by_role: `admin:${adminSession.email}`
+    });
+
+    if (consentError) {
+      return NextResponse.json({ error: consentError.message }, { status: 500 });
+    }
+
+    const { error: auditError } = await supabase.from("admin_actions").insert({
+      tradesperson_profile_id: id,
+      action,
+      notes: [
+        `channel=${channel}`,
+        `captured_at=${capturedAtIso}`,
+        evidenceReference ? `evidence=${evidenceReference}` : null
+      ].filter(Boolean).join("; "),
+      created_by_role: `admin:${adminSession.email}`
+    });
+
+    if (auditError) {
+      return NextResponse.json({ error: auditError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
   }
 
   if (action === "approve") {

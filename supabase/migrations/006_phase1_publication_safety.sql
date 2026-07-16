@@ -9,6 +9,10 @@ alter table tradesperson_profiles
 alter table profile_photos
   add column if not exists removed_from_profile_at timestamptz;
 
+alter table consent_logs
+  add column if not exists evidence_reference text,
+  add column if not exists captured_by_role text;
+
 comment on column tradesperson_profiles.is_demo is
   'Marks seed/demo/test profiles. Normal production public search must exclude these records.';
 
@@ -23,6 +27,12 @@ comment on column tradesperson_profiles.whatsapp_communication_consent_at is
 
 comment on column profile_photos.removed_from_profile_at is
   'Soft removal timestamp used to hide a photo from the public profile while preserving moderation history.';
+
+comment on column consent_logs.evidence_reference is
+  'Optional admin-entered reference to the message, call, document, or other evidence for the captured consent.';
+
+comment on column consent_logs.captured_by_role is
+  'Authenticated administrator or system identity that captured this consent record.';
 
 update tradesperson_profiles
 set is_demo = true
@@ -51,41 +61,46 @@ where approval_status = 'approved'
 
 comment on view phase1_profiles_missing_public_contact_consent is
   'Review before production migration: approved public profiles without explicit public-contact consent. Public APIs and RLS exclude these records until genuine consent is recorded.';
-);
+
+revoke all on phase1_profiles_missing_public_contact_consent from public, anon, authenticated;
+grant select on phase1_profiles_missing_public_contact_consent to service_role;
+
+create or replace function is_profile_publicly_readable(profile_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from tradesperson_profiles p
+    where p.id = profile_id
+      and p.approval_status = 'approved'
+      and p.public_status = 'public'
+      and p.is_demo = false
+      and p.public_contact_consent_at is not null
+  );
+$$;
+
+comment on function is_profile_publicly_readable(uuid) is
+  'RLS helper for child public tables. Keeps direct profile table reads blocked while allowing child policies to check approved/public/non-demo/consented parent status.';
+
+grant execute on function is_profile_publicly_readable(uuid) to anon, authenticated;
 
 drop policy if exists "Public can read services for approved public profiles" on profile_services;
 create policy "Public can read services for approved non-demo public profiles"
 on profile_services
 for select
 to anon, authenticated
-using (
-  exists (
-    select 1
-    from tradesperson_profiles p
-    where p.id = profile_services.tradesperson_profile_id
-      and p.approval_status = 'approved'
-      and p.public_status = 'public'
-      and p.is_demo = false
-      and p.public_contact_consent_at is not null
-  )
-);
+using (is_profile_publicly_readable(tradesperson_profile_id));
 
 drop policy if exists "Public can read areas for approved public profiles" on operating_areas;
 create policy "Public can read areas for approved non-demo public profiles"
 on operating_areas
 for select
 to anon, authenticated
-using (
-  exists (
-    select 1
-    from tradesperson_profiles p
-    where p.id = operating_areas.tradesperson_profile_id
-      and p.approval_status = 'approved'
-      and p.public_status = 'public'
-      and p.is_demo = false
-      and p.public_contact_consent_at is not null
-  )
-);
+using (is_profile_publicly_readable(tradesperson_profile_id));
 
 drop policy if exists "Public can read approved photos for approved public profiles" on profile_photos;
 create policy "Public can read approved photos for approved non-demo public profiles"
@@ -95,15 +110,7 @@ to anon, authenticated
 using (
   moderation_status = 'approved'
   and removed_from_profile_at is null
-  and exists (
-    select 1
-    from tradesperson_profiles p
-    where p.id = profile_photos.tradesperson_profile_id
-      and p.approval_status = 'approved'
-      and p.public_status = 'public'
-      and p.is_demo = false
-      and p.public_contact_consent_at is not null
-  )
+  and is_profile_publicly_readable(tradesperson_profile_id)
 );
 
 drop policy if exists "Public can read approved reviews for approved public profiles" on reviews;
@@ -113,13 +120,5 @@ for select
 to anon, authenticated
 using (
   moderation_status = 'approved'
-  and exists (
-    select 1
-    from tradesperson_profiles p
-    where p.id = reviews.tradesperson_profile_id
-      and p.approval_status = 'approved'
-      and p.public_status = 'public'
-      and p.is_demo = false
-      and p.public_contact_consent_at is not null
-  )
+  and is_profile_publicly_readable(tradesperson_profile_id)
 );
