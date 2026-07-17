@@ -137,6 +137,7 @@ type GoogleMapsApi = {
 declare global {
   interface Window {
     google?: GoogleMapsApi;
+    __localproGooglePlacesReady?: () => void;
   }
 }
 
@@ -185,6 +186,8 @@ const travelRangeOptions = [
 const googlePlacesApiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ?? "";
 const googlePlacesCountry = process.env.NEXT_PUBLIC_GOOGLE_PLACES_COUNTRY ?? "LT";
 const googlePlacesFields = ["formattedAddress", "id", "location"];
+const googlePlacesCallbackName = "__localproGooglePlacesReady";
+const googlePlacesScriptTimeoutMs = 10_000;
 let googlePlacesScriptPromise: Promise<void> | null = null;
 
 export function normalizePlacesSuggestion(suggestion: GoogleAutocompleteSuggestion): PlacesSuggestion | null {
@@ -1608,7 +1611,7 @@ async function loadGooglePlacesLibrary() {
   return window.google?.maps?.importLibrary("places") ?? Promise.reject(new Error("Google Places API is not available."));
 }
 
-function loadGooglePlacesScript() {
+export function loadGooglePlacesScript() {
   if (!googlePlacesApiKey) {
     return Promise.reject(new Error("Google Places API key is not configured."));
   }
@@ -1622,20 +1625,44 @@ function loadGooglePlacesScript() {
   }
 
   googlePlacesScriptPromise = new Promise((resolve, reject) => {
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      if (window[googlePlacesCallbackName] === handleReady) {
+        delete window[googlePlacesCallbackName];
+      }
+    };
+    const rejectWith = (error: Error) => {
+      cleanup();
+      googlePlacesScriptPromise = null;
+      reject(error);
+    };
+    const handleReady = () => {
+      if (typeof window.google?.maps?.importLibrary !== "function") {
+        rejectWith(new Error("Google Maps loaded without importLibrary."));
+        return;
+      }
+
+      cleanup();
+      resolve();
+    };
+
+    window[googlePlacesCallbackName] = handleReady;
+    const timeoutId = window.setTimeout(() => {
+      rejectWith(new Error("Google Places timed out before the Google callback fired."));
+    }, googlePlacesScriptTimeoutMs);
+
     const existingScript = document.querySelector<HTMLScriptElement>("script[data-localpro-google-places]");
     if (existingScript) {
-      existingScript.addEventListener("load", () => resolve(), { once: true });
-      existingScript.addEventListener("error", () => reject(new Error("Google Places failed to load.")), { once: true });
+      existingScript.addEventListener("error", () => rejectWith(new Error("Google Places failed to load.")), { once: true });
       return;
     }
 
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googlePlacesApiKey)}&v=weekly&libraries=places&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googlePlacesApiKey)}&v=weekly&libraries=places&loading=async&callback=${googlePlacesCallbackName}`;
     script.async = true;
     script.defer = true;
     script.dataset.localproGooglePlaces = "true";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Google Places failed to load."));
+    script.onerror = () => rejectWith(new Error("Google Places failed to load."));
     document.head.appendChild(script);
   });
 
