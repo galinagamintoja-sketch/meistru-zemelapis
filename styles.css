@@ -343,12 +343,30 @@ textarea {
   padding: 0 clamp(18px, 4vw, 56px) 50px;
 }
 
+.map-layout.view-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.map-layout.view-list .map-board {
+  display: none;
+}
+
+.map-layout.view-list .results-column {
+  max-width: 980px;
+}
+
 .results-column {
   min-width: 0;
 }
 
 .mobile-results-bar {
-  display: none;
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 2px;
+  font-weight: 900;
 }
 
 .segmented-control {
@@ -1128,12 +1146,7 @@ fieldset label {
   }
 
   .mobile-results-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
     margin-bottom: 12px;
-    font-weight: 900;
   }
 
   .results-column,

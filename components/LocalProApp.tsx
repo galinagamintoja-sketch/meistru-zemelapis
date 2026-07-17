@@ -1154,7 +1154,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           </form>
         </section>
 
-        <section className="map-layout" id="mapSection" aria-label="LocalPro specialistų žemėlapis ir rezultatai">
+        <section className={`map-layout view-${viewMode}`} id="mapSection" aria-label="LocalPro specialistų žemėlapis ir rezultatai">
           <div className="mobile-results-bar">
             <span>{specialists.length ? formatSpecialistCount(specialists.length) : "Nėra atitikmenų"}</span>
             <div className="segmented-control" aria-label="Rezultatų vaizdas">
