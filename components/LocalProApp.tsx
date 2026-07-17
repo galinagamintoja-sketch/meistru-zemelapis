@@ -65,7 +65,7 @@ type LocationResolveResponse = {
   };
 };
 
-type PlacesSuggestion = {
+export type PlacesSuggestion = {
   id: string;
   label: string;
   placePrediction: {
@@ -83,13 +83,18 @@ type PlacesSuggestion = {
   };
 };
 
+type GoogleAutocompleteSuggestion = {
+  label?: string;
+  placePrediction?: PlacesSuggestion["placePrediction"];
+};
+
 type GooglePlacesLibrary = {
   AutocompleteSuggestion: {
     fetchAutocompleteSuggestions: (options: {
       input: string;
       includedRegionCodes: string[];
       sessionToken: object | null;
-    }) => Promise<{ suggestions?: PlacesSuggestion[] }>;
+    }) => Promise<{ suggestions?: GoogleAutocompleteSuggestion[] }>;
   };
   AutocompleteSessionToken: new () => object;
 };
@@ -182,6 +187,42 @@ const googlePlacesCountry = process.env.NEXT_PUBLIC_GOOGLE_PLACES_COUNTRY ?? "LT
 const googlePlacesFields = ["formattedAddress", "id", "location"];
 let googlePlacesScriptPromise: Promise<void> | null = null;
 
+export function normalizePlacesSuggestion(suggestion: GoogleAutocompleteSuggestion): PlacesSuggestion | null {
+  if (!suggestion.placePrediction) {
+    return null;
+  }
+
+  const label = suggestion.placePrediction.text?.toString() ?? suggestion.label ?? suggestion.placePrediction.placeId ?? "";
+
+  if (!label) {
+    return null;
+  }
+
+  return {
+    id: suggestion.placePrediction.placeId ?? label,
+    label,
+    placePrediction: suggestion.placePrediction
+  };
+}
+
+export async function resolvePlacesSuggestionSelection(suggestion: PlacesSuggestion) {
+  const placeId = suggestion.placePrediction.placeId ?? suggestion.id;
+  const place = suggestion.placePrediction.toPlace();
+  await place.fetchFields({ fields: googlePlacesFields });
+  const address = place.formattedAddress ?? suggestion.label;
+  const derived = deriveAddressParts(address);
+
+  return {
+    address,
+    placeId: place.id ?? placeId,
+    latitude: place.location?.lat() ?? null,
+    longitude: place.location?.lng() ?? null,
+    town: derived.town,
+    street: derived.street,
+    postcode: derived.postcode
+  };
+}
+
 export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [trade, setTrade] = useState("all");
   const [city, setCity] = useState("all");
@@ -245,6 +286,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const hasPrefilledGoogleProfile = useRef(false);
   const lastFitKeyRef = useRef("");
   const placesSessionTokenRef = useRef<object | null>(null);
+  const addressSuggestionRequestRef = useRef(0);
   const selectedPlaceCacheRef = useRef(new Map<string, Pick<RegistrationDraft, "address" | "placeId" | "latitude" | "longitude" | "town" | "street" | "postcode">>());
 
   const activeSpecialist = useMemo(
@@ -420,6 +462,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
   useEffect(() => {
     const input = formState.address.trim();
+    const requestId = ++addressSuggestionRequestRef.current;
     if (!input || formState.placeId || input.length < 3 || !googlePlacesApiKey) {
       setAddressSuggestions([]);
       setAddressSearchOpen(false);
@@ -443,22 +486,28 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           sessionToken: placesSessionTokenRef.current
         });
         const suggestions = (response.suggestions ?? [])
-          .filter((suggestion: PlacesSuggestion) => suggestion.placePrediction)
-          .map((suggestion: PlacesSuggestion) => ({
-            ...suggestion,
-            id: suggestion.placePrediction.placeId ?? suggestion.label,
-            label: suggestion.placePrediction.text?.toString() ?? suggestion.label
-          }));
+          .map(normalizePlacesSuggestion)
+          .filter((suggestion): suggestion is PlacesSuggestion => Boolean(suggestion));
+
+        if (requestId !== addressSuggestionRequestRef.current) {
+          return;
+        }
 
         setAddressSuggestions(suggestions);
         setAddressSearchOpen(Boolean(suggestions.length));
         setAddressActiveIndex(suggestions.length ? 0 : -1);
       } catch {
+        if (requestId !== addressSuggestionRequestRef.current) {
+          return;
+        }
+
         setAddressSuggestions([]);
         setAddressSearchOpen(false);
         setAddressStatus("Adreso paieška laikinai neveikia. Galite adresą įrašyti ranka.");
       } finally {
-        setAddressLoading(false);
+        if (requestId === addressSuggestionRequestRef.current) {
+          setAddressLoading(false);
+        }
       }
     }, 300);
 
@@ -650,7 +699,6 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
       latitude: null,
       longitude: null
     }));
-    placesSessionTokenRef.current = null;
   }
 
   async function selectAddressSuggestion(suggestion: PlacesSuggestion) {
@@ -665,21 +713,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
     setAddressLoading(true);
     try {
-      const place = suggestion.placePrediction.toPlace();
-      await place.fetchFields({ fields: googlePlacesFields });
-      const address = place.formattedAddress ?? suggestion.label;
-      const latitude = place.location?.lat() ?? null;
-      const longitude = place.location?.lng() ?? null;
-      const derived = deriveAddressParts(address);
-      const selected = {
-        address,
-        placeId: place.id ?? placeId,
-        latitude,
-        longitude,
-        town: derived.town,
-        street: derived.street,
-        postcode: derived.postcode
-      };
+      const selected = await resolvePlacesSuggestionSelection(suggestion);
 
       selectedPlaceCacheRef.current.set(selected.placeId, selected);
       setFormState((current) => ({ ...current, ...selected, city: selected.town || current.city }));
