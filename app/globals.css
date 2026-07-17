@@ -166,7 +166,9 @@
   cursor: pointer;
 }
 
-.admin-toolbar button:disabled {
+.admin-toolbar button:disabled,
+.admin-actions button:disabled,
+.admin-edit button:disabled {
   opacity: 0.7;
   cursor: wait;
 }
@@ -336,7 +338,9 @@
   grid-column: span 2;
 }
 
-.admin-eligibility {
+.admin-eligibility,
+.admin-preview,
+.admin-history {
   display: grid;
   gap: 12px;
   padding: 14px;
@@ -345,6 +349,7 @@
 }
 
 .admin-eligibility > div,
+.admin-preview > div,
 .admin-eligibility li {
   display: flex;
   gap: 10px;
@@ -353,6 +358,8 @@
 }
 
 .admin-eligibility strong,
+.admin-preview strong,
+.admin-history strong,
 .admin-eligibility li span {
   color: #1f4f3a;
   font-weight: 800;
@@ -410,16 +417,64 @@
   border-bottom: 1px solid #d9e2dc;
 }
 
+.admin-photo-row span {
+  overflow-wrap: anywhere;
+}
+
+.admin-audit-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-audit-list li {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) minmax(140px, auto) minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #d9e2dc;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.admin-audit-list span,
+.admin-audit-list em {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.admin-audit-list em {
+  font-style: normal;
+}
+
 @media (max-width: 760px) {
   .admin-toolbar,
   .admin-summary,
-  .admin-edit {
+  .admin-edit,
+  .admin-photo-row,
+  .admin-audit-list li {
     grid-template-columns: 1fr;
   }
 
   .admin-heading,
   .admin-card-header {
     display: grid;
+  }
+
+  .admin-shell {
+    padding: 18px 12px;
+  }
+
+  .admin-actions {
+    width: 100%;
+  }
+
+  .admin-actions button,
+  .admin-toolbar button,
+  .admin-edit button {
+    width: 100%;
   }
 
   .admin-wide {

@@ -41,6 +41,14 @@ export type Specialist = {
     url: string;
     label?: string | null;
     moderationStatus: "pending" | "approved" | "rejected";
+    removedAt?: string | null;
+  }>;
+  adminActions?: Array<{
+    id: string;
+    action: string;
+    notes?: string | null;
+    createdAt: string;
+    createdByRole?: string | null;
   }>;
   reviews: Array<[string, number, string]>;
   status: ProfileStatus;

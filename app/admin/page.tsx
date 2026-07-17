@@ -39,6 +39,10 @@ type ConsentDraft = {
   capturedAt: string;
   evidenceReference: string;
 };
+type PreviewState = {
+  profileId: string;
+  specialist: Specialist;
+};
 
 const statuses: Array<{ value: StatusFilter; label: string }> = [
   { value: "pending", label: "Laukiantys" },
@@ -80,6 +84,9 @@ export default function AdminPage() {
   const [addSucceeded, setAddSucceeded] = useState(false);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({});
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [preview, setPreview] = useState<PreviewState | null>(null);
   const nextLoadMessageRef = useRef<string | null>(null);
 
   async function logout() {
@@ -139,6 +146,7 @@ export default function AdminPage() {
       setProfiles(nextProfiles);
       setDrafts(Object.fromEntries(nextProfiles.map((profile) => [profile.id, profileToDraft(profile)])));
       setConsentDrafts((current) => Object.fromEntries(nextProfiles.map((profile) => [profile.id, current[profile.id] ?? emptyConsentDraft()])));
+      setNoteDrafts((current) => Object.fromEntries(nextProfiles.map((profile) => [profile.id, current[profile.id] ?? ""])));
       setMessage(nextLoadMessageRef.current ?? profilesLoadedMessage(nextProfiles.length, data.mode));
       nextLoadMessageRef.current = null;
     } catch {
@@ -155,7 +163,12 @@ export default function AdminPage() {
   }
 
   async function runAction(id: string, action: "approve" | "reject" | "suspend" | "return_pending") {
+    if ((action === "reject" || action === "suspend") && !confirm("Patvirtinkite: profilis bus paslėptas viešai.")) {
+      return;
+    }
+
     const label = action === "approve" ? "Tvirtinama" : action === "reject" ? "Atmetama" : action === "suspend" ? "Stabdoma" : "Grąžinama patikrai";
+    setPendingActions((current) => ({ ...current, [`${id}:${action}`]: true }));
     setMessage(`${label}...`);
 
     const response = await fetch("/api/admin/profiles", {
@@ -168,7 +181,8 @@ export default function AdminPage() {
     const data = await response.json();
 
     if (!response.ok) {
-      setMessage(data.error ?? `${label} nepavyko.`);
+      setMessage([data.error ?? `${label} nepavyko.`, ...(data.validationErrors ?? [])].join(" "));
+      setPendingActions((current) => ({ ...current, [`${id}:${action}`]: false }));
       return;
     }
 
@@ -180,9 +194,15 @@ export default function AdminPage() {
           : "Profilis sustabdytas ir paslėptas."
     );
     await loadProfiles();
+    setPendingActions((current) => ({ ...current, [`${id}:${action}`]: false }));
   }
 
   async function moderatePhoto(profileId: string, photoId: string, moderationStatus: "approved" | "rejected") {
+    if (moderationStatus === "rejected" && !confirm("Atmesta nuotrauka bus pašalinta iš viešo profilio.")) {
+      return;
+    }
+
+    setPendingActions((current) => ({ ...current, [`${profileId}:photo:${photoId}`]: true }));
     setMessage(moderationStatus === "approved" ? "Nuotrauka tvirtinama..." : "Nuotrauka atmetama...");
 
     const response = await fetch("/api/admin/profiles", {
@@ -194,15 +214,18 @@ export default function AdminPage() {
 
     if (!response.ok) {
       setMessage(data.error ?? "Nuotraukos busenos pakeisti nepavyko.");
+      setPendingActions((current) => ({ ...current, [`${profileId}:photo:${photoId}`]: false }));
       return;
     }
 
     nextLoadMessageRef.current = moderationStatus === "approved" ? "Nuotrauka patvirtinta." : "Nuotrauka atmesta.";
     await loadProfiles();
+    setPendingActions((current) => ({ ...current, [`${profileId}:photo:${photoId}`]: false }));
   }
 
   async function recordPublicContactConsent(profileId: string) {
     const draft = consentDrafts[profileId] ?? emptyConsentDraft();
+    setPendingActions((current) => ({ ...current, [`${profileId}:consent`]: true }));
     setMessage("Irasomas viesu kontaktu sutikimas...");
 
     const response = await fetch("/api/admin/profiles", {
@@ -221,11 +244,13 @@ export default function AdminPage() {
 
     if (!response.ok) {
       setMessage(data.error ?? "Sutikimo irasyti nepavyko.");
+      setPendingActions((current) => ({ ...current, [`${profileId}:consent`]: false }));
       return;
     }
 
     nextLoadMessageRef.current = "Viesu kontaktu sutikimas irasytas.";
     await loadProfiles();
+    setPendingActions((current) => ({ ...current, [`${profileId}:consent`]: false }));
   }
 
   async function saveProfile(id: string) {
@@ -235,6 +260,7 @@ export default function AdminPage() {
     }
 
     setMessage("Saugomi profilio pakeitimai...");
+    setPendingActions((current) => ({ ...current, [`${id}:save`]: true }));
     const response = await fetch("/api/admin/profiles", {
       method: "PATCH",
       headers: {
@@ -265,15 +291,18 @@ export default function AdminPage() {
 
     if (!response.ok) {
       setMessage(data.error ?? "Išsaugoti nepavyko.");
+      setPendingActions((current) => ({ ...current, [`${id}:save`]: false }));
       return;
     }
 
     setMessage("Profilio pakeitimai išsaugoti.");
     await loadProfiles();
+    setPendingActions((current) => ({ ...current, [`${id}:save`]: false }));
   }
 
   async function addTradesperson(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setPendingActions((current) => ({ ...current, add: true }));
     setMessage("Pridedamas specialistas...");
     setAddSucceeded(false);
 
@@ -302,6 +331,7 @@ export default function AdminPage() {
 
     if (!response.ok) {
       setMessage(data.error ?? "Specialisto pridėti nepavyko.");
+      setPendingActions((current) => ({ ...current, add: false }));
       return;
     }
 
@@ -313,6 +343,49 @@ export default function AdminPage() {
     } else {
       setStatus("pending");
     }
+    setPendingActions((current) => ({ ...current, add: false }));
+  }
+
+  async function previewPublicProfile(profileId: string) {
+    setPendingActions((current) => ({ ...current, [`${profileId}:preview`]: true }));
+    setMessage("Ruošiama viešo profilio peržiūra...");
+
+    const response = await fetch(`/api/admin/profiles?preview=${encodeURIComponent(profileId)}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      setMessage(data.error ?? "Peržiūros paruošti nepavyko.");
+      setPendingActions((current) => ({ ...current, [`${profileId}:preview`]: false }));
+      return;
+    }
+
+    setPreview({ profileId, specialist: data.specialist });
+    setMessage("Viešo profilio peržiūra paruošta.");
+    setPendingActions((current) => ({ ...current, [`${profileId}:preview`]: false }));
+  }
+
+  async function addAdminNote(profileId: string) {
+    const notes = noteDrafts[profileId]?.trim() ?? "";
+    setPendingActions((current) => ({ ...current, [`${profileId}:note`]: true }));
+    setMessage("Įrašoma administratoriaus pastaba...");
+
+    const response = await fetch("/api/admin/profiles", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: profileId, action: "admin_note", notes })
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      setMessage(data.error ?? "Pastabos įrašyti nepavyko.");
+      setPendingActions((current) => ({ ...current, [`${profileId}:note`]: false }));
+      return;
+    }
+
+    setNoteDrafts((current) => ({ ...current, [profileId]: "" }));
+    nextLoadMessageRef.current = "Administratoriaus pastaba įrašyta.";
+    await loadProfiles();
+    setPendingActions((current) => ({ ...current, [`${profileId}:note`]: false }));
   }
 
   function updateDraft(id: string, field: keyof EditDraft, value: string | string[]) {
@@ -618,7 +691,7 @@ export default function AdminPage() {
                 Pridėti URL
               </button>
             </fieldset>
-            <button type="submit">Pridėti specialistą</button>
+            <button type="submit" disabled={pendingActions.add}>Pridėti specialistą</button>
           </form>
         </section>
       ) : null}
@@ -627,27 +700,32 @@ export default function AdminPage() {
         {profiles.map((profile) => {
           const draft = drafts[profile.id] ?? profileToDraft(profile);
           const eligibility = publicationEligibility(profile);
+          const canApprove = eligibility.filter((item) => !item.isState).every((item) => item.ok) && profile.status !== "approved";
+          const approvedPhotos = profile.photoRecords?.filter((photo) => photo.moderationStatus === "approved" && !photo.removedAt) ?? [];
 
           return (
             <article className="admin-card" key={profile.id}>
               <div className="admin-card-header">
                 <div>
-                  <p className="eyebrow">{profile.status} / {profile.publicStatus}</p>
+                  <p className="eyebrow">{formatApprovalStatus(profile.status)} / {formatPublicStatus(profile)}</p>
                   <h2>{profile.name}</h2>
                   <p>{profile.trade} / {formatSubcategories(profile)}</p>
                 </div>
                 <div className="admin-actions">
-                  <button type="button" onClick={() => runAction(profile.id, "approve")}>
+                  <button type="button" onClick={() => runAction(profile.id, "approve")} disabled={!canApprove || pendingActions[`${profile.id}:approve`]}>
                     Tvirtinti
                   </button>
-                  <button className="admin-danger" type="button" onClick={() => runAction(profile.id, "reject")}>
+                  <button className="admin-danger" type="button" onClick={() => runAction(profile.id, "reject")} disabled={profile.status === "rejected" || pendingActions[`${profile.id}:reject`]}>
                     Atmesti
                   </button>
-                  <button className="admin-danger" type="button" onClick={() => runAction(profile.id, "suspend")}>
+                  <button className="admin-danger" type="button" onClick={() => runAction(profile.id, "suspend")} disabled={profile.status === "suspended" || pendingActions[`${profile.id}:suspend`]}>
                     Sustabdyti
                   </button>
-                  <button type="button" onClick={() => runAction(profile.id, "return_pending")}>
+                  <button type="button" onClick={() => runAction(profile.id, "return_pending")} disabled={profile.status === "pending" || pendingActions[`${profile.id}:return_pending`]}>
                     Grąžinti patikrai
+                  </button>
+                  <button type="button" className="admin-secondary" onClick={() => previewPublicProfile(profile.id)} disabled={pendingActions[`${profile.id}:preview`]}>
+                    Vieša peržiūra
                   </button>
                 </div>
               </div>
@@ -681,6 +759,23 @@ export default function AdminPage() {
                   ))}
                 </ul>
               </section>
+
+              {preview?.profileId === profile.id ? (
+                <section className="admin-preview" aria-label="Viešo profilio peržiūra">
+                  <div>
+                    <strong>Vieša peržiūra</strong>
+                    <span>Naudojamas viešas duomenų formatas, be tikslaus adreso, vidinių pastabų ar sutikimų žurnalų.</span>
+                  </div>
+                  <dl className="admin-summary">
+                    <div><dt>Vardas</dt><dd>{preview.specialist.name}</dd></div>
+                    <div><dt>Kontaktas</dt><dd>{preview.specialist.phone}</dd></div>
+                    <div><dt>Vieta</dt><dd>{preview.specialist.approximateLocation}</dd></div>
+                    <div><dt>Paslaugos</dt><dd>{formatSubcategories(preview.specialist, "-")}</dd></div>
+                    <div><dt>Nuotraukos</dt><dd>{preview.specialist.photoUrls?.length ?? 0}</dd></div>
+                    <div><dt>Koordinatės</dt><dd>Apytikslės</dd></div>
+                  </dl>
+                </section>
+              ) : null}
 
               <section className="admin-consent-panel">
                 <p className="field-note">
@@ -726,6 +821,41 @@ export default function AdminPage() {
                     Įrašyti viešų kontaktų sutikimą
                   </button>
                 </div>
+              </section>
+
+              <section className="admin-history" aria-label="Vidinės pastabos ir auditas">
+                <div className="admin-card-header">
+                  <div>
+                    <strong>Vidinės pastabos ir auditas</strong>
+                    <p>Pastabos lieka tik administratoriaus skydelyje ir nėra grąžinamos viešai.</p>
+                  </div>
+                </div>
+                <div className="admin-edit">
+                  <label className="admin-wide">
+                    Administratoriaus pastaba
+                    <textarea
+                      rows={3}
+                      value={noteDrafts[profile.id] ?? ""}
+                      onChange={(event) => setNoteDrafts((current) => ({ ...current, [profile.id]: event.target.value }))}
+                    />
+                  </label>
+                  <button type="button" className="admin-secondary" onClick={() => addAdminNote(profile.id)} disabled={pendingActions[`${profile.id}:note`]}>
+                    Įrašyti pastabą
+                  </button>
+                </div>
+                {profile.adminActions?.length ? (
+                  <ul className="admin-audit-list">
+                    {profile.adminActions.slice(0, 8).map((action) => (
+                      <li key={action.id}>
+                        <span>{formatDateTime(action.createdAt)}</span>
+                        <strong>{formatActionType(action.action)}</strong>
+                        {action.notes ? <em>{action.notes}</em> : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="field-note">Audito veiksmų dar nėra.</p>
+                )}
               </section>
 
               <form className="admin-edit" onSubmit={(event) => {
@@ -818,22 +948,27 @@ export default function AdminPage() {
                 <fieldset className="admin-wide">
                   <legend>Nuotraukų URL</legend>
                   <p className="field-note">JPG, PNG arba WebP, iki 8 nuotraukų, iki 5 MB kiekviena. Naudokite viešus URL.</p>
+                  <p className="field-note">
+                    {approvedPhotos.length ? `Pagrindinė vieša nuotrauka: ${approvedPhotos[0].label || approvedPhotos[0].url}` : "Patvirtintų viešų nuotraukų dar nėra."}
+                  </p>
                   {profile.photoRecords?.length ? (
                     <div className="admin-photo-moderation">
                       {profile.photoRecords.map((photo) => (
                         <div className="admin-photo-row" key={photo.id}>
                           <span>{photo.label || photo.url}</span>
-                          <span>{photo.moderationStatus}</span>
-                          <button type="button" className="admin-secondary" onClick={() => moderatePhoto(profile.id, photo.id, "approved")}>
+                          <span>{formatPhotoStatus(photo)}{approvedPhotos[0]?.id === photo.id ? " / pagrindinė" : ""}</span>
+                          <button type="button" className="admin-secondary" onClick={() => moderatePhoto(profile.id, photo.id, "approved")} disabled={(photo.moderationStatus === "approved" && !photo.removedAt) || pendingActions[`${profile.id}:photo:${photo.id}`]}>
                             Patvirtinti nuotrauka
                           </button>
-                          <button type="button" className="admin-danger" onClick={() => moderatePhoto(profile.id, photo.id, "rejected")}>
+                          <button type="button" className="admin-danger" onClick={() => moderatePhoto(profile.id, photo.id, "rejected")} disabled={photo.moderationStatus === "rejected" || pendingActions[`${profile.id}:photo:${photo.id}`]}>
                             Atmesti nuotrauka
                           </button>
                         </div>
                       ))}
                     </div>
-                  ) : null}
+                  ) : (
+                    <p className="field-note">Nuotraukų nėra. Profilis gali būti tvarkomas, bet viešai bus rodomas be darbų nuotraukų.</p>
+                  )}
                   {draft.photoUrls.map((photoUrl, index) => (
                     <div className="form-row" key={`photo-${profile.id}-${index}`}>
                       <label>
@@ -854,7 +989,7 @@ export default function AdminPage() {
                     Pridėti URL
                   </button>
                 </fieldset>
-                <button type="submit">Išsaugoti pakeitimus</button>
+                <button type="submit" disabled={pendingActions[`${profile.id}:save`]}>Išsaugoti pakeitimus</button>
               </form>
             </article>
           );
@@ -912,19 +1047,64 @@ function formatSubcategories(profile: Specialist, fallback = "Be subkategorijos"
 
 function formatPublicStatus(profile: Specialist) {
   const status = profile.publicStatus ?? (profile.status === "approved" ? "public" : "private");
-  return status === "private" ? "paslėpta" : status;
+  return status === "private" ? "privatus" : "viešas";
+}
+
+function formatApprovalStatus(status: Specialist["status"]) {
+  return status === "approved"
+    ? "patvirtintas"
+    : status === "suspended"
+      ? "sustabdytas"
+      : status === "rejected"
+        ? "atmestas"
+        : "laukiantis";
+}
+
+function formatPhotoStatus(photo: NonNullable<Specialist["photoRecords"]>[number]) {
+  if (photo.removedAt) {
+    return "pašalinta";
+  }
+
+  return photo.moderationStatus === "approved"
+    ? "patvirtinta"
+    : photo.moderationStatus === "rejected"
+      ? "atmesta"
+      : "laukiama";
+}
+
+function formatActionType(action: string) {
+  const labels: Record<string, string> = {
+    approve: "Patvirtinta",
+    reject: "Atmesta",
+    suspend: "Sustabdyta",
+    return_pending: "Grąžinta patikrai",
+    update: "Atnaujinta",
+    moderate_photo: "Nuotraukos moderavimas",
+    record_public_contact_consent: "Viešų kontaktų sutikimas",
+    admin_note: "Vidinė pastaba",
+    profile_admin_created: "Sukurta administratoriaus",
+    profile_submitted: "Registracija pateikta"
+  };
+  return labels[action] ?? action;
 }
 
 function publicationEligibility(profile: Specialist) {
-  const visiblePhotos = profile.photoRecords?.filter((photo) => photo.moderationStatus === "approved").length ?? profile.photoUrls?.filter(Boolean).length ?? 0;
+  const photoRecords = profile.photoRecords ?? [];
+  const hasPhotoRecords = photoRecords.length > 0;
+  const approvedVisiblePhotos = photoRecords.filter((photo) => photo.moderationStatus === "approved" && !photo.removedAt).length;
+  const hasUnmoderatedVisiblePhotos = photoRecords.some((photo) => !photo.removedAt && photo.moderationStatus !== "approved");
+  const hasContactDetails = Boolean(profile.phone || profile.email || profile.whatsapp);
+  const hasServices = (profile.subcategorySlugs?.length ?? 0) >= 3 || (profile.subcategoryNames?.length ?? 0) >= 3;
 
   return [
-    { label: "Busena leidzia viesinima", ok: profile.status === "approved" && formatPublicStatus(profile) === "public" },
-    { label: "Yra viesu kontaktu sutikimas", ok: Boolean(profile.publicContactConsentAt) },
-    { label: "Yra paslaugu subkategorijos", ok: Boolean(profile.subcategorySlugs?.length || profile.subcategoryNames?.length) },
-    { label: "Yra aptarnavimo zona ir spindulys", ok: profile.operatingCities.length > 0 && profile.radius > 0 },
-    { label: "Nuotraukos nepublikuojamos be patvirtinimo", ok: !profile.photoRecords?.some((photo) => photo.moderationStatus === "rejected") },
-    { label: visiblePhotos ? "Yra patvirtintu nuotrauku" : "Nuotrauku nera arba jos laukia moderavimo", ok: visiblePhotos > 0 }
+    { label: "Patvirtinimo būsena: patvirtintas", ok: profile.status === "approved", isState: true },
+    { label: "Viešumo būsena: viešas", ok: formatPublicStatus(profile) === "viešas", isState: true },
+    { label: "Yra viešų kontaktų sutikimas", ok: Boolean(profile.publicContactConsentAt) },
+    { label: hasServices ? "Yra bent 3 konkrečios paslaugos" : "Trūksta bent 3 konkrečių paslaugų", ok: hasServices },
+    { label: "Yra aptarnavimo miestas ir spindulys", ok: profile.operatingCities.length > 0 && profile.radius > 0 },
+    { label: "Yra viešas telefono, el. pašto arba WhatsApp kontaktas", ok: hasContactDetails },
+    { label: hasPhotoRecords ? "Visos rodomos nuotraukos moderuotos" : "Nuotraukų nėra, viešas profilis naudos tuščią būseną", ok: !hasUnmoderatedVisiblePhotos },
+    { label: approvedVisiblePhotos ? "Yra patvirtinta pagrindinė nuotrauka" : "Patvirtintų nuotraukų nėra", ok: !hasPhotoRecords || approvedVisiblePhotos > 0 }
   ];
 }
 
