@@ -1,5 +1,6 @@
 const LITHUANIA_CENTER = { lat: 55.1694, lng: 23.8813 };
 const GOOGLE_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json";
+const GEOCODER_FETCH_TIMEOUT_MS = 3_500;
 
 const cityCoordinateMap: Record<string, { lat: number; lng: number }> = {
   alytus: { lat: 54.3964, lng: 24.0456 },
@@ -71,9 +72,9 @@ async function resolveWithGoogleGeocoding(query: string) {
   });
 
   try {
-    const response = await fetch(`${GOOGLE_GEOCODING_URL}?${params.toString()}`, {
+    const response = await fetchWithTimeout(`${GOOGLE_GEOCODING_URL}?${params.toString()}`, {
       headers: { accept: "application/json" }
-    });
+    }, GEOCODER_FETCH_TIMEOUT_MS);
 
     if (!response.ok) {
       return null;
@@ -106,12 +107,12 @@ async function resolveWithNominatim(query: string) {
   });
 
   try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+    const response = await fetchWithTimeout(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
       headers: {
         accept: "application/json",
         "user-agent": "LocalPro.lt registration geocoder"
       }
-    });
+    }, GEOCODER_FETCH_TIMEOUT_MS);
 
     if (!response.ok) {
       return null;
@@ -129,6 +130,16 @@ async function resolveWithNominatim(query: string) {
     return { lat, lng };
   } catch {
     return null;
+  }
+}
+
+async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

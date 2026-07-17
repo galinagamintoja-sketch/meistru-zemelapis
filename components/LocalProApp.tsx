@@ -9,7 +9,7 @@ type Props = {
   categories: Category[];
 };
 
-type RegistrationDraft = {
+export type RegistrationDraft = {
   name: string;
   phone: string;
   email: string;
@@ -134,6 +134,19 @@ type GoogleMapsApi = {
   };
 };
 
+type RegistrationAddressResolutionOptions = {
+  googlePlacesCountry?: string;
+  googlePlacesApiKeyConfigured?: boolean;
+  timeoutMs?: number;
+  loadGooglePlacesScript?: () => Promise<void>;
+  getGoogleMaps?: () => GoogleMapsApi["maps"] | undefined;
+};
+
+type RegistrationSubmitOptions = RegistrationAddressResolutionOptions & {
+  selectedCategoryNames?: string[];
+  fetcher?: typeof fetch;
+};
+
 declare global {
   interface Window {
     google?: GoogleMapsApi;
@@ -184,10 +197,11 @@ const travelRangeOptions = [
   { value: "lt", label: "Visa Lietuva" }
 ] as const;
 const googlePlacesApiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ?? "";
-const googlePlacesCountry = process.env.NEXT_PUBLIC_GOOGLE_PLACES_COUNTRY ?? "LT";
+const googlePlacesCountry = normalizeGooglePlacesCountryCode(process.env.NEXT_PUBLIC_GOOGLE_PLACES_COUNTRY);
 const googlePlacesFields = ["formattedAddress", "id", "location"];
 const googlePlacesCallbackName = "__localproGooglePlacesReady";
 const googlePlacesScriptTimeoutMs = 10_000;
+const googleAddressResolutionTimeoutMs = 3_500;
 let googlePlacesScriptPromise: Promise<void> | null = null;
 
 export function normalizePlacesSuggestion(suggestion: GoogleAutocompleteSuggestion): PlacesSuggestion | null {
@@ -208,6 +222,11 @@ export function normalizePlacesSuggestion(suggestion: GoogleAutocompleteSuggesti
   };
 }
 
+export function normalizeGooglePlacesCountryCode(value: string | undefined | null) {
+  const normalized = value?.trim().toUpperCase() ?? "";
+  return /^[A-Z]{2}$/.test(normalized) ? normalized : "LT";
+}
+
 export async function resolvePlacesSuggestionSelection(suggestion: PlacesSuggestion) {
   const placeId = suggestion.placePrediction.placeId ?? suggestion.id;
   const place = suggestion.placePrediction.toPlace();
@@ -223,6 +242,87 @@ export async function resolvePlacesSuggestionSelection(suggestion: PlacesSuggest
     town: derived.town,
     street: derived.street,
     postcode: derived.postcode
+  };
+}
+
+export async function resolveRegistrationAddressWithFallback(
+  draft: RegistrationDraft,
+  options: RegistrationAddressResolutionOptions = {}
+) {
+  if (draft.latitude !== null && draft.longitude !== null) {
+    return { draft, usedManualFallback: false };
+  }
+
+  const address = draft.address.trim();
+  const googleConfigured = options.googlePlacesApiKeyConfigured ?? Boolean(googlePlacesApiKey);
+  if (!address || !googleConfigured) {
+    return { draft, usedManualFallback: true };
+  }
+
+  const country = options.googlePlacesCountry ?? googlePlacesCountry;
+  const loadScript = options.loadGooglePlacesScript ?? loadGooglePlacesScript;
+  const getMaps = options.getGoogleMaps ?? (() => window.google?.maps);
+  const timeoutMs = options.timeoutMs ?? googleAddressResolutionTimeoutMs;
+
+  try {
+    const resolvedDraft = await withTimeout(async () => {
+      await loadScript();
+      const maps = getMaps();
+      if (!maps?.Geocoder) {
+        throw new Error("Google geocoder is not available.");
+      }
+
+      const geocoder = new maps.Geocoder();
+      const response = await geocoder.geocode({
+        address,
+        componentRestrictions: { country },
+        region: country.toLowerCase()
+      });
+      const result = response.results?.[0];
+      const location = result?.geometry?.location;
+      if (!location) {
+        throw new Error("Google geocoder returned no coordinates.");
+      }
+
+      const resolvedAddress = result.formatted_address ?? address;
+      const derived = deriveAddressParts(resolvedAddress);
+      return {
+        ...draft,
+        address: resolvedAddress,
+        latitude: location.lat(),
+        longitude: location.lng(),
+        town: draft.town || derived.town,
+        street: draft.street || derived.street,
+        postcode: draft.postcode || derived.postcode
+      };
+    }, timeoutMs, "Google address resolution timed out.");
+
+    return { draft: resolvedDraft, usedManualFallback: false };
+  } catch {
+    return { draft, usedManualFallback: true };
+  }
+}
+
+export async function submitRegistrationDraft(draft: RegistrationDraft, options: RegistrationSubmitOptions = {}) {
+  const addressResolution = await resolveRegistrationAddressWithFallback(draft, options);
+  const registrationPayload = {
+    ...addressResolution.draft,
+    trade: addressResolution.draft.trade || options.selectedCategoryNames?.[0] || addressResolution.draft.categorySlugs[0] || "",
+    photoUrls: addressResolution.draft.photoUrls.map((url) => url.trim()).filter(Boolean)
+  };
+  const fetcher = options.fetcher ?? fetch;
+  const response = await fetcher("/api/tradesperson/register", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(registrationPayload)
+  });
+  const data = await response.json();
+
+  return {
+    response,
+    data,
+    payload: registrationPayload,
+    usedManualFallback: addressResolution.usedManualFallback
   };
 }
 
@@ -281,6 +381,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitTone, setSubmitTone] = useState<"success" | "error" | "">("");
   const [submittedProfileId, setSubmittedProfileId] = useState("");
+  const [submittedManualAddressReview, setSubmittedManualAddressReview] = useState(false);
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const profileSectionRef = useRef<HTMLElement | null>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
@@ -784,48 +885,14 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   }
 
   async function resolveManualAddressBeforeSubmit() {
-    if (formState.latitude !== null && formState.longitude !== null) {
-      return formState;
-    }
-
-    const address = formState.address.trim();
-    if (!address || !googlePlacesApiKey) {
-      return formState;
-    }
-
-    try {
-      await loadGooglePlacesScript();
-      const maps = window.google?.maps;
-      if (!maps) {
-        return formState;
-      }
-      const geocoder = new maps.Geocoder();
-      const response = await geocoder.geocode({
-        address,
-        componentRestrictions: { country: googlePlacesCountry },
-        region: googlePlacesCountry.toLowerCase()
-      });
-      const result = response.results?.[0];
-      const location = result?.geometry?.location;
-      if (!location) {
-        return formState;
-      }
-
-      const derived = deriveAddressParts(result.formatted_address ?? address);
-      const resolved = {
-        ...formState,
-        address: result.formatted_address ?? address,
-        latitude: location.lat(),
-        longitude: location.lng(),
-        town: formState.town || derived.town,
-        street: formState.street || derived.street,
-        postcode: formState.postcode || derived.postcode
-      };
-      setFormState(resolved);
-      return resolved;
-    } catch {
-      return formState;
-    }
+    const resolution = await resolveRegistrationAddressWithFallback(formState, {
+      googlePlacesCountry,
+      googlePlacesApiKeyConfigured: Boolean(googlePlacesApiKey),
+      loadGooglePlacesScript,
+      getGoogleMaps: () => window.google?.maps
+    });
+    setFormState(resolution.draft);
+    return resolution;
   }
 
   async function submitRegistration(event: FormEvent<HTMLFormElement>) {
@@ -833,18 +900,17 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     setSubmitMessage("Siunčiama registracija...");
     setSubmitTone("");
     setSubmittedProfileId("");
-    const registrationPayload = await resolveManualAddressBeforeSubmit();
+    setSubmittedManualAddressReview(false);
+    const addressResolution = await resolveManualAddressBeforeSubmit();
 
-    const response = await fetch("/api/tradesperson/register", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        ...registrationPayload,
-        trade: registrationPayload.trade || selectedCategoryNames[0] || registrationPayload.categorySlugs[0] || "",
-        photoUrls: registrationPayload.photoUrls.map((url) => url.trim()).filter(Boolean)
-      })
+    const registration = await submitRegistrationDraft(addressResolution.draft, {
+      selectedCategoryNames,
+      googlePlacesApiKeyConfigured: false
     });
-    const data = await response.json();
+    setFormState(registration.payload);
+
+    const response = registration.response;
+    const data = registration.data;
 
     if (!response.ok) {
       setSubmitTone("error");
@@ -854,7 +920,12 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
     setSubmitTone("success");
     setSubmittedProfileId(data.profile?.id ?? "");
-    setSubmitMessage("Registracija gauta. Profilį patikrinsime per 1-2 darbo dienas.");
+    setSubmittedManualAddressReview(addressResolution.usedManualFallback);
+    setSubmitMessage(
+      addressResolution.usedManualFallback
+        ? "Registracija gauta. Profilį patikrinsime per 1-2 darbo dienas, o adresą prireikus peržiūrėsime rankiniu būdu."
+        : "Registracija gauta. Profilį patikrinsime per 1-2 darbo dienas."
+    );
   }
 
   function updateCategory(slug: string, checked: boolean) {
@@ -1255,6 +1326,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                 <p className="eyebrow">Registracija gauta</p>
                 <h3>Profilį patikrinsime per 1-2 darbo dienas.</h3>
                 <p>Patvirtinimą arba klausimus išsiųsime telefonu arba el. paštu. Jei reikės pataisyti informaciją, susisieksime prieš publikuodami profilį žemėlapyje.</p>
+                {submittedManualAddressReview ? <p>Adresas gautas kaip įrašytas ranka. Prieš publikavimą jį peržiūrėsime ir prireikus patikslinsime.</p> : null}
                 {submittedProfileId ? <p className="field-note">Registracijos numeris: {submittedProfileId}</p> : null}
                 <a className="primary-action" href="/">Grįžti į žemėlapį</a>
               </article>
@@ -1690,6 +1762,22 @@ function serviceLabel(categories: Category[], slug: string) {
 async function loadGooglePlacesLibrary() {
   await loadGooglePlacesScript();
   return window.google?.maps?.importLibrary("places") ?? Promise.reject(new Error("Google Places API is not available."));
+}
+
+async function withTimeout<T>(operation: () => Promise<T>, timeoutMs: number, message: string) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation(),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 export function loadGooglePlacesScript() {
