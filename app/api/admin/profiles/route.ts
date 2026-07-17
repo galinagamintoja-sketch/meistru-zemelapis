@@ -6,7 +6,7 @@ import { createServerSupabase } from "../../../../lib/supabase";
 import { isLithuanianPhone, normalizeLithuanianPhone, photoFieldMetadata } from "../../../../lib/validators";
 
 const validStatuses = new Set(["pending", "approved", "rejected", "suspended", "all"]);
-const validActions = new Set(["approve", "reject", "suspend", "verify_contact", "verify_whatsapp", "update", "moderate_photo", "record_public_contact_consent"]);
+const validActions = new Set(["approve", "reject", "suspend", "return_pending", "verify_contact", "verify_whatsapp", "update", "moderate_photo", "record_public_contact_consent"]);
 const validSources = new Set(["self-registration", "whatsapp-onboarding", "admin-created", "imported-lead"]);
 const validConsentChannels = new Set(["website", "whatsapp", "telephone", "written_form"]);
 
@@ -520,6 +520,8 @@ export async function PATCH(request: Request) {
         ? { approval_status: "rejected", public_status: "private" }
         : action === "suspend"
           ? { approval_status: "suspended", public_status: "private" }
+          : action === "return_pending"
+            ? { approval_status: "pending", public_status: "private" }
           : null;
 
   if (patch) {

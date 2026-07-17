@@ -240,6 +240,42 @@ describe("public routes with mocked Supabase queries", () => {
     expect(operations).toContainEqual(expect.objectContaining({ table: "profile_photos", type: "update", values: expect.objectContaining({ removed_from_profile_at: expect.any(String) }) }));
   });
 
+  it("returns an admin-managed profile to pending and private", async () => {
+    const operations: Array<Record<string, unknown>> = [];
+    installSupabaseMock({ tradesperson_profiles: [], admin_actions: [] }, operations);
+
+    const { PATCH } = await import("../app/api/admin/profiles/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/admin/profiles", {
+        method: "PATCH",
+        headers: {
+          cookie: signedCookie("admin@example.lt"),
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          id: "profile-id",
+          action: "return_pending"
+        })
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(operations).toContainEqual(expect.objectContaining({
+      table: "tradesperson_profiles",
+      type: "update",
+      values: { approval_status: "pending", public_status: "private" }
+    }));
+    expect(operations).toContainEqual(expect.objectContaining({
+      table: "admin_actions",
+      type: "insert",
+      values: expect.objectContaining({
+        tradesperson_profile_id: "profile-id",
+        action: "return_pending",
+        created_by_role: "admin:admin@example.lt"
+      })
+    }));
+  });
+
   it("records public contact consent with consent and admin audit rows", async () => {
     const operations: Array<Record<string, unknown>> = [];
     installSupabaseMock({ tradesperson_profiles: [], consent_logs: [], admin_actions: [] }, operations);

@@ -154,8 +154,8 @@ export default function AdminPage() {
     setCategories(data.categories ?? []);
   }
 
-  async function runAction(id: string, action: "approve" | "reject" | "suspend") {
-    const label = action === "approve" ? "Tvirtinama" : action === "reject" ? "Atmetama" : "Stabdoma";
+  async function runAction(id: string, action: "approve" | "reject" | "suspend" | "return_pending") {
+    const label = action === "approve" ? "Tvirtinama" : action === "reject" ? "Atmetama" : action === "suspend" ? "Stabdoma" : "Grąžinama patikrai";
     setMessage(`${label}...`);
 
     const response = await fetch("/api/admin/profiles", {
@@ -626,6 +626,7 @@ export default function AdminPage() {
       <section className="admin-grid">
         {profiles.map((profile) => {
           const draft = drafts[profile.id] ?? profileToDraft(profile);
+          const eligibility = publicationEligibility(profile);
 
           return (
             <article className="admin-card" key={profile.id}>
@@ -645,6 +646,9 @@ export default function AdminPage() {
                   <button className="admin-danger" type="button" onClick={() => runAction(profile.id, "suspend")}>
                     Sustabdyti
                   </button>
+                  <button type="button" onClick={() => runAction(profile.id, "return_pending")}>
+                    Grąžinti patikrai
+                  </button>
                 </div>
               </div>
 
@@ -662,6 +666,21 @@ export default function AdminPage() {
               </dl>
 
               <p className="admin-description">{profile.description || "Aprašymo dar nėra."}</p>
+
+              <section className="admin-eligibility" aria-label="Publication eligibility">
+                <div>
+                  <strong>Publikavimo parengtis</strong>
+                  <span>{eligibility.every((item) => item.ok) ? "Profilis turi pagrindinius publikavimo duomenis." : "Pries publikavima perziurekite pazymetus punktus."}</span>
+                </div>
+                <ul>
+                  {eligibility.map((item) => (
+                    <li key={item.label} data-ok={item.ok ? "true" : "false"}>
+                      <span aria-hidden="true">{item.ok ? "OK" : "!"}</span>
+                      {item.label}
+                    </li>
+                  ))}
+                </ul>
+              </section>
 
               <section className="admin-consent-panel">
                 <p className="field-note">
@@ -894,6 +913,19 @@ function formatSubcategories(profile: Specialist, fallback = "Be subkategorijos"
 function formatPublicStatus(profile: Specialist) {
   const status = profile.publicStatus ?? (profile.status === "approved" ? "public" : "private");
   return status === "private" ? "paslėpta" : status;
+}
+
+function publicationEligibility(profile: Specialist) {
+  const visiblePhotos = profile.photoRecords?.filter((photo) => photo.moderationStatus === "approved").length ?? profile.photoUrls?.filter(Boolean).length ?? 0;
+
+  return [
+    { label: "Busena leidzia viesinima", ok: profile.status === "approved" && formatPublicStatus(profile) === "public" },
+    { label: "Yra viesu kontaktu sutikimas", ok: Boolean(profile.publicContactConsentAt) },
+    { label: "Yra paslaugu subkategorijos", ok: Boolean(profile.subcategorySlugs?.length || profile.subcategoryNames?.length) },
+    { label: "Yra aptarnavimo zona ir spindulys", ok: profile.operatingCities.length > 0 && profile.radius > 0 },
+    { label: "Nuotraukos nepublikuojamos be patvirtinimo", ok: !profile.photoRecords?.some((photo) => photo.moderationStatus === "rejected") },
+    { label: visiblePhotos ? "Yra patvirtintu nuotrauku" : "Nuotrauku nera arba jos laukia moderavimo", ok: visiblePhotos > 0 }
+  ];
 }
 
 function splitList(value: string) {

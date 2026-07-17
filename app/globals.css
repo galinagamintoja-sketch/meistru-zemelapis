@@ -336,6 +336,45 @@
   grid-column: span 2;
 }
 
+.admin-eligibility {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #d9e2dc;
+  background: #f7faf8;
+}
+
+.admin-eligibility > div,
+.admin-eligibility li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-eligibility strong,
+.admin-eligibility li span {
+  color: #1f4f3a;
+  font-weight: 800;
+}
+
+.admin-eligibility ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-eligibility li {
+  justify-content: flex-start;
+  font-size: 0.9rem;
+}
+
+.admin-eligibility li[data-ok="false"] span {
+  color: #9a3412;
+}
+
 .site-footer {
   display: flex;
   flex-wrap: wrap;

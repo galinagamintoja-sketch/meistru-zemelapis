@@ -187,6 +187,31 @@ summary:focus-visible,
   color: var(--ink);
 }
 
+.action-button {
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.active-filter-row,
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.active-filter-row span {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--ink);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .search-panel,
 .registration-form,
 .registration-preview,
@@ -821,6 +846,33 @@ textarea {
 .profile-summary p {
   color: var(--muted);
   line-height: 1.5;
+}
+
+.profile-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.profile-detail-grid div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf7;
+}
+
+.profile-detail-grid strong {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.profile-detail-grid span {
+  color: var(--muted);
+  line-height: 1.35;
 }
 
 .contact-list {
