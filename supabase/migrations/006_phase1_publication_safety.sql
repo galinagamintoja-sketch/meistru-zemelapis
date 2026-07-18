@@ -93,6 +93,7 @@ comment on function is_profile_publicly_readable(uuid) is
 grant execute on function is_profile_publicly_readable(uuid) to anon, authenticated;
 
 drop policy if exists "Public can read services for approved public profiles" on profile_services;
+drop policy if exists "Public can read services for approved non-demo public profiles" on profile_services;
 create policy "Public can read services for approved non-demo public profiles"
 on profile_services
 for select
@@ -100,6 +101,7 @@ to anon, authenticated
 using (is_profile_publicly_readable(tradesperson_profile_id));
 
 drop policy if exists "Public can read areas for approved public profiles" on operating_areas;
+drop policy if exists "Public can read areas for approved non-demo public profiles" on operating_areas;
 create policy "Public can read areas for approved non-demo public profiles"
 on operating_areas
 for select
@@ -107,6 +109,7 @@ to anon, authenticated
 using (is_profile_publicly_readable(tradesperson_profile_id));
 
 drop policy if exists "Public can read approved photos for approved public profiles" on profile_photos;
+drop policy if exists "Public can read approved photos for approved non-demo public profiles" on profile_photos;
 create policy "Public can read approved photos for approved non-demo public profiles"
 on profile_photos
 for select
@@ -118,6 +121,7 @@ using (
 );
 
 drop policy if exists "Public can read approved reviews for approved public profiles" on reviews;
+drop policy if exists "Public can read approved reviews for approved non-demo public profiles" on reviews;
 create policy "Public can read approved reviews for approved non-demo public profiles"
 on reviews
 for select
