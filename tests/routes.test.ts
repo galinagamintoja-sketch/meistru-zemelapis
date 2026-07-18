@@ -19,7 +19,10 @@ const validRegistration = {
   travelRange: "25",
   photoUrls: [],
   photoUploads: [],
-  consentAccepted: true
+  consentAccepted: true,
+  termsAccepted: true,
+  privacyAcknowledged: true,
+  publicContactConsent: true
 };
 
 function signedCookie(email: string) {
@@ -94,7 +97,10 @@ describe("profile API routes", () => {
           town: "",
           street: "",
           postcode: "",
-          consentAccepted: false
+          consentAccepted: false,
+          termsAccepted: false,
+          privacyAcknowledged: false,
+          publicContactConsent: false
         })
       })
     );
@@ -105,7 +111,31 @@ describe("profile API routes", () => {
     expect(data.details.fieldErrors.phone.length).toBeGreaterThan(0);
     expect(data.details.fieldErrors.email.length).toBeGreaterThan(0);
     expect(data.details.fieldErrors.address.length).toBeGreaterThan(0);
-    expect(data.details.fieldErrors.consentAccepted.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.termsAccepted.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.privacyAcknowledged.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.publicContactConsent.length).toBeGreaterThan(0);
+  });
+
+  it("rejects registrations that only send the legacy bundled consent", async () => {
+    const { POST } = await import("../app/api/tradesperson/register/route");
+    const response = await POST(
+      new Request("http://localhost/api/tradesperson/register", {
+        method: "POST",
+        body: JSON.stringify({
+          ...validRegistration,
+          consentAccepted: true,
+          termsAccepted: false,
+          privacyAcknowledged: false,
+          publicContactConsent: false
+        })
+      })
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(data.details.fieldErrors.termsAccepted.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.privacyAcknowledged.length).toBeGreaterThan(0);
+    expect(data.details.fieldErrors.publicContactConsent.length).toBeGreaterThan(0);
   });
 
   it("rejects admin profile access without an admin session", async () => {
@@ -131,5 +161,21 @@ describe("profile API routes", () => {
     );
 
     expect(response.status).toBe(200);
+  });
+
+  it("rejects destructive admin delete actions", async () => {
+    const { PATCH } = await import("../app/api/admin/profiles/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/admin/profiles", {
+        method: "PATCH",
+        headers: {
+          cookie: signedCookie("admin@example.lt"),
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ id: "test-profile-id", action: "delete" })
+      })
+    );
+
+    expect(response.status).toBe(400);
   });
 });

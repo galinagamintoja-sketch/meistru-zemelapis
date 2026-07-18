@@ -74,6 +74,7 @@ export async function POST(request: Request) {
           })
         : await resolveLithuanianCoordinates(payload.address);
   const operatingCities = uniqueList([baseTown, ...(payload.operatingCities ?? [])]);
+  const now = new Date().toISOString();
 
   const { data: subcategories, error: subcategoriesError } = subcategorySlugs.length
     ? await supabase
@@ -118,7 +119,12 @@ export async function POST(request: Request) {
       public_status: "private",
       approval_status: "pending",
       source: "self-registration",
-      consent_at: new Date().toISOString(),
+      consent_at: now,
+      terms_accepted_at: now,
+      privacy_acknowledged_at: now,
+      public_contact_consent_at: now,
+      marketing_consent_at: payload.marketingConsent ? now : null,
+      whatsapp_communication_consent_at: payload.whatsappCommunicationConsent ? now : null,
       verification_labels: []
     },
     supabase
@@ -155,20 +161,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: areaError.message }, { status: 500 });
   }
 
-  const uploadedPhotoUrls: string[] = [];
+  const uploadedPhotos: Array<{ storagePath: string }> = [];
   for (const [index, photo] of payload.photoUploads.entries()) {
     const uploaded = await uploadProfilePhoto(profile.id, photo, index, supabase);
     if ("error" in uploaded) {
-      await cleanupProfile(profile.id, supabase);
+      await cleanupProfile(profile.id, uploadedPhotos.map((item) => item.storagePath), supabase);
       return NextResponse.json({ error: uploaded.error }, { status: 500 });
     }
 
-    uploadedPhotoUrls.push(uploaded.url);
+    uploadedPhotos.push(uploaded);
   }
 
-  const photoRows = [...uploadedPhotoUrls, ...payload.photoUrls].slice(0, photoFieldMetadata.maxItems).map((url, index) => ({
+  const photoRows = [
+    ...uploadedPhotos.map((photo) => ({ url: null, storage_path: photo.storagePath })),
+    ...payload.photoUrls.map((url) => ({ url, storage_path: null }))
+  ].slice(0, photoFieldMetadata.maxItems).map((photo, index) => ({
     tradesperson_profile_id: profile.id,
-    url,
+    ...photo,
     label: null,
     alt_text: `${payload.name} darbo nuotrauka`,
     sort_order: index + 1,
@@ -178,21 +187,57 @@ export async function POST(request: Request) {
   if (photoRows.length) {
     const { error: photoError } = await supabase.from("profile_photos").insert(photoRows);
     if (photoError) {
-      await cleanupProfile(profile.id, supabase);
+      await cleanupProfile(profile.id, uploadedPhotos.map((item) => item.storagePath), supabase);
       return NextResponse.json({ error: photoError.message }, { status: 500 });
     }
   }
 
-  const { error: consentError } = await supabase.from("consent_logs").insert({
-    tradesperson_profile_id: profile.id,
-    consent_type: "self_registration_publish_review",
-    consent_text: "Tradesperson submitted LocalPro registration and agreed to admin review before publishing.",
-    captured_channel: "website",
-    captured_at: new Date().toISOString()
-  });
+  const consentRows = [
+    {
+      tradesperson_profile_id: profile.id,
+      consent_type: "terms_accepted",
+      consent_text: "Tradesperson accepted LocalPro terms during registration.",
+      captured_channel: "website",
+      captured_at: now
+    },
+    {
+      tradesperson_profile_id: profile.id,
+      consent_type: "privacy_acknowledged",
+      consent_text: "Tradesperson acknowledged the LocalPro privacy notice during registration.",
+      captured_channel: "website",
+      captured_at: now
+    },
+    {
+      tradesperson_profile_id: profile.id,
+      consent_type: "public_contact_display",
+      consent_text: "Tradesperson gave explicit permission to publicly display selected contact details after admin approval.",
+      captured_channel: "website",
+      captured_at: now
+    },
+    ...(payload.marketingConsent
+      ? [{
+          tradesperson_profile_id: profile.id,
+          consent_type: "marketing_messages",
+          consent_text: "Tradesperson opted in to optional LocalPro marketing messages.",
+          captured_channel: "website",
+          captured_at: now
+        }]
+      : []),
+    ...(payload.whatsappCommunicationConsent
+      ? [{
+          tradesperson_profile_id: profile.id,
+          consent_type: "whatsapp_communication",
+          consent_text: "Tradesperson opted in to WhatsApp communication about the registration.",
+          captured_channel: "website",
+          captured_at: now
+        }]
+      : [])
+  ];
+
+  const { error: consentError } = await supabase.from("consent_logs").insert(consentRows);
 
   if (consentError) {
-    await cleanupProfile(profile.id, supabase);
+    await cleanupProfile(profile.id, uploadedPhotos.map((item) => item.storagePath), supabase);
     return NextResponse.json({ error: consentError.message }, { status: 500 });
   }
 
@@ -204,7 +249,7 @@ export async function POST(request: Request) {
   });
 
   if (actionError) {
-    await cleanupProfile(profile.id, supabase);
+    await cleanupProfile(profile.id, uploadedPhotos.map((item) => item.storagePath), supabase);
     return NextResponse.json({ error: actionError.message }, { status: 500 });
   }
 
@@ -219,8 +264,21 @@ export async function POST(request: Request) {
   });
 }
 
-async function cleanupProfile(profileId: string, supabase: ReturnType<typeof createServerSupabase>) {
-  await supabase?.from("tradesperson_profiles").delete().eq("id", profileId);
+async function cleanupProfile(
+  profileId: string,
+  storagePaths: string[] | ReturnType<typeof createServerSupabase>,
+  maybeSupabase?: ReturnType<typeof createServerSupabase>
+) {
+  const supabase = Array.isArray(storagePaths) ? maybeSupabase : storagePaths;
+  const paths = Array.isArray(storagePaths) ? storagePaths : [];
+  if (!supabase) return;
+
+  if (paths.length) {
+    await supabase.storage.from(PROFILE_PHOTOS_BUCKET).remove(paths);
+  }
+  await supabase.from("admin_actions").delete().eq("tradesperson_profile_id", profileId);
+  await supabase.from("consent_logs").delete().eq("tradesperson_profile_id", profileId);
+  await supabase.from("tradesperson_profiles").delete().eq("id", profileId);
 }
 
 type ProfileInsert = {
@@ -244,6 +302,11 @@ type ProfileInsert = {
   approval_status: "pending";
   source: "self-registration";
   consent_at: string;
+  terms_accepted_at: string;
+  privacy_acknowledged_at: string;
+  public_contact_consent_at: string;
+  marketing_consent_at: string | null;
+  whatsapp_communication_consent_at: string | null;
   verification_labels: string[];
 };
 
@@ -261,12 +324,17 @@ async function insertProfile(profile: ProfileInsert, supabase: NonNullable<Retur
   delete legacyProfile.postcode;
   delete legacyProfile.house_number_private;
   delete legacyProfile.travel_range_label;
+  delete legacyProfile.terms_accepted_at;
+  delete legacyProfile.privacy_acknowledged_at;
+  delete legacyProfile.public_contact_consent_at;
+  delete legacyProfile.marketing_consent_at;
+  delete legacyProfile.whatsapp_communication_consent_at;
 
   return supabase.from("tradesperson_profiles").insert(legacyProfile).select("id").single();
 }
 
 function isMissingLocationPrivacyColumn(message: string) {
-  return /registered_address|google_place_id|street_name|postcode|travel_range_label|house_number_private/i.test(message);
+  return /registered_address|google_place_id|street_name|postcode|travel_range_label|house_number_private|terms_accepted_at|privacy_acknowledged_at|public_contact_consent_at|marketing_consent_at|whatsapp_communication_consent_at/i.test(message);
 }
 
 function uniqueList(values: string[]) {
@@ -288,7 +356,7 @@ async function uploadProfilePhoto(
   photo: { name: string; type: "image/jpeg" | "image/png" | "image/webp"; dataUrl: string },
   index: number,
   supabase: NonNullable<ReturnType<typeof createServerSupabase>>
-): Promise<{ url: string } | { error: string }> {
+): Promise<{ storagePath: string } | { error: string }> {
   const bucketError = await ensureProfilePhotosBucket(supabase);
   if (bucketError) {
     return { error: bucketError };
@@ -311,8 +379,7 @@ async function uploadProfilePhoto(
     return { error: `Nuotraukos nepavyko įkelti: ${error.message}` };
   }
 
-  const { data } = supabase.storage.from(PROFILE_PHOTOS_BUCKET).getPublicUrl(storagePath);
-  return { url: data.publicUrl };
+  return { storagePath };
 }
 
 async function ensureProfilePhotosBucket(supabase: NonNullable<ReturnType<typeof createServerSupabase>>) {
@@ -335,7 +402,7 @@ async function ensureProfilePhotosBucket(supabase: NonNullable<ReturnType<typeof
   }
 
   const { error: createError } = await supabase.storage.createBucket(PROFILE_PHOTOS_BUCKET, {
-    public: true,
+    public: false,
     fileSizeLimit: photoFieldMetadata.maxSizeMb * 1024 * 1024,
     allowedMimeTypes: [...photoFieldMetadata.acceptedTypes]
   });

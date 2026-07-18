@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { specialists as seedSpecialists } from "../../../../lib/seed-data";
 import { requireAdminSession } from "../../../../lib/auth-session";
-import { profileRowToSpecialist } from "../../../../lib/db-mappers";
+import { profileRowToSpecialist, type ProfileRow } from "../../../../lib/db-mappers";
 import { createServerSupabase } from "../../../../lib/supabase";
 import { isLithuanianPhone, normalizeLithuanianPhone, photoFieldMetadata } from "../../../../lib/validators";
+import { signManagedPhotoUrls } from "../../../../lib/specialists";
 
 const validStatuses = new Set(["pending", "approved", "rejected", "suspended", "all"]);
-const validActions = new Set(["approve", "reject", "suspend", "verify_contact", "verify_whatsapp", "update", "delete"]);
+const validActions = new Set(["approve", "reject", "suspend", "verify_contact", "verify_whatsapp", "update", "moderate_photo", "record_public_contact_consent"]);
 const validSources = new Set(["self-registration", "whatsapp-onboarding", "admin-created", "imported-lead"]);
+const validConsentChannels = new Set(["website", "whatsapp", "telephone", "written_form"]);
 
 export async function GET(request: Request) {
   if (!requireAdminSession(request)) {
@@ -50,12 +52,16 @@ export async function GET(request: Request) {
         verification_labels,
         public_status,
         approval_status,
+        is_demo,
         source,
         service_area_label,
+        terms_accepted_at,
+        privacy_acknowledged_at,
+        public_contact_consent_at,
         service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
         profile_services(service_categories(name, slug), service_subcategories(name, slug)),
         operating_areas(city, radius_km),
-        profile_photos(label, url, sort_order),
+        profile_photos(id, label, url, storage_path, moderation_status, sort_order, removed_from_profile_at),
         reviews(client_name, rating, text, moderation_status)
       `
     )
@@ -71,7 +77,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ mode: "database", profiles: (data ?? []).map(profileRowToSpecialist) });
+  const rows = await signManagedPhotoUrls((data ?? []) as unknown as ProfileRow[], true);
+  return NextResponse.json({ mode: "database", profiles: rows.map((row) => profileRowToSpecialist(row, { includeUnapprovedPhotos: true })) });
 }
 
 export async function POST(request: Request) {
@@ -213,7 +220,8 @@ export async function POST(request: Request) {
         label: null,
         alt_text: `${name} nuotrauka`,
         sort_order: index + 1,
-        moderation_status: "approved"
+        moderation_status: "pending",
+        removed_from_profile_at: null
       }))
     );
 
@@ -258,23 +266,6 @@ export async function PATCH(request: Request) {
 
   if (!supabase) {
     return NextResponse.json({ ok: true, mode: "seed", message: "Admin action accepted in demo mode." });
-  }
-
-  if (action === "delete") {
-    const { error } = await supabase.from("tradesperson_profiles").delete().eq("id", id);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    await supabase.from("admin_actions").insert({
-      tradesperson_profile_id: null,
-      action,
-      notes: `Deleted profile ${id}`,
-      created_by_role: `admin:${adminSession.email}`
-    });
-
-    return NextResponse.json({ ok: true });
   }
 
   if (action === "update") {
@@ -429,28 +420,98 @@ export async function PATCH(request: Request) {
     }
 
     if (photoUrls !== undefined) {
-      const { error: deletePhotosError } = await supabase.from("profile_photos").delete().eq("tradesperson_profile_id", id);
+      const photoSyncError = await syncProfilePhotos(supabase, id, photoUrls, cleanText(updates.name));
 
-      if (deletePhotosError) {
-        return NextResponse.json({ error: deletePhotosError.message }, { status: 500 });
+      if (photoSyncError) {
+        return NextResponse.json({ error: photoSyncError }, { status: 500 });
       }
+    }
+  }
 
-      if (photoUrls.length) {
-        const { error: photoError } = await supabase.from("profile_photos").insert(
-          photoUrls.map((url, index) => ({
-            tradesperson_profile_id: id,
-            url,
-            label: null,
-            alt_text: updates.name ? `${updates.name} nuotrauka` : null,
-            sort_order: index + 1,
-            moderation_status: "approved"
-          }))
-        );
+  if (action === "moderate_photo") {
+    const photoId = String(body.photoId ?? "");
+    const moderationStatus = String(body.moderationStatus ?? "");
 
-        if (photoError) {
-          return NextResponse.json({ error: photoError.message }, { status: 500 });
-        }
-      }
+    if (!photoId || !["approved", "rejected", "pending"].includes(moderationStatus)) {
+      return NextResponse.json({ error: "Invalid photo moderation request" }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("profile_photos")
+      .update({ moderation_status: moderationStatus })
+      .eq("id", photoId)
+      .eq("tradesperson_profile_id", id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+  }
+
+  if (action === "record_public_contact_consent") {
+    const channel = cleanText(body.consentChannel);
+    const consentText = cleanText(body.consentText);
+    const evidenceReference = cleanText(body.evidenceReference);
+    const capturedAtRaw = cleanText(body.capturedAt);
+    const capturedAt = capturedAtRaw ? new Date(capturedAtRaw) : new Date();
+
+    if (!validConsentChannels.has(channel)) {
+      return NextResponse.json({ error: "Choose a valid consent channel." }, { status: 400 });
+    }
+
+    if (consentText.length < 20) {
+      return NextResponse.json({ error: "Consent wording or reference is required." }, { status: 400 });
+    }
+
+    if (Number.isNaN(capturedAt.getTime())) {
+      return NextResponse.json({ error: "Captured timestamp is invalid." }, { status: 400 });
+    }
+
+    const capturedAtIso = capturedAt.toISOString();
+    const { error: updateError } = await supabase
+      .from("tradesperson_profiles")
+      .update({ public_contact_consent_at: capturedAtIso })
+      .eq("id", id);
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    const { error: consentError } = await supabase.from("consent_logs").insert({
+      tradesperson_profile_id: id,
+      consent_type: "public_contact_display",
+      consent_text: consentText,
+      captured_channel: channel,
+      captured_at: capturedAtIso,
+      evidence_reference: evidenceReference || null,
+      captured_by_role: `admin:${adminSession.email}`
+    });
+
+    if (consentError) {
+      return NextResponse.json({ error: consentError.message }, { status: 500 });
+    }
+
+    const { error: auditError } = await supabase.from("admin_actions").insert({
+      tradesperson_profile_id: id,
+      action,
+      notes: [
+        `channel=${channel}`,
+        `captured_at=${capturedAtIso}`,
+        evidenceReference ? `evidence=${evidenceReference}` : null
+      ].filter(Boolean).join("; "),
+      created_by_role: `admin:${adminSession.email}`
+    });
+
+    if (auditError) {
+      return NextResponse.json({ error: auditError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === "approve") {
+    const validation = await validateProfileForPublication(supabase, id);
+    if (validation.length) {
+      return NextResponse.json({ error: "Profilio negalima publikuoti.", validationErrors: validation }, { status: 400 });
     }
   }
 
@@ -567,4 +628,135 @@ function isProbablyPhotoUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+async function validateProfileForPublication(supabase: NonNullable<ReturnType<typeof createServerSupabase>>, id: string) {
+  const errors: string[] = [];
+  const { data: profile, error } = await supabase
+    .from("tradesperson_profiles")
+    .select(`
+      display_name,
+      company_name,
+      phone,
+      latitude,
+      longitude,
+      service_category_id,
+      description,
+      public_contact_consent_at,
+      profile_services(service_subcategory_id),
+      profile_photos(moderation_status, removed_from_profile_at)
+    `)
+    .eq("id", id)
+    .single();
+
+  if (error || !profile) {
+    return ["Profilis nerastas."];
+  }
+
+  if (!cleanText(profile.display_name) && !cleanText(profile.company_name)) {
+    errors.push("Truksta asmens arba imones pavadinimo.");
+  }
+
+  if (!isLithuanianPhone(String(profile.phone ?? ""))) {
+    errors.push("Truksta galiojancio telefono numerio.");
+  }
+
+  if (typeof profile.latitude !== "number" || typeof profile.longitude !== "number") {
+    errors.push("Truksta geokoduotos pagrindines darbo vietos.");
+  }
+
+  if (!profile.service_category_id) {
+    errors.push("Truksta pagrindines darbo srities.");
+  }
+
+  const serviceTagCount = (profile.profile_services ?? []).filter((service: { service_subcategory_id: string | null }) => service.service_subcategory_id).length;
+  if (serviceTagCount < 3) {
+    errors.push("Reikia bent 3 konkreciu paslaugu zymu.");
+  }
+
+  if (cleanText(profile.description).length < 80) {
+    errors.push("Aprasymas turi buti bent 80 simboliu.");
+  }
+
+  if (!profile.public_contact_consent_at) {
+    errors.push("Truksta aiskaus sutikimo viesai rodyti kontaktus.");
+  }
+
+  const rejectedPhotos = (profile.profile_photos ?? []).some((photo: { moderation_status: string; removed_from_profile_at?: string | null }) => !photo.removed_from_profile_at && photo.moderation_status === "rejected");
+  if (rejectedPhotos) {
+    errors.push("Profilis turi atmestu viesu nuotrauku.");
+  }
+
+  return errors;
+}
+
+async function syncProfilePhotos(
+  supabase: NonNullable<ReturnType<typeof createServerSupabase>>,
+  profileId: string,
+  photoUrls: string[],
+  profileName: string
+) {
+  const { data: existingPhotos, error: existingError } = await supabase
+    .from("profile_photos")
+    .select("id,url,moderation_status")
+    .eq("tradesperson_profile_id", profileId);
+
+  if (existingError) {
+    return existingError.message;
+  }
+
+  const existingByUrl = new Map(
+    (existingPhotos ?? [])
+      .filter((photo: { id?: string | null; url?: string | null }) => photo.id && photo.url)
+      .map((photo: { id: string; url: string; moderation_status?: string }) => [photo.url, photo])
+  );
+  const selectedUrls = new Set(photoUrls);
+
+  for (const photo of existingByUrl.values()) {
+    if (!selectedUrls.has(photo.url)) {
+      const { error } = await supabase
+        .from("profile_photos")
+        .update({ removed_from_profile_at: new Date().toISOString() })
+        .eq("id", photo.id)
+        .eq("tradesperson_profile_id", profileId);
+
+      if (error) {
+        return error.message;
+      }
+    }
+  }
+
+  for (const [index, url] of photoUrls.entries()) {
+    const existing = existingByUrl.get(url);
+
+    if (existing) {
+      const { error } = await supabase
+        .from("profile_photos")
+        .update({ sort_order: index + 1, removed_from_profile_at: null })
+        .eq("id", existing.id)
+        .eq("tradesperson_profile_id", profileId);
+
+      if (error) {
+        return error.message;
+      }
+
+      continue;
+    }
+
+    const { error } = await supabase.from("profile_photos").insert({
+      tradesperson_profile_id: profileId,
+      url,
+      label: null,
+      alt_text: profileName ? `${profileName} nuotrauka` : null,
+      sort_order: index + 1,
+      moderation_status: "pending",
+      removed_from_profile_at: null
+    });
+
+    if (error) {
+      return error.message;
+    }
+  }
+
+  return null;
 }

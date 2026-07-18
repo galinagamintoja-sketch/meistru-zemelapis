@@ -83,4 +83,53 @@ describe("public specialist listing", () => {
     expect(specialist.lat).not.toBe(specialist.registeredLat);
     expect(specialist.lng).not.toBe(specialist.registeredLng);
   });
+
+  it("does not expose exact registered coordinates or street-level areas in public listings", async () => {
+    const { getSpecialists } = await import("../lib/specialists");
+    const specialists = await getSpecialists();
+    const [specialist] = specialists;
+
+    expect(specialist).toBeDefined();
+    expect(specialist).not.toHaveProperty("registeredLat");
+    expect(specialist).not.toHaveProperty("registeredLng");
+    expect(specialist).not.toHaveProperty("streetArea");
+    expect(specialist.approximateLocation).toBe(specialist.town);
+  });
+
+  it("returns only approved photos from public profile mapping", async () => {
+    const { profileRowToSpecialist } = await import("../lib/db-mappers");
+    const specialist = profileRowToSpecialist({
+      id: "photo-safe",
+      display_name: "Photo Safe",
+      company_name: null,
+      phone: "+37063601230",
+      whatsapp_number: null,
+      email: "photo@example.lt",
+      base_city: "Vilnius",
+      radius_km: 25,
+      latitude: 54.6872,
+      longitude: 25.2797,
+      description: "Pakankamai ilgas aprasymas viesam profiliui ir nuotrauku filtravimo testui.",
+      review_score: null,
+      review_count: null,
+      verification_labels: null,
+      public_status: "public",
+      approval_status: "approved",
+      is_demo: false,
+      source: "self-registration",
+      service_area_label: null,
+      service_categories: { name: "Apdaila", slug: "apdaila" },
+      profile_services: [],
+      operating_areas: [],
+      profile_photos: [
+        { id: "approved-photo", label: "Approved", url: "https://example.lt/approved.jpg", moderation_status: "approved", sort_order: 1 },
+        { id: "pending-photo", label: "Pending", url: "https://example.lt/pending.jpg", moderation_status: "pending", sort_order: 2 },
+        { id: "rejected-photo", label: "Rejected", url: "https://example.lt/rejected.jpg", moderation_status: "rejected", sort_order: 3 }
+      ],
+      reviews: []
+    });
+
+    expect(specialist.photoUrls).toEqual(["https://example.lt/approved.jpg"]);
+    expect(specialist.photos).toEqual(["Approved"]);
+  });
 });

@@ -27,8 +27,6 @@ const SPECIALIST_SELECT = `
   whatsapp_number,
   email,
   base_city,
-  street_name,
-  postcode,
   radius_km,
   latitude,
   longitude,
@@ -38,16 +36,16 @@ const SPECIALIST_SELECT = `
   verification_labels,
   public_status,
   approval_status,
+  is_demo,
+  public_contact_consent_at,
   source,
   service_area_label,
   service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
   profile_services(service_categories(name, slug), service_subcategories(name, slug)),
   operating_areas(city, radius_km),
-  profile_photos(label, url, sort_order),
+  profile_photos(id, label, url, storage_path, moderation_status, sort_order, removed_from_profile_at),
   reviews(client_name, rating, text, moderation_status)
 `;
-
-const LEGACY_SPECIALIST_SELECT = SPECIALIST_SELECT.replace("street_name,\n  postcode,\n", "");
 
 export async function getCategories() {
   const supabase = createServerSupabase();
@@ -81,20 +79,34 @@ export async function getSpecialists(filters: SpecialistFilters = {}) {
     return filterSeedSpecialists(filters);
   }
 
-  let { data, error } = await runSpecialistQuery(SPECIALIST_SELECT, filters);
-
-  if (error && isMissingLocationPrivacyColumn(error.message)) {
-    const legacyResult = await runSpecialistQuery(LEGACY_SPECIALIST_SELECT, filters);
-    data = legacyResult.data;
-    error = legacyResult.error;
-  }
+  const { data, error } = await runSpecialistQuery(SPECIALIST_SELECT, filters);
 
   if (error) {
+    if (isMissingPhase1MigrationError(error.message)) {
+      return [];
+    }
+
     throw new Error(error.message);
   }
 
-  const rows = (data ?? []) as unknown as ProfileRow[];
-  return toPublicSpecialistList(applyFilters(removePublicTestProfiles(rows.map(profileRowToSpecialist), filters), filters));
+  const rows = await signManagedPhotoUrls((data ?? []) as unknown as ProfileRow[], false);
+  return toPublicSpecialistList(applyFilters(removePublicTestProfiles(rows.map((row) => profileRowToSpecialist(row)), filters), filters));
+}
+
+export async function signManagedPhotoUrls(rows: ProfileRow[], includeUnapproved: boolean) {
+  const supabase = createServerSupabase();
+  if (!supabase) return rows;
+
+  await Promise.all(rows.flatMap((row) => (row.profile_photos ?? []).map(async (photo) => {
+    if (!photo.storage_path) return;
+    // A managed photo's database URL may contain a legacy public-bucket URL.
+    // Never return it when the object lives in private storage, even if signing fails.
+    photo.url = null;
+    if (!includeUnapproved && photo.moderation_status !== "approved") return;
+    const { data, error } = await supabase.storage.from("profile-photos").createSignedUrl(photo.storage_path, 600);
+    if (!error) photo.url = data.signedUrl;
+  })));
+  return rows;
 }
 
 function runSpecialistQuery(select: string, filters: SpecialistFilters) {
@@ -108,13 +120,11 @@ function runSpecialistQuery(select: string, filters: SpecialistFilters) {
 
   if (!filters.includePending) {
     query = query.eq("approval_status", "approved");
+    query = query.eq("is_demo", false);
+    query = query.not("public_contact_consent_at", "is", null);
   }
 
   return query.order("created_at", { ascending: false });
-}
-
-function isMissingLocationPrivacyColumn(message: string) {
-  return /street_name|postcode|travel_range_label|house_number_private/i.test(message);
 }
 
 export async function getSpecialist(id: string) {
@@ -214,6 +224,11 @@ function toPublicSpecialistList(list: Specialist[]) {
     const specialist = { ...item };
     delete specialist.registeredLat;
     delete specialist.registeredLng;
+    delete specialist.streetArea;
     return specialist;
   });
+}
+
+function isMissingPhase1MigrationError(message: string) {
+  return /public_contact_consent_at|is_demo|removed_from_profile_at/i.test(message) && /does not exist|schema cache/i.test(message);
 }

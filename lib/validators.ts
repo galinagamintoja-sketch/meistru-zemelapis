@@ -74,7 +74,28 @@ export const registrationSchema = z.object({
   operatingCities: z.array(z.string().trim().min(2).max(80)).max(20).optional().default([]),
   photoUrls: z.array(photoUrlSchema).max(photoFieldMetadata.maxItems).optional().default([]),
   photoUploads: z.array(photoUploadSchema).max(photoFieldMetadata.maxItems).optional().default([]),
-  consentAccepted: z.literal(true)
+  consentAccepted: z.boolean().optional().default(false),
+  termsAccepted: z.boolean().optional().default(false),
+  privacyAcknowledged: z.boolean().optional().default(false),
+  publicContactConsent: z.boolean().optional().default(false),
+  marketingConsent: z.boolean().optional().default(false),
+  whatsappCommunicationConsent: z.boolean().optional().default(false)
+}).superRefine((payload, context) => {
+  const requiredConsents = [
+    ["termsAccepted", payload.termsAccepted, "Patvirtinkite, kad sutinkate su naudojimosi salygomis."],
+    ["privacyAcknowledged", payload.privacyAcknowledged, "Patvirtinkite, kad susipazinote su privatumo politika."],
+    ["publicContactConsent", payload.publicContactConsent, "Patvirtinkite, kad sutinkate viesai rodyti pasirinktus kontaktus."]
+  ] as const;
+
+  for (const [path, accepted, message] of requiredConsents) {
+    if (!accepted) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message,
+        path: [path]
+      });
+    }
+  }
 });
 
 export const enquirySchema = z.object({

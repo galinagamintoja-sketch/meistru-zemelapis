@@ -21,6 +21,8 @@ export type ProfileRow = {
   verification_labels: string[] | null;
   public_status: string;
   approval_status: "pending" | "approved" | "rejected" | "suspended";
+  is_demo?: boolean | null;
+  public_contact_consent_at?: string | null;
   source: "self-registration" | "whatsapp-onboarding" | "admin-created" | "imported-lead";
   service_area_label: string | null;
   service_categories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
@@ -29,11 +31,11 @@ export type ProfileRow = {
     service_subcategories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
   }>;
   operating_areas?: Array<{ city: string; radius_km: number | null }>;
-  profile_photos?: Array<{ label: string | null; url: string | null; sort_order: number | null }>;
+  profile_photos?: Array<{ id?: string | null; label: string | null; url: string | null; storage_path?: string | null; moderation_status?: "pending" | "approved" | "rejected" | null; sort_order: number | null; removed_from_profile_at?: string | null }>;
   reviews?: Array<{ client_name: string; rating: number; text: string | null; moderation_status: string }>;
 };
 
-export function profileRowToSpecialist(row: ProfileRow): Specialist {
+export function profileRowToSpecialist(row: ProfileRow, options: { includeUnapprovedPhotos?: boolean } = {}): Specialist {
   const operatingCities = uniqueList([row.base_city, ...(row.operating_areas?.map((area) => area.city).filter(Boolean) ?? [])]);
   const coordinates = profileCoordinates(row.latitude, row.longitude, operatingCities);
   const publicCoordinates = approximatePublicCoordinates(row.id, coordinates);
@@ -62,14 +64,24 @@ export function profileRowToSpecialist(row: ProfileRow): Specialist {
           : service.service_subcategories
       )
       .filter((subcategory): subcategory is { name: string; slug: string } => Boolean(subcategory)) ?? [];
-  const photos = row.profile_photos
-    ?.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    .map((photo) => photo.label || photo.url || "Darbų nuotrauka")
+  const visiblePhotoRows = (row.profile_photos ?? [])
+    .filter((photo) => !photo.removed_from_profile_at)
+    .filter((photo) => options.includeUnapprovedPhotos || (photo.moderation_status ?? "approved") === "approved")
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const photos = visiblePhotoRows
+    .map((photo) => photo.label || photo.url || "Darbu nuotrauka")
     .filter(Boolean);
-  const photoUrls = row.profile_photos
-    ?.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+  const photoUrls = visiblePhotoRows
     .map((photo) => photo.url || "")
     .filter(Boolean);
+  const photoRecords = visiblePhotoRows
+    .filter((photo) => photo.id && photo.url)
+    .map((photo) => ({
+      id: String(photo.id),
+      url: String(photo.url),
+      label: photo.label,
+      moderationStatus: photo.moderation_status ?? "approved"
+    }));
 
   return {
     id: row.id,
@@ -84,8 +96,8 @@ export function profileRowToSpecialist(row: ProfileRow): Specialist {
     subcategoryNames: subcategories.map((subcategory) => subcategory.name),
     town: row.base_city,
     district: row.base_city,
-    streetArea: formatStreetArea(row.street_name),
-    approximateLocation: formatApproximateLocation(row.base_city, row.street_name, row.postcode),
+    streetArea: undefined,
+    approximateLocation: formatApproximateLocation(row.base_city),
     operatingCities,
     radius: row.radius_km,
     lat: publicCoordinates.lat,
@@ -105,9 +117,12 @@ export function profileRowToSpecialist(row: ProfileRow): Specialist {
     description: row.description ?? "",
     photos: photos?.length ? photos : ["Darbų pavyzdžiai laukiami"],
     photoUrls: photoUrls?.length ? photoUrls : undefined,
+    photoRecords: photoRecords.length ? photoRecords : undefined,
     reviews: approvedReviews.map((review) => [review.client_name, review.rating, review.text ?? ""] as [string, number, string]),
     status: row.approval_status,
-    source: row.source
+    source: row.source,
+    isDemo: Boolean(row.is_demo),
+    publicContactConsentAt: row.public_contact_consent_at ?? null
   };
 }
 
@@ -129,22 +144,6 @@ function formatServiceArea(label: string | null, baseCity: string, operatingCiti
   return label;
 }
 
-function formatStreetArea(street: string | null | undefined) {
-  if (!street?.trim()) {
-    return undefined;
-  }
-
-  return `${street.trim()} rajonas`;
-}
-
-function formatApproximateLocation(baseCity: string, street: string | null | undefined, postcode: string | null | undefined) {
-  if (street?.trim()) {
-    return `${baseCity}, ${street.trim()} rajonas`;
-  }
-
-  if (postcode?.trim()) {
-    return `${baseCity}, pašto kodo zona`;
-  }
-
+function formatApproximateLocation(baseCity: string) {
   return baseCity;
 }

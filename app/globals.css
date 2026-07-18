@@ -336,6 +336,41 @@
   grid-column: span 2;
 }
 
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  padding: 24px 0 40px;
+  color: #5b665f;
+  font-size: 0.9rem;
+}
+
+.site-footer a {
+  color: #1f4f3a;
+  font-weight: 700;
+}
+
+.legal-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 56px 20px;
+  line-height: 1.7;
+}
+
+.admin-photo-moderation,
+.admin-photo-row {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-photo-row {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #d9e2dc;
+}
+
 @media (max-width: 760px) {
   .admin-toolbar,
   .admin-summary,

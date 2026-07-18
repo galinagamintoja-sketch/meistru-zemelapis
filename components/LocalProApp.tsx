@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Category, Specialist } from "../lib/types";
 import { formatMasterCount, formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
 
@@ -37,6 +37,11 @@ type RegistrationDraft = {
   travelRange: "10" | "25" | "50" | "100" | "lt";
   operatingCities: string[];
   consentAccepted: boolean;
+  termsAccepted: boolean;
+  privacyAcknowledged: boolean;
+  publicContactConsent: boolean;
+  marketingConsent: boolean;
+  whatsappCommunicationConsent: boolean;
 };
 
 type LoginUser = {
@@ -60,7 +65,7 @@ type LocationResolveResponse = {
   };
 };
 
-type PlacesSuggestion = {
+export type PlacesSuggestion = {
   id: string;
   label: string;
   placePrediction: {
@@ -77,6 +82,64 @@ type PlacesSuggestion = {
     };
   };
 };
+
+type GoogleAutocompleteSuggestion = {
+  label?: string;
+  placePrediction?: PlacesSuggestion["placePrediction"];
+};
+
+type GooglePlacesLibrary = {
+  AutocompleteSuggestion: {
+    fetchAutocompleteSuggestions: (options: {
+      input: string;
+      includedRegionCodes: string[];
+      sessionToken: object | null;
+    }) => Promise<{ suggestions?: GoogleAutocompleteSuggestion[] }>;
+  };
+  AutocompleteSessionToken: new () => object;
+};
+
+type GoogleGeocoderResult = {
+  formatted_address?: string;
+  geometry?: {
+    location?: {
+      lat: () => number;
+      lng: () => number;
+    };
+  };
+};
+
+type GoogleMapsApi = {
+  accounts?: {
+    id: {
+      initialize: (config: {
+        client_id: string;
+        callback: (response: { credential?: string }) => void;
+        auto_select?: boolean;
+        cancel_on_tap_outside?: boolean;
+      }) => void;
+      prompt: () => void;
+      renderButton: (element: HTMLElement, options: Record<string, string | number | boolean>) => void;
+    };
+  };
+  maps?: {
+    importLibrary: (name: "places") => Promise<GooglePlacesLibrary>;
+    Geocoder: new () => {
+      geocode: (options: {
+        address: string;
+        componentRestrictions: { country: string };
+        region: string;
+      }) => Promise<{ results?: GoogleGeocoderResult[] }>;
+    };
+  };
+};
+
+declare global {
+  interface Window {
+    google?: GoogleMapsApi;
+    __localproGooglePlacesReady?: () => void;
+  }
+}
 
 const photoFieldMetadata = {
   maxItems: 8,
@@ -123,7 +186,45 @@ const travelRangeOptions = [
 const googlePlacesApiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ?? "";
 const googlePlacesCountry = process.env.NEXT_PUBLIC_GOOGLE_PLACES_COUNTRY ?? "LT";
 const googlePlacesFields = ["formattedAddress", "id", "location"];
+const googlePlacesCallbackName = "__localproGooglePlacesReady";
+const googlePlacesScriptTimeoutMs = 10_000;
 let googlePlacesScriptPromise: Promise<void> | null = null;
+
+export function normalizePlacesSuggestion(suggestion: GoogleAutocompleteSuggestion): PlacesSuggestion | null {
+  if (!suggestion.placePrediction) {
+    return null;
+  }
+
+  const label = suggestion.placePrediction.text?.toString() ?? suggestion.label ?? suggestion.placePrediction.placeId ?? "";
+
+  if (!label) {
+    return null;
+  }
+
+  return {
+    id: suggestion.placePrediction.placeId ?? label,
+    label,
+    placePrediction: suggestion.placePrediction
+  };
+}
+
+export async function resolvePlacesSuggestionSelection(suggestion: PlacesSuggestion) {
+  const placeId = suggestion.placePrediction.placeId ?? suggestion.id;
+  const place = suggestion.placePrediction.toPlace();
+  await place.fetchFields({ fields: googlePlacesFields });
+  const address = place.formattedAddress ?? suggestion.label;
+  const derived = deriveAddressParts(address);
+
+  return {
+    address,
+    placeId: place.id ?? placeId,
+    latitude: place.location?.lat() ?? null,
+    longitude: place.location?.lng() ?? null,
+    town: derived.town,
+    street: derived.street,
+    postcode: derived.postcode
+  };
+}
 
 export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [trade, setTrade] = useState("all");
@@ -170,7 +271,12 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     radiusKm: 25,
     travelRange: "25",
     operatingCities: [] as string[],
-    consentAccepted: false
+    consentAccepted: false,
+    termsAccepted: false,
+    privacyAcknowledged: false,
+    publicContactConsent: false,
+    marketingConsent: false,
+    whatsappCommunicationConsent: false
   });
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitTone, setSubmitTone] = useState<"success" | "error" | "">("");
@@ -182,7 +288,8 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const areaLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const hasPrefilledGoogleProfile = useRef(false);
   const lastFitKeyRef = useRef("");
-  const placesSessionTokenRef = useRef<any>(null);
+  const placesSessionTokenRef = useRef<object | null>(null);
+  const addressSuggestionRequestRef = useRef(0);
   const selectedPlaceCacheRef = useRef(new Map<string, Pick<RegistrationDraft, "address" | "placeId" | "latitude" | "longitude" | "town" | "street" | "postcode">>());
 
   const activeSpecialist = useMemo(
@@ -222,6 +329,22 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     [categories, formState.categorySlugs]
   );
   const specialistsKey = useMemo(() => specialists.map((specialist) => specialist.id).join("|"), [specialists]);
+
+  const selectSpecialist = useCallback((specialistId: string, shouldScroll: boolean) => {
+    setActiveId(specialistId);
+    const specialist = specialists.find((item) => item.id === specialistId);
+    const map = mapRef.current;
+    if (specialist && map) {
+      map.setView([specialist.lat, specialist.lng], Math.max(map.getZoom(), 12), { animate: true });
+    }
+    if (shouldScroll) {
+      setMapPopupId("");
+      window.setTimeout(() => {
+        profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        window.history.replaceState(null, "", "#profile");
+      }, 0);
+    }
+  }, [specialists]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -342,6 +465,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
   useEffect(() => {
     const input = formState.address.trim();
+    const requestId = ++addressSuggestionRequestRef.current;
     if (!input || formState.placeId || input.length < 3 || !googlePlacesApiKey) {
       setAddressSuggestions([]);
       setAddressSearchOpen(false);
@@ -365,22 +489,28 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           sessionToken: placesSessionTokenRef.current
         });
         const suggestions = (response.suggestions ?? [])
-          .filter((suggestion: PlacesSuggestion) => suggestion.placePrediction)
-          .map((suggestion: PlacesSuggestion) => ({
-            ...suggestion,
-            id: suggestion.placePrediction.placeId ?? suggestion.label,
-            label: suggestion.placePrediction.text?.toString() ?? suggestion.label
-          }));
+          .map(normalizePlacesSuggestion)
+          .filter((suggestion): suggestion is PlacesSuggestion => Boolean(suggestion));
+
+        if (requestId !== addressSuggestionRequestRef.current) {
+          return;
+        }
 
         setAddressSuggestions(suggestions);
         setAddressSearchOpen(Boolean(suggestions.length));
         setAddressActiveIndex(suggestions.length ? 0 : -1);
       } catch {
+        if (requestId !== addressSuggestionRequestRef.current) {
+          return;
+        }
+
         setAddressSuggestions([]);
         setAddressSearchOpen(false);
         setAddressStatus("Adreso paieška laikinai neveikia. Galite adresą įrašyti ranka.");
       } finally {
-        setAddressLoading(false);
+        if (requestId === addressSuggestionRequestRef.current) {
+          setAddressLoading(false);
+        }
       }
     }, 300);
 
@@ -537,7 +667,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     }
 
     renderMap();
-  }, [activeId, hoveredId, mapPopupId, mapZoom, specialists, specialistsKey]);
+  }, [activeId, hoveredId, mapPopupId, mapZoom, selectSpecialist, specialists, specialistsKey]);
 
   function stars(rating: number) {
     return "★".repeat(Math.max(0, Math.round(rating)));
@@ -545,22 +675,6 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
   function openSpecialistProfile(specialistId: string) {
     selectSpecialist(specialistId, true);
-  }
-
-  function selectSpecialist(specialistId: string, shouldScroll: boolean) {
-    setActiveId(specialistId);
-    const specialist = specialists.find((item) => item.id === specialistId);
-    const map = mapRef.current;
-    if (specialist && map) {
-      map.setView([specialist.lat, specialist.lng], Math.max(map.getZoom(), 12), { animate: true });
-    }
-    if (shouldScroll) {
-      setMapPopupId("");
-      window.setTimeout(() => {
-        profileSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        window.history.replaceState(null, "", "#profile");
-      }, 0);
-    }
   }
 
   function clearSelectedSpecialist() {
@@ -588,7 +702,6 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
       latitude: null,
       longitude: null
     }));
-    placesSessionTokenRef.current = null;
   }
 
   async function selectAddressSuggestion(suggestion: PlacesSuggestion) {
@@ -603,21 +716,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
     setAddressLoading(true);
     try {
-      const place = suggestion.placePrediction.toPlace();
-      await place.fetchFields({ fields: googlePlacesFields });
-      const address = place.formattedAddress ?? suggestion.label;
-      const latitude = place.location?.lat() ?? null;
-      const longitude = place.location?.lng() ?? null;
-      const derived = deriveAddressParts(address);
-      const selected = {
-        address,
-        placeId: place.id ?? placeId,
-        latitude,
-        longitude,
-        town: derived.town,
-        street: derived.street,
-        postcode: derived.postcode
-      };
+      const selected = await resolvePlacesSuggestionSelection(suggestion);
 
       selectedPlaceCacheRef.current.set(selected.placeId, selected);
       setFormState((current) => ({ ...current, ...selected, city: selected.town || current.city }));
@@ -649,7 +748,11 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
     try {
       await loadGooglePlacesScript();
-      const geocoder = new (window as any).google.maps.Geocoder();
+      const maps = window.google?.maps;
+      if (!maps) {
+        return formState;
+      }
+      const geocoder = new maps.Geocoder();
       const response = await geocoder.geocode({
         address,
         componentRestrictions: { country: googlePlacesCountry },
@@ -1261,8 +1364,32 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               </fieldset>
               <label>
                 <span>
-                  <input type="checkbox" checked={formState.consentAccepted} onChange={(event) => setFormState({ ...formState, consentAccepted: event.target.checked })} />
-                  Sutinku, kad LocalPro peržiūrėtų pateiktą informaciją ir po patvirtinimo viešai rodytų mano profilį bei kontaktus.
+                  <input type="checkbox" checked={formState.termsAccepted} onChange={(event) => setFormState({ ...formState, termsAccepted: event.target.checked, consentAccepted: event.target.checked && formState.privacyAcknowledged && formState.publicContactConsent })} />
+                  Sutinku su LocalPro naudojimosi salygomis.
+                </span>
+              </label>
+              <label>
+                <span>
+                  <input type="checkbox" checked={formState.privacyAcknowledged} onChange={(event) => setFormState({ ...formState, privacyAcknowledged: event.target.checked, consentAccepted: formState.termsAccepted && event.target.checked && formState.publicContactConsent })} />
+                  Susipazinau su privatumo politika.
+                </span>
+              </label>
+              <label>
+                <span>
+                  <input type="checkbox" checked={formState.publicContactConsent} onChange={(event) => setFormState({ ...formState, publicContactConsent: event.target.checked, consentAccepted: formState.termsAccepted && formState.privacyAcknowledged && event.target.checked })} />
+                  Sutinku, kad po patvirtinimo profilyje viesai butu rodomi mano pasirinkti kontaktai.
+                </span>
+              </label>
+              <label>
+                <span>
+                  <input type="checkbox" checked={formState.marketingConsent} onChange={(event) => setFormState({ ...formState, marketingConsent: event.target.checked })} />
+                  Sutinku gauti neprivalomus LocalPro naujienu ir pasiulymu pranesimus.
+                </span>
+              </label>
+              <label>
+                <span>
+                  <input type="checkbox" checked={formState.whatsappCommunicationConsent} onChange={(event) => setFormState({ ...formState, whatsappCommunicationConsent: event.target.checked })} />
+                  Sutinku, kad del registracijos klausimu su manimi butu susisiekta WhatsApp.
                 </span>
               </label>
               <button type="submit">Siųsti registraciją</button>
@@ -1318,6 +1445,11 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
             <div><strong>Kontaktas</strong><p>Klientas mato darbo zoną ir pats susisiekia telefonu arba per WhatsApp.</p></div>
           </div>
         </section>
+        <footer className="site-footer">
+          <a href="/privacy">Privatumo politika</a>
+          <a href="/terms">Naudojimosi salygos</a>
+          <span>Teisinis tekstas yra juodrastis ir turi buti perziuretas specialisto.</span>
+        </footer>
       </main>
     </div>
   );
@@ -1414,7 +1546,6 @@ function spreadDuplicateCoordinates(specialists: Specialist[], map: import("leaf
 }
 
 // Kept as a fallback if we return to Leaflet popups; the primary mobile flow now uses the bottom card.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function createMapPopup(specialist: Specialist) {
   const imageUrl = specialist.photoUrls?.find(Boolean);
   const thumbnail = imageUrl
@@ -1477,15 +1608,15 @@ function escapeHtml(value: string) {
 
 async function loadGooglePlacesLibrary() {
   await loadGooglePlacesScript();
-  return (window as any).google.maps.importLibrary("places");
+  return window.google?.maps?.importLibrary("places") ?? Promise.reject(new Error("Google Places API is not available."));
 }
 
-function loadGooglePlacesScript() {
+export function loadGooglePlacesScript() {
   if (!googlePlacesApiKey) {
     return Promise.reject(new Error("Google Places API key is not configured."));
   }
 
-  if ((window as any).google?.maps?.importLibrary) {
+  if (window.google?.maps?.importLibrary) {
     return Promise.resolve();
   }
 
@@ -1494,20 +1625,44 @@ function loadGooglePlacesScript() {
   }
 
   googlePlacesScriptPromise = new Promise((resolve, reject) => {
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      if (window[googlePlacesCallbackName] === handleReady) {
+        delete window[googlePlacesCallbackName];
+      }
+    };
+    const rejectWith = (error: Error) => {
+      cleanup();
+      googlePlacesScriptPromise = null;
+      reject(error);
+    };
+    const handleReady = () => {
+      if (typeof window.google?.maps?.importLibrary !== "function") {
+        rejectWith(new Error("Google Maps loaded without importLibrary."));
+        return;
+      }
+
+      cleanup();
+      resolve();
+    };
+
+    window[googlePlacesCallbackName] = handleReady;
+    const timeoutId = window.setTimeout(() => {
+      rejectWith(new Error("Google Places timed out before the Google callback fired."));
+    }, googlePlacesScriptTimeoutMs);
+
     const existingScript = document.querySelector<HTMLScriptElement>("script[data-localpro-google-places]");
     if (existingScript) {
-      existingScript.addEventListener("load", () => resolve(), { once: true });
-      existingScript.addEventListener("error", () => reject(new Error("Google Places failed to load.")), { once: true });
+      existingScript.addEventListener("error", () => rejectWith(new Error("Google Places failed to load.")), { once: true });
       return;
     }
 
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googlePlacesApiKey)}&v=weekly&libraries=places&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googlePlacesApiKey)}&v=weekly&libraries=places&loading=async&callback=${googlePlacesCallbackName}`;
     script.async = true;
     script.defer = true;
     script.dataset.localproGooglePlaces = "true";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Google Places failed to load."));
+    script.onerror = () => rejectWith(new Error("Google Places failed to load."));
     document.head.appendChild(script);
   });
 
