@@ -1,5 +1,15 @@
 import { NextResponse } from "next/server";
 import { registrationSchema, photoFieldMetadata, normalizeLithuanianPhone } from "../../../../lib/validators";
+import {
+  deriveAddressParts,
+  insertOperatingAreas,
+  insertPhotoRecords,
+  insertProfileServices,
+  insertSelfRegistrationProfile,
+  resolveSelectedCategories,
+  resolveSelectedSubcategories,
+  uniqueList
+} from "../../../../lib/profile-write-service";
 import { createServerSupabase, hasSupabaseConfig } from "../../../../lib/supabase";
 import { resolveLithuanianCoordinates, resolveRegisteredAddressCoordinates } from "../../../../lib/geo";
 
@@ -37,24 +47,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Pasirinkite bent vieną darbo sritį." }, { status: 400 });
   }
 
-  const categoryQuery = supabase.from("service_categories").select("id,slug,name");
-  const { data: categories, error: categoriesError } = categorySlugs.length
-    ? await categoryQuery.in("slug", categorySlugs)
-    : await categoryQuery.in("name", categoryNames);
-
-  if (categoriesError) {
-    return NextResponse.json({ error: categoriesError.message }, { status: 500 });
+  const categoryResult = await resolveSelectedCategories(supabase, {
+    categorySlugs,
+    categoryNames,
+    invalidMessage: "Pasirinkite galiojančias darbo sritis."
+  });
+  if ("error" in categoryResult) {
+    return NextResponse.json({ error: categoryResult.error.message }, { status: categoryResult.error.status });
   }
 
-  const expectedCategoryCount = categorySlugs.length || categoryNames.length;
-
-  if (!categories?.length || categories.length !== expectedCategoryCount) {
-    return NextResponse.json({ error: "Pasirinkite galiojančias darbo sritis." }, { status: 400 });
-  }
-
-  const primaryCategory = categorySlugs.length
-    ? categories.find((category) => category.slug === categorySlugs[0]) ?? categories[0]
-    : categories.find((category) => category.name === categoryNames[0]) ?? categories[0];
   const normalizedPhone = normalizeLithuanianPhone(payload.phone) || payload.phone;
   const normalizedWhatsapp = payload.whatsapp ? normalizeLithuanianPhone(payload.whatsapp) || payload.whatsapp : normalizedPhone;
   const addressParts = deriveAddressParts(payload.address);
@@ -76,29 +77,17 @@ export async function POST(request: Request) {
   const operatingCities = uniqueList([baseTown, ...(payload.operatingCities ?? [])]);
   const now = new Date().toISOString();
 
-  const { data: subcategories, error: subcategoriesError } = subcategorySlugs.length
-    ? await supabase
-        .from("service_subcategories")
-        .select("id,slug,service_category_id")
-        .in("slug", subcategorySlugs)
-    : { data: [], error: null };
-
-  if (subcategoriesError) {
-    return NextResponse.json({ error: subcategoriesError.message }, { status: 500 });
+  const subcategoryResult = await resolveSelectedSubcategories(supabase, {
+    categoryIds: categoryResult.categories.map((category) => category.id),
+    subcategorySlugs,
+    invalidMessage: "Pasirinkite galiojančias paslaugas.",
+    mismatchMessage: "Pasirinktos paslaugos turi atitikti darbo sritis."
+  });
+  if ("error" in subcategoryResult) {
+    return NextResponse.json({ error: subcategoryResult.error.message }, { status: subcategoryResult.error.status });
   }
 
-  if ((subcategories ?? []).length !== subcategorySlugs.length) {
-    return NextResponse.json({ error: "Pasirinkite galiojančias paslaugas." }, { status: 400 });
-  }
-
-  const validCategoryIds = new Set(categories.map((category) => category.id));
-  const validSubcategories = (subcategories ?? []).filter((subcategory) => validCategoryIds.has(subcategory.service_category_id));
-
-  if (validSubcategories.length !== (subcategories ?? []).length) {
-    return NextResponse.json({ error: "Pasirinktos paslaugos turi atitikti darbo sritis." }, { status: 400 });
-  }
-
-  const { data: profile, error } = await insertProfile(
+  const { data: profile, error } = await insertSelfRegistrationProfile(
     {
       display_name: payload.name,
       phone: normalizedPhone,
@@ -115,7 +104,7 @@ export async function POST(request: Request) {
       latitude: coordinates?.lat ?? null,
       longitude: coordinates?.lng ?? null,
       description: payload.description,
-      service_category_id: primaryCategory.id,
+      service_category_id: categoryResult.primaryCategory.id,
       public_status: "private",
       approval_status: "pending",
       source: "self-registration",
@@ -134,31 +123,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const serviceRows = validSubcategories.map((subcategory) => ({
-    tradesperson_profile_id: profile.id,
-    service_category_id: subcategory.service_category_id,
-    service_subcategory_id: subcategory.id
-  }));
-
-  if (serviceRows.length) {
-    const { error: serviceError } = await supabase.from("profile_services").insert(serviceRows);
-    if (serviceError) {
-      await cleanupProfile(profile.id, supabase);
-      return NextResponse.json({ error: serviceError.message }, { status: 500 });
-    }
+  const serviceError = await insertProfileServices(supabase, profile.id, subcategoryResult.selectedSubcategories);
+  if (serviceError) {
+    await cleanupProfile(profile.id, supabase);
+    return NextResponse.json({ error: serviceError }, { status: 500 });
   }
 
-  const { error: areaError } = await supabase.from("operating_areas").insert(
-    operatingCities.map((city) => ({
-      tradesperson_profile_id: profile.id,
-      city,
-      radius_km: travelRadiusKm
-    }))
-  );
-
+  const areaError = await insertOperatingAreas(supabase, profile.id, operatingCities, travelRadiusKm);
   if (areaError) {
     await cleanupProfile(profile.id, supabase);
-    return NextResponse.json({ error: areaError.message }, { status: 500 });
+    return NextResponse.json({ error: areaError }, { status: 500 });
   }
 
   const uploadedPhotoUrls: string[] = [];
@@ -172,21 +146,10 @@ export async function POST(request: Request) {
     uploadedPhotoUrls.push(uploaded.url);
   }
 
-  const photoRows = [...uploadedPhotoUrls, ...payload.photoUrls].slice(0, photoFieldMetadata.maxItems).map((url, index) => ({
-    tradesperson_profile_id: profile.id,
-    url,
-    label: null,
-    alt_text: `${payload.name} darbo nuotrauka`,
-    sort_order: index + 1,
-    moderation_status: "pending"
-  }));
-
-  if (photoRows.length) {
-    const { error: photoError } = await supabase.from("profile_photos").insert(photoRows);
-    if (photoError) {
-      await cleanupProfile(profile.id, supabase);
-      return NextResponse.json({ error: photoError.message }, { status: 500 });
-    }
+  const photoError = await insertPhotoRecords(supabase, profile.id, [...uploadedPhotoUrls, ...payload.photoUrls], payload.name);
+  if (photoError) {
+    await cleanupProfile(profile.id, supabase);
+    return NextResponse.json({ error: photoError }, { status: 500 });
   }
 
   const consentRows = [
@@ -263,76 +226,6 @@ export async function POST(request: Request) {
 
 async function cleanupProfile(profileId: string, supabase: ReturnType<typeof createServerSupabase>) {
   await supabase?.from("tradesperson_profiles").delete().eq("id", profileId);
-}
-
-type ProfileInsert = {
-  display_name: string;
-  phone: string;
-  whatsapp_number: string;
-  email: string;
-  base_city: string;
-  registered_address: string;
-  google_place_id: string | null;
-  street_name: string;
-  postcode: string;
-  house_number_private: string | null;
-  travel_range_label: string;
-  radius_km: number;
-  latitude: number | null;
-  longitude: number | null;
-  description: string;
-  service_category_id: string;
-  public_status: "private";
-  approval_status: "pending";
-  source: "self-registration";
-  consent_at: string;
-  terms_accepted_at: string;
-  privacy_acknowledged_at: string;
-  public_contact_consent_at: string;
-  marketing_consent_at: string | null;
-  whatsapp_communication_consent_at: string | null;
-  verification_labels: string[];
-};
-
-async function insertProfile(profile: ProfileInsert, supabase: NonNullable<ReturnType<typeof createServerSupabase>>) {
-  const result = await supabase.from("tradesperson_profiles").insert(profile).select("id").single();
-
-  if (!result.error || !isMissingLocationPrivacyColumn(result.error.message)) {
-    return result;
-  }
-
-  const legacyProfile: Partial<ProfileInsert> = { ...profile };
-  delete legacyProfile.registered_address;
-  delete legacyProfile.google_place_id;
-  delete legacyProfile.street_name;
-  delete legacyProfile.postcode;
-  delete legacyProfile.house_number_private;
-  delete legacyProfile.travel_range_label;
-  delete legacyProfile.terms_accepted_at;
-  delete legacyProfile.privacy_acknowledged_at;
-  delete legacyProfile.public_contact_consent_at;
-  delete legacyProfile.marketing_consent_at;
-  delete legacyProfile.whatsapp_communication_consent_at;
-
-  return supabase.from("tradesperson_profiles").insert(legacyProfile).select("id").single();
-}
-
-function isMissingLocationPrivacyColumn(message: string) {
-  return /registered_address|google_place_id|street_name|postcode|travel_range_label|house_number_private|terms_accepted_at|privacy_acknowledged_at|public_contact_consent_at|marketing_consent_at|whatsapp_communication_consent_at/i.test(message);
-}
-
-function uniqueList(values: string[]) {
-  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
-}
-
-function deriveAddressParts(address: string) {
-  const parts = address.split(",").map((part) => part.trim()).filter(Boolean);
-  const street = parts[0] ?? "";
-  const townLine = parts.find((part) => /\bLT-?\d{5}\b/i.test(part)) ?? parts[1] ?? "";
-  const postcode = townLine.match(/\bLT-?\d{5}\b/i)?.[0] ?? "";
-  const town = townLine.replace(/\bLT-?\d{5}\b/i, "").trim() || parts[1] || parts[0] || "";
-
-  return { street, postcode, town };
 }
 
 async function uploadProfilePhoto(

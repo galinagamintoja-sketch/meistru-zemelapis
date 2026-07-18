@@ -1,41 +1,6 @@
-import crypto from "crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const validRegistration = {
-  name: "Test Meistras",
-  phone: "+37061234567",
-  email: "test@example.lt",
-  address: "Gedimino pr. 1, Vilnius, Lithuania",
-  placeId: "test-place-id",
-  latitude: 54.6872,
-  longitude: 25.2797,
-  town: "Vilnius",
-  street: "Gedimino pr.",
-  postcode: "01103",
-  trade: "Apdaila",
-  categorySlugs: ["apdaila"],
-  subcategorySlugs: ["dazymas"],
-  description: "Testinis meistro profilio aprasymas validacijai.",
-  travelRange: "25",
-  photoUrls: [],
-  photoUploads: [],
-  consentAccepted: true,
-  termsAccepted: true,
-  privacyAcknowledged: true,
-  publicContactConsent: true
-};
-
-function signedCookie(email: string) {
-  const session = {
-    email,
-    name: email,
-    googleSub: "test-google-sub",
-    expiresAt: Date.now() + 60_000
-  };
-  const payload = Buffer.from(JSON.stringify(session), "utf8").toString("base64url");
-  const signature = crypto.createHmac("sha256", process.env.AUTH_SESSION_SECRET ?? "").update(payload).digest("base64url");
-  return `localpro-login-session=${payload}.${signature}`;
-}
+import { validRegistration } from "./helpers/fixtures";
+import { adminPatchRequest, registrationPostRequest, signedCookie } from "./helpers/requests";
 
 describe("profile API routes", () => {
   beforeEach(() => {
@@ -49,12 +14,7 @@ describe("profile API routes", () => {
 
   it("creates a pending profile in explicit local seed mode", async () => {
     const { POST } = await import("../app/api/tradesperson/register/route");
-    const response = await POST(
-      new Request("http://localhost/api/tradesperson/register", {
-        method: "POST",
-        body: JSON.stringify(validRegistration)
-      })
-    );
+    const response = await POST(registrationPostRequest(validRegistration));
     const data = await response.json();
 
     expect(response.status).toBe(200);
@@ -63,12 +23,7 @@ describe("profile API routes", () => {
 
   it("rejects invalid profile creation payloads", async () => {
     const { POST } = await import("../app/api/tradesperson/register/route");
-    const response = await POST(
-      new Request("http://localhost/api/tradesperson/register", {
-        method: "POST",
-        body: JSON.stringify({ ...validRegistration, phone: "12345" })
-      })
-    );
+    const response = await POST(registrationPostRequest({ ...validRegistration, phone: "12345" }));
 
     expect(response.status).toBe(400);
   });
@@ -86,22 +41,19 @@ describe("profile API routes", () => {
   it("returns field-level validation details for bad registrations", async () => {
     const { POST } = await import("../app/api/tradesperson/register/route");
     const response = await POST(
-      new Request("http://localhost/api/tradesperson/register", {
-        method: "POST",
-        body: JSON.stringify({
-          ...validRegistration,
-          name: "",
-          phone: "12345",
-          email: "not-an-email",
-          address: "",
-          town: "",
-          street: "",
-          postcode: "",
-          consentAccepted: false,
-          termsAccepted: false,
-          privacyAcknowledged: false,
-          publicContactConsent: false
-        })
+      registrationPostRequest({
+        ...validRegistration,
+        name: "",
+        phone: "12345",
+        email: "not-an-email",
+        address: "",
+        town: "",
+        street: "",
+        postcode: "",
+        consentAccepted: false,
+        termsAccepted: false,
+        privacyAcknowledged: false,
+        publicContactConsent: false
       })
     );
     const data = await response.json();
@@ -119,15 +71,12 @@ describe("profile API routes", () => {
   it("rejects registrations that only send the legacy bundled consent", async () => {
     const { POST } = await import("../app/api/tradesperson/register/route");
     const response = await POST(
-      new Request("http://localhost/api/tradesperson/register", {
-        method: "POST",
-        body: JSON.stringify({
-          ...validRegistration,
-          consentAccepted: true,
-          termsAccepted: false,
-          privacyAcknowledged: false,
-          publicContactConsent: false
-        })
+      registrationPostRequest({
+        ...validRegistration,
+        consentAccepted: true,
+        termsAccepted: false,
+        privacyAcknowledged: false,
+        publicContactConsent: false
       })
     );
     const data = await response.json();
@@ -165,16 +114,7 @@ describe("profile API routes", () => {
 
   it("rejects destructive admin delete actions", async () => {
     const { PATCH } = await import("../app/api/admin/profiles/route");
-    const response = await PATCH(
-      new Request("http://localhost/api/admin/profiles", {
-        method: "PATCH",
-        headers: {
-          cookie: signedCookie("admin@example.lt"),
-          "content-type": "application/json"
-        },
-        body: JSON.stringify({ id: "test-profile-id", action: "delete" })
-      })
-    );
+    const response = await PATCH(adminPatchRequest({ id: "test-profile-id", action: "delete" }));
 
     expect(response.status).toBe(400);
   });

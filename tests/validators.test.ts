@@ -1,29 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isLithuanianPhone, normalizeLithuanianPhone, registrationSchema } from "../lib/validators";
-
-const validRegistration = {
-  name: "Test Meistras",
-  phone: "+37061234567",
-  email: "test@example.lt",
-  address: "Gedimino pr. 1, Vilnius, Lithuania",
-  placeId: "test-place-id",
-  latitude: 54.6872,
-  longitude: 25.2797,
-  town: "Vilnius",
-  street: "Gedimino pr.",
-  postcode: "01103",
-  trade: "Apdaila",
-  categorySlugs: ["apdaila"],
-  subcategorySlugs: ["dazymas"],
-  description: "Testinis meistro profilio aprasymas validacijai.",
-  travelRange: "25",
-  photoUrls: [],
-  photoUploads: [],
-  consentAccepted: true,
-  termsAccepted: true,
-  privacyAcknowledged: true,
-  publicContactConsent: true
-};
+import { validRegistration } from "./helpers/fixtures";
 
 describe("registration validation", () => {
   it("accepts a valid Lithuanian registration payload", () => {
