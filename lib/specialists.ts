@@ -98,8 +98,12 @@ export async function signManagedPhotoUrls(rows: ProfileRow[], includeUnapproved
   if (!supabase) return rows;
 
   await Promise.all(rows.flatMap((row) => (row.profile_photos ?? []).map(async (photo) => {
-    if (!photo.storage_path || (!includeUnapproved && photo.moderation_status !== "approved")) return;
-    const { data, error } = await supabase.storage.from("profile-photos").createSignedUrl(photo.storage_path, 3600);
+    if (!photo.storage_path) return;
+    // A managed photo's database URL may contain a legacy public-bucket URL.
+    // Never return it when the object lives in private storage, even if signing fails.
+    photo.url = null;
+    if (!includeUnapproved && photo.moderation_status !== "approved") return;
+    const { data, error } = await supabase.storage.from("profile-photos").createSignedUrl(photo.storage_path, 600);
     if (!error) photo.url = data.signedUrl;
   })));
   return rows;
