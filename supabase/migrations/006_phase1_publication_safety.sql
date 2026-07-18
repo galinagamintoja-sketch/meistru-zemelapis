@@ -9,6 +9,10 @@ alter table tradesperson_profiles
 alter table profile_photos
   add column if not exists removed_from_profile_at timestamptz;
 
+update storage.buckets
+set public = false
+where id = 'profile-photos';
+
 alter table consent_logs
   add column if not exists evidence_reference text,
   add column if not exists captured_by_role text;

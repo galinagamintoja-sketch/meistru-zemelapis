@@ -4,6 +4,7 @@ import { requireAdminSession } from "../../../../lib/auth-session";
 import { profileRowToSpecialist, type ProfileRow } from "../../../../lib/db-mappers";
 import { createServerSupabase } from "../../../../lib/supabase";
 import { isLithuanianPhone, normalizeLithuanianPhone, photoFieldMetadata } from "../../../../lib/validators";
+import { signManagedPhotoUrls } from "../../../../lib/specialists";
 
 const validStatuses = new Set(["pending", "approved", "rejected", "suspended", "all"]);
 const validActions = new Set(["approve", "reject", "suspend", "verify_contact", "verify_whatsapp", "update", "moderate_photo", "record_public_contact_consent"]);
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
         service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
         profile_services(service_categories(name, slug), service_subcategories(name, slug)),
         operating_areas(city, radius_km),
-        profile_photos(id, label, url, moderation_status, sort_order, removed_from_profile_at),
+        profile_photos(id, label, url, storage_path, moderation_status, sort_order, removed_from_profile_at),
         reviews(client_name, rating, text, moderation_status)
       `
     )
@@ -76,7 +77,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ mode: "database", profiles: ((data ?? []) as unknown as ProfileRow[]).map((row) => profileRowToSpecialist(row, { includeUnapprovedPhotos: true })) });
+  const rows = await signManagedPhotoUrls((data ?? []) as unknown as ProfileRow[], true);
+  return NextResponse.json({ mode: "database", profiles: rows.map((row) => profileRowToSpecialist(row, { includeUnapprovedPhotos: true })) });
 }
 
 export async function POST(request: Request) {

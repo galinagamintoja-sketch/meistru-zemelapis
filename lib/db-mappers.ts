@@ -31,7 +31,7 @@ export type ProfileRow = {
     service_subcategories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
   }>;
   operating_areas?: Array<{ city: string; radius_km: number | null }>;
-  profile_photos?: Array<{ id?: string | null; label: string | null; url: string | null; moderation_status?: "pending" | "approved" | "rejected" | null; sort_order: number | null; removed_from_profile_at?: string | null }>;
+  profile_photos?: Array<{ id?: string | null; label: string | null; url: string | null; storage_path?: string | null; moderation_status?: "pending" | "approved" | "rejected" | null; sort_order: number | null; removed_from_profile_at?: string | null }>;
   reviews?: Array<{ client_name: string; rating: number; text: string | null; moderation_status: string }>;
 };
 

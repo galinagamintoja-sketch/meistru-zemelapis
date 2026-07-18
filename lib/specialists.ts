@@ -43,7 +43,7 @@ const SPECIALIST_SELECT = `
   service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
   profile_services(service_categories(name, slug), service_subcategories(name, slug)),
   operating_areas(city, radius_km),
-  profile_photos(id, label, url, moderation_status, sort_order, removed_from_profile_at),
+  profile_photos(id, label, url, storage_path, moderation_status, sort_order, removed_from_profile_at),
   reviews(client_name, rating, text, moderation_status)
 `;
 
@@ -89,8 +89,20 @@ export async function getSpecialists(filters: SpecialistFilters = {}) {
     throw new Error(error.message);
   }
 
-  const rows = (data ?? []) as unknown as ProfileRow[];
+  const rows = await signManagedPhotoUrls((data ?? []) as unknown as ProfileRow[], false);
   return toPublicSpecialistList(applyFilters(removePublicTestProfiles(rows.map((row) => profileRowToSpecialist(row)), filters), filters));
+}
+
+export async function signManagedPhotoUrls(rows: ProfileRow[], includeUnapproved: boolean) {
+  const supabase = createServerSupabase();
+  if (!supabase) return rows;
+
+  await Promise.all(rows.flatMap((row) => (row.profile_photos ?? []).map(async (photo) => {
+    if (!photo.storage_path || (!includeUnapproved && photo.moderation_status !== "approved")) return;
+    const { data, error } = await supabase.storage.from("profile-photos").createSignedUrl(photo.storage_path, 3600);
+    if (!error) photo.url = data.signedUrl;
+  })));
+  return rows;
 }
 
 function runSpecialistQuery(select: string, filters: SpecialistFilters) {
