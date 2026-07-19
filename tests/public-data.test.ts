@@ -2,6 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { formatMarkerCount, formatReviewCount, formatSpecialistCount, isObviousPublicTestProfile } from "../lib/display";
 
 describe("public specialist listing", () => {
+  it("creates stable shareable profile slugs", async () => {
+    const { specialistSlug } = await import("../lib/specialists");
+    expect(specialistSlug({ id: "abc-123", name: "Rūta & Sūnūs" })).toBe("ruta-sunus-abc-123");
+  });
+
+  it("never serves bundled demo specialists as a production fallback", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    delete process.env.LOCALPRO_SEED_MODE;
+    const { getSpecialists } = await import("../lib/specialists");
+    expect(await getSpecialists()).toEqual([]);
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     vi.resetModules();
     process.env.LOCALPRO_SEED_MODE = "true";

@@ -73,6 +73,10 @@ export async function getCategories() {
 }
 
 export async function getSpecialists(filters: SpecialistFilters = {}) {
+  const hasDatabaseConfig = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  if (!hasDatabaseConfig && process.env.NODE_ENV === "production" && process.env.LOCALPRO_SEED_MODE !== "true") {
+    return [];
+  }
   const supabase = createServerSupabase();
 
   if (!supabase) {
@@ -129,7 +133,18 @@ function runSpecialistQuery(select: string, filters: SpecialistFilters) {
 
 export async function getSpecialist(id: string) {
   const list = await getSpecialists();
-  return list.find((specialist) => specialist.id === id) ?? null;
+  const requested = decodeURIComponent(id).toLowerCase();
+  return list.find((specialist) => specialist.id.toLowerCase() === requested || specialistSlug(specialist) === requested) ?? null;
+}
+
+export function specialistSlug(specialist: Pick<Specialist, "id" | "name">) {
+  const name = specialist.name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+  return `${name || "specialistas"}-${specialist.id}`;
 }
 
 function filterSeedSpecialists(filters: SpecialistFilters) {

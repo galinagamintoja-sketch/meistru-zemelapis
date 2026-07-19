@@ -155,6 +155,19 @@ describe("public routes with mocked Supabase queries", () => {
     expect(nonConsentedResponse.status).toBe(404);
   });
 
+  it("resolves a public profile by shareable name slug without widening publication rules", async () => {
+    installSupabaseMock({ tradesperson_profiles: [baseProfile] });
+    const { getSpecialist, specialistSlug } = await import("../lib/specialists");
+    const slug = specialistSlug({ id: baseProfile.id, name: baseProfile.display_name });
+
+    const profile = await getSpecialist(slug);
+
+    expect(profile?.id).toBe(baseProfile.id);
+    expect(profile).not.toHaveProperty("registeredLat");
+    expect(profile).not.toHaveProperty("registeredLng");
+    expect(profile?.photoUrls).toEqual(["https://example.lt/approved.jpg"]);
+  });
+
   it("excludes unapproved photos and private location fields from public output", async () => {
     installSupabaseMock({ tradesperson_profiles: [baseProfile] });
 
