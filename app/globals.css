@@ -364,6 +364,103 @@
   gap: 8px;
 }
 
+.public-profile-shell {
+  min-height: 100vh;
+  padding: clamp(18px, 4vw, 52px);
+}
+
+.public-profile-nav,
+.public-profile-card {
+  width: min(1120px, 100%);
+  margin-inline: auto;
+}
+
+.public-profile-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.public-profile-nav a,
+.public-profile-actions a {
+  color: var(--spruce);
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.public-profile-card {
+  padding: clamp(22px, 5vw, 54px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 250, 240, 0.97);
+  box-shadow: var(--shadow);
+}
+
+.public-profile-header h1 {
+  max-width: 820px;
+  margin: 8px 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(38px, 7vw, 72px);
+  line-height: 0.98;
+}
+
+.public-profile-person,
+.privacy-note {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.public-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  gap: clamp(28px, 6vw, 72px);
+  margin-top: 40px;
+}
+
+.public-profile-main {
+  display: grid;
+  gap: 26px;
+}
+
+.public-profile-main h2,
+.public-profile-gallery h2 {
+  margin: 0 0 10px;
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.public-profile-main p {
+  margin: 0;
+  line-height: 1.65;
+}
+
+.public-profile-actions {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft);
+}
+
+.public-profile-actions .primary-action,
+.public-profile-actions .secondary-action {
+  display: grid;
+  min-height: 46px;
+  place-items: center;
+  border-radius: 8px;
+  color: white;
+}
+
+.public-profile-actions .primary-action { background: var(--clay); }
+.public-profile-actions .secondary-action { background: var(--spruce); }
+
+.public-profile-gallery { margin-top: 42px; }
+.public-profile-photo { position: relative; min-height: 260px; overflow: hidden; border-radius: 10px; background: var(--soft); }
+.public-profile-photo img { object-fit: cover; }
+
 .admin-photo-row {
   grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
@@ -386,4 +483,7 @@
   .admin-wide {
     grid-column: auto;
   }
+
+  .public-profile-grid { grid-template-columns: 1fr; }
+  .public-profile-nav { align-items: flex-start; }
 }
