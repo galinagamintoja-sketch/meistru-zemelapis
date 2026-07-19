@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   if (!category) return NextResponse.json({ error: "Pasirinkite galiojančią kategoriją." }, { status: 400 });
 
   if (payload.subcategorySlug) {
-    const { data: subcategory } = await supabase.from("service_subcategories").select("id").eq("slug", payload.subcategorySlug).eq("category_id", category.id).eq("is_active", true).single();
+    const { data: subcategory } = await supabase.from("service_subcategories").select("id").eq("slug", payload.subcategorySlug).eq("service_category_id", category.id).eq("is_active", true).single();
     if (!subcategory) return NextResponse.json({ error: "Pasirinkite galiojančią paslaugą." }, { status: 400 });
   }
 
