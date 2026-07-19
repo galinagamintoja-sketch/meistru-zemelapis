@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchLithuanianPlacesSuggestions, resolvePlacesSuggestionSelection, type PlacesSuggestion } from "../../components/LocalProApp";
 import type { Category } from "../../lib/types";
+import type { Specialist } from "../../lib/types";
 
 type Upload = { name: string; type: "image/jpeg" | "image/png" | "image/webp"; size: number; dataUrl: string };
 
@@ -25,6 +26,8 @@ export default function JobRequestPage() {
   const [requestId, setRequestId] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [matches, setMatches] = useState<Array<{ specialist: Specialist; reason: string; distanceKm: number }>>([]);
+  const [selectedMatches, setSelectedMatches] = useState<string[]>([]);
 
   useEffect(() => {
     fetch("/api/categories").then((response) => response.json()).then((data) => setCategories(data.categories ?? [])).catch(() => setMessage("Kategorijų įkelti nepavyko."));
@@ -37,6 +40,11 @@ export default function JobRequestPage() {
     }, 300);
     return () => window.clearTimeout(timer);
   }, [address, place.placeId]);
+
+  useEffect(() => {
+    if (!requestId) return;
+    fetch(`/api/job-requests/${requestId}/matches`).then((response) => response.json()).then((data) => setMatches((data.matches ?? []).filter((item: { specialist?: Specialist }) => Boolean(item.specialist)))).catch(() => setMatches([]));
+  }, [requestId]);
 
   const category = categories.find((item) => item.slug === categorySlug);
 
@@ -75,7 +83,12 @@ export default function JobRequestPage() {
     }
   }
 
-  if (requestId) return <main className="job-request-shell"><section className="job-request-card confirmation-card"><p className="eyebrow">Užklausa gauta</p><h1>Ačiū — jūsų darbų užklausa išsaugota.</h1><p>Ji yra privati ir ją pirmiausia peržiūrės LocalPro administratorius.</p><p className="privacy-note">Užklausos numeris: {requestId}</p><Link className="primary-action" href="/">Grįžti į LocalPro</Link></section></main>;
+  if (requestId) return <main className="job-request-shell"><section className="job-request-card confirmation-card"><p className="eyebrow">Užklausa gauta</p><h1>Ačiū — jūsų darbų užklausa išsaugota.</h1><p>Ji yra privati ir ją pirmiausia peržiūrės LocalPro administratorius.</p><p className="privacy-note">Užklausos numeris: {requestId}</p>
+    <section className="match-results"><h2>Tinkami specialistai</h2>{matches.length ? <><p>Parinkta pagal paslaugą ir darbo zoną. Pasirinkimas žinučių automatiškai nesiunčia.</p>{matches.map(({ specialist, reason, distanceKm }) => <article className="match-card" key={specialist.id}>
+      <label><input type="checkbox" checked={selectedMatches.includes(specialist.id)} onChange={(event) => setSelectedMatches((current) => event.target.checked ? [...current, specialist.id] : current.filter((id) => id !== specialist.id))} /><span><strong>{specialist.companyName || specialist.name}</strong><small>{specialist.trade} · apie {distanceKm} km · {reason === "matched_category_and_service" ? "atitinka paslaugą ir kategoriją" : "atitinka kategoriją"}</small></span></label>
+      <div className="match-actions"><Link href={`/specialist/${specialist.id}`}>Profilis</Link><a href={`tel:${specialist.phone.replaceAll(" ", "")}`}>Skambinti</a><a href={`https://wa.me/${specialist.whatsapp.replace(/[^\d]/g, "")}`} target="_blank" rel="noreferrer">WhatsApp</a></div>
+    </article>)}</> : <p>Šiuo metu tinkamų viešų specialistų nerasta.</p>}</section>
+    <Link className="primary-action" href="/">Grįžti į LocalPro</Link></section></main>;
 
   return <main className="job-request-shell"><form className="job-request-card" onSubmit={submit}>
     <p className="eyebrow">Namų savininkams</p><h1>Aprašykite reikalingą darbą</h1><p>Užklausa ir nuotraukos nebus viešinamos.</p>
