@@ -25,6 +25,24 @@ const validRegistration = {
   publicContactConsent: true
 };
 
+const validJobRequest = {
+  categorySlug: "apdaila",
+  subcategorySlug: "dazymas",
+  address: "Trakų g. 10, Lentvaris",
+  placeId: "lt-place",
+  latitude: 54.64,
+  longitude: 25.05,
+  town: "Lentvaris",
+  description: "Reikia perdažyti du kambarius ir sutvarkyti sienų įtrūkimus.",
+  urgency: "within_week",
+  preferredContactMethod: "phone",
+  clientName: "Test Client",
+  clientPhone: "+37061234567",
+  clientEmail: "",
+  photoUploads: [],
+  privacyConsent: true
+};
+
 function signedCookie(email: string) {
   const session = {
     email,
@@ -148,6 +166,22 @@ describe("profile API routes", () => {
       })
     );
 
+    expect(anonymous.status).toBe(401);
+    expect(nonAdmin.status).toBe(401);
+  });
+
+  it("accepts a private homeowner request in explicit local seed mode", async () => {
+    const { POST } = await import("../app/api/job-requests/route");
+    const response = await POST(new Request("http://localhost/api/job-requests", { method: "POST", body: JSON.stringify(validJobRequest) }));
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.requestId).toMatch(/^request-/);
+  });
+
+  it("keeps homeowner requests behind admin authentication", async () => {
+    const { GET } = await import("../app/api/admin/job-requests/route");
+    const anonymous = await GET(new Request("http://localhost/api/admin/job-requests"));
+    const nonAdmin = await GET(new Request("http://localhost/api/admin/job-requests", { headers: { cookie: signedCookie("not-admin@example.lt") } }));
     expect(anonymous.status).toBe(401);
     expect(nonAdmin.status).toBe(401);
   });

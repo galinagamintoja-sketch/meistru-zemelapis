@@ -39,6 +39,12 @@ type ConsentDraft = {
   capturedAt: string;
   evidenceReference: string;
 };
+type JobRequest = {
+  id: string; client_name: string; client_phone?: string | null; client_email?: string | null;
+  source_city: string; source_service: string; source_address: string; message: string;
+  urgency: string; preferred_contact_method: string; privacy_consent_at: string; created_at: string;
+  enquiry_photos?: Array<{ id: string; original_name?: string | null; preview_url?: string | null }>;
+};
 
 const statuses: Array<{ value: StatusFilter; label: string }> = [
   { value: "pending", label: "Laukiantys" },
@@ -80,6 +86,7 @@ export default function AdminPage() {
   const [addSucceeded, setAddSucceeded] = useState(false);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [jobRequests, setJobRequests] = useState<JobRequest[]>([]);
   const nextLoadMessageRef = useRef<string | null>(null);
 
   async function logout() {
@@ -152,6 +159,13 @@ export default function AdminPage() {
     const response = await fetch("/api/categories");
     const data = await response.json();
     setCategories(data.categories ?? []);
+  }
+
+  async function loadJobRequests() {
+    if (!isAdmin) return;
+    const response = await fetch("/api/admin/job-requests");
+    const data = await response.json();
+    if (response.ok) setJobRequests(data.requests ?? []);
   }
 
   async function runAction(id: string, action: "approve" | "reject" | "suspend") {
@@ -434,6 +448,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     loadProfiles();
+    loadJobRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, isAdmin]);
 
@@ -486,6 +501,16 @@ export default function AdminPage() {
       </div>
 
       <p className="admin-message">{message}</p>
+
+      <section className="admin-add-panel">
+        <div className="admin-card-header"><div><p className="eyebrow">Namų savininkų užklausos</p><h2>Privačios darbų užklausos</h2><p>Matomos tik prisijungusiam administratoriui.</p></div><button className="admin-secondary" type="button" onClick={loadJobRequests}>Atnaujinti</button></div>
+        <div className="admin-grid">{jobRequests.length ? jobRequests.map((item) => <article className="admin-card" key={item.id}>
+          <div className="admin-card-header"><div><p className="eyebrow">{item.urgency} / {formatDateTime(item.created_at)}</p><h2>{item.client_name}</h2><p>{item.source_service} · {item.source_city}</p></div></div>
+          <dl className="admin-summary"><div><dt>Adresas</dt><dd>{item.source_address}</dd></div><div><dt>Kontaktas</dt><dd>{item.preferred_contact_method}: {item.client_phone || item.client_email}</dd></div><div><dt>Nuotraukos</dt><dd>{item.enquiry_photos?.length ?? 0}</dd></div></dl>
+          <p className="admin-description">{item.message}</p>
+          {item.enquiry_photos?.length ? <div className="admin-meta">{item.enquiry_photos.map((photo) => photo.preview_url ? <a key={photo.id} href={photo.preview_url} target="_blank" rel="noreferrer">{photo.original_name || "Peržiūrėti nuotrauką"}</a> : <span key={photo.id}>Nuotraukos peržiūra nepasiekiama</span>)}</div> : null}
+        </article>) : <p>Naujų darbų užklausų nėra.</p>}</div>
+      </section>
 
       {isAddOpen ? (
         <section className="admin-add-panel">
