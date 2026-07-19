@@ -473,6 +473,14 @@
 .address-suggestions { position: absolute; z-index: 30; top: 68px; width: 100%; margin: 0; padding: 6px; list-style: none; border: 1px solid var(--line); border-radius: 8px; background: white; box-shadow: var(--soft-shadow); }
 .address-suggestions button { width: 100%; padding: 10px; border: 0; background: transparent; text-align: left; cursor: pointer; }
 .confirmation-card { margin-top: 10vh; }
+.match-results { margin: 30px 0; }
+.match-card { display: grid; gap: 12px; margin: 12px 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: white; }
+.match-card label { display: flex; gap: 12px; align-items: flex-start; }
+.match-card label input { width: 20px; height: 20px; }
+.match-card strong, .match-card small { display: block; }
+.match-card small { margin-top: 4px; color: var(--muted); }
+.match-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.match-actions a { color: var(--spruce); font-weight: 900; }
 
 .admin-photo-row {
   grid-template-columns: minmax(0, 1fr) auto auto auto;
