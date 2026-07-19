@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isLithuanianPhone, normalizeLithuanianPhone, registrationSchema } from "../lib/validators";
+import { isLithuanianPhone, jobRequestSchema, normalizeLithuanianPhone, registrationSchema } from "../lib/validators";
 
 const validRegistration = {
   name: "Test Meistras",
@@ -52,5 +52,35 @@ describe("registration validation", () => {
         publicContactConsent: false
       }).success
     ).toBe(false);
+  });
+});
+
+describe("homeowner job request validation", () => {
+  const request = {
+    categorySlug: "apdaila",
+    subcategorySlug: "dazymas",
+    address: "Trakų g. 10, Lentvaris",
+    placeId: "lt-place",
+    latitude: 54.64,
+    longitude: 25.05,
+    town: "Lentvaris",
+    description: "Reikia perdažyti du kambarius ir sutvarkyti sienų įtrūkimus.",
+    urgency: "within_week",
+    preferredContactMethod: "phone",
+    clientName: "Test Client",
+    clientPhone: "+37061234567",
+    clientEmail: "",
+    photoUploads: [],
+    privacyConsent: true
+  };
+
+  it("accepts the private job request minimum", () => {
+    expect(jobRequestSchema.safeParse(request).success).toBe(true);
+  });
+
+  it("requires privacy consent and the selected contact channel", () => {
+    expect(jobRequestSchema.safeParse({ ...request, privacyConsent: false }).success).toBe(false);
+    expect(jobRequestSchema.safeParse({ ...request, clientPhone: "" }).success).toBe(false);
+    expect(jobRequestSchema.safeParse({ ...request, preferredContactMethod: "email", clientPhone: "", clientEmail: "" }).success).toBe(false);
   });
 });

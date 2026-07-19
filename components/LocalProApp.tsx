@@ -929,6 +929,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
         </a>
         <nav className="stage-nav" aria-label="Puslapio skyriai">
           <a href="#search">Rasti specialistą</a>
+          <a href="/request">Pateikti darbų užklausą</a>
           <a href="#register">Registruotis</a>
           <a href="#how">Kaip veikia</a>
           <a href="/login">Meistro paskyra</a>
@@ -1610,6 +1611,17 @@ function escapeHtml(value: string) {
 async function loadGooglePlacesLibrary() {
   await loadGooglePlacesScript();
   return window.google?.maps?.importLibrary("places") ?? Promise.reject(new Error("Google Places API is not available."));
+}
+
+export async function fetchLithuanianPlacesSuggestions(input: string) {
+  const places = await loadGooglePlacesLibrary();
+  const sessionToken = new places.AutocompleteSessionToken();
+  const response = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+    input,
+    includedRegionCodes: [googlePlacesCountry.toLowerCase()],
+    sessionToken
+  });
+  return (response.suggestions ?? []).map(normalizePlacesSuggestion).filter((item): item is PlacesSuggestion => Boolean(item));
 }
 
 export function loadGooglePlacesScript() {

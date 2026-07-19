@@ -109,6 +109,31 @@ export const enquirySchema = z.object({
   message: z.string().trim().max(1500).optional()
 });
 
+export const jobRequestSchema = z.object({
+  categorySlug: z.string().trim().min(2).max(80),
+  subcategorySlug: z.string().trim().max(80).optional().default(""),
+  address: z.string().trim().min(4).max(260),
+  placeId: z.string().trim().max(180).optional().default(""),
+  latitude: z.number().min(53.8).max(56.5).nullable().optional().default(null),
+  longitude: z.number().min(20.5).max(27).nullable().optional().default(null),
+  town: z.string().trim().min(2).max(80),
+  description: z.string().trim().min(10).max(1500),
+  urgency: z.enum(["flexible", "within_week", "urgent"]),
+  preferredContactMethod: z.enum(["phone", "email", "whatsapp"]),
+  clientName: z.string().trim().min(2).max(140),
+  clientPhone: z.string().trim().max(40).optional().default(""),
+  clientEmail: z.string().trim().email().max(180).optional().or(z.literal("")).default(""),
+  photoUploads: z.array(photoUploadSchema).max(4).optional().default([]),
+  privacyConsent: z.literal(true)
+}).superRefine((payload, context) => {
+  if (payload.preferredContactMethod === "email" && !payload.clientEmail) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["clientEmail"], message: "Įveskite el. pašto adresą." });
+  }
+  if (payload.preferredContactMethod !== "email" && !payload.clientPhone) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["clientPhone"], message: "Įveskite telefono numerį." });
+  }
+});
+
 export const reviewSchema = z.object({
   specialistId: z.string().uuid().or(z.string().min(2).max(80)),
   clientName: z.string().trim().min(2).max(140),
