@@ -938,6 +938,11 @@ textarea {
   position: relative;
 }
 
+.address-autocomplete .address-suggestions {
+  top: 100%;
+  margin-top: 6px;
+}
+
 .address-loading {
   margin-top: 6px;
   color: var(--muted);

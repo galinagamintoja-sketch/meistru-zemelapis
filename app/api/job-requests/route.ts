@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
+import { getCategories } from "../../../lib/specialists";
 import { createServerSupabase } from "../../../lib/supabase";
 import { jobRequestSchema } from "../../../lib/validators";
 
@@ -11,17 +12,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Patikrinkite užklausos laukus", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const supabase = createServerSupabase();
-  if (!supabase) return NextResponse.json({ ok: true, mode: "seed", requestId: `request-${Date.now()}` });
-
   const payload = parsed.data;
-  const { data: category } = await supabase.from("service_categories").select("id,slug").eq("slug", payload.categorySlug).eq("is_active", true).single();
+  const activeCategories = await getCategories();
+  const category = activeCategories.find((item) => item.slug === payload.categorySlug);
   if (!category) return NextResponse.json({ error: "Pasirinkite galiojančią kategoriją." }, { status: 400 });
 
   if (payload.subcategorySlug) {
-    const { data: subcategory } = await supabase.from("service_subcategories").select("id").eq("slug", payload.subcategorySlug).eq("service_category_id", category.id).eq("is_active", true).single();
+    const subcategory = category.subcategories.find((item) => item.slug === payload.subcategorySlug);
     if (!subcategory) return NextResponse.json({ error: "Pasirinkite galiojančią paslaugą." }, { status: 400 });
   }
+
+  const supabase = createServerSupabase();
+  if (!supabase) return NextResponse.json({ ok: true, mode: "seed", requestId: `request-${Date.now()}` });
 
   const now = new Date().toISOString();
   const { data: enquiry, error } = await supabase.from("enquiries").insert({

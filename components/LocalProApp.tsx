@@ -387,7 +387,8 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
       setLoading(true);
       const params = new URLSearchParams();
       if (trade !== "all") params.set("service", trade);
-      if (city !== "all") params.set("location", city);
+      const location = city === "all" ? "" : city.trim();
+      if (location) params.set("location", location);
       params.set("customerRadiusKm", String(customerRadiusKm));
       if (mapSearchPoint) {
         params.set("lat", String(mapSearchPoint.lat));
@@ -962,7 +963,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                 list="localpro-cities"
                 value={city === "all" ? "" : city}
                 onChange={(event) => {
-                  setCity(event.target.value.trim() || "all");
+                  setCity(event.target.value);
                   setMapSearchPoint(null);
                   setMapNeedsSearch(false);
                 }}
@@ -1247,28 +1248,28 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                     autoComplete="street-address"
                   />
                   {addressLoading ? <span className="address-loading">Ieskoma...</span> : null}
+                  {addressSearchOpen && addressSuggestions.length ? (
+                    <ul className="address-suggestions" id="address-suggestions" role="listbox">
+                      {addressSuggestions.map((suggestion, index) => (
+                        <li
+                          aria-selected={index === addressActiveIndex}
+                          id={`address-suggestion-${index}`}
+                          key={suggestion.id}
+                          role="option"
+                        >
+                          <button
+                            type="button"
+                            onPointerDown={(event) => event.preventDefault()}
+                            onClick={() => selectAddressSuggestion(suggestion)}
+                          >
+                            {suggestion.label}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </label>
               </div>
-              {addressSearchOpen && addressSuggestions.length ? (
-                <ul className="address-suggestions" id="address-suggestions" role="listbox">
-                  {addressSuggestions.map((suggestion, index) => (
-                    <li
-                      aria-selected={index === addressActiveIndex}
-                      id={`address-suggestion-${index}`}
-                      key={suggestion.id}
-                      role="option"
-                    >
-                      <button
-                        type="button"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => selectAddressSuggestion(suggestion)}
-                      >
-                        {suggestion.label}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
               <p className="field-note">Tai pagrindinė darbo vieta. Tikslus adresas naudojamas privačiam geokodavimui; viešai rodoma tik apytikslė vieta.</p>
               {addressStatus ? <p className="status-message error">{addressStatus}</p> : null}
               <fieldset>
