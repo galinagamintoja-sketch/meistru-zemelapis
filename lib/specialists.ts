@@ -56,19 +56,25 @@ export async function getCategories() {
 
   const { data, error } = await supabase
     .from("service_categories")
-    .select("id,name,slug,service_subcategories(id,name,slug)")
+    .select("id,name,slug,service_subcategories!service_subcategories_service_category_id_fkey(id,name,slug,is_active)")
     .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
-  if (error || !data?.length) {
-    return categories;
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data?.length) {
+    return [];
   }
 
   return data.map((category) => ({
     id: category.id,
     name: category.name,
     slug: category.slug,
-    subcategories: category.service_subcategories ?? []
+    subcategories: (category.service_subcategories ?? [])
+      .filter((subcategory) => subcategory.is_active)
+      .map((subcategory) => ({ id: subcategory.id, name: subcategory.name, slug: subcategory.slug }))
   }));
 }
 
