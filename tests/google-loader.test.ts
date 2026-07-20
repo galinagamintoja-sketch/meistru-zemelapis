@@ -38,7 +38,7 @@ function installDomStub() {
 async function importLoader() {
   process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY = "test-browser-key";
   vi.resetModules();
-  return import("../components/LocalProApp");
+  return import("../components/AddressAutocomplete");
 }
 
 describe("Google Maps script loader", () => {

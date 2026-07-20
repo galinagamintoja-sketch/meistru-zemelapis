@@ -980,6 +980,12 @@ textarea {
   background: rgba(55, 80, 63, 0.08);
 }
 
+.address-empty {
+  padding: 11px 12px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
 fieldset {
   margin: 0;
   border: 1px solid var(--line);

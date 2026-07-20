@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AddressAutocomplete, { geocodeLithuanianAddress } from "./AddressAutocomplete";
 import type { Category, Specialist } from "../lib/types";
 import { formatMasterCount, formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
 
@@ -65,81 +66,6 @@ type LocationResolveResponse = {
   };
 };
 
-export type PlacesSuggestion = {
-  id: string;
-  label: string;
-  placePrediction: {
-    placeId?: string;
-    text?: { toString: () => string };
-    toPlace: () => {
-      id?: string;
-      formattedAddress?: string;
-      location?: {
-        lat: () => number;
-        lng: () => number;
-      };
-      fetchFields: (options: { fields: string[] }) => Promise<void>;
-    };
-  };
-};
-
-type GoogleAutocompleteSuggestion = {
-  label?: string;
-  placePrediction?: PlacesSuggestion["placePrediction"];
-};
-
-type GooglePlacesLibrary = {
-  AutocompleteSuggestion: {
-    fetchAutocompleteSuggestions: (options: {
-      input: string;
-      includedRegionCodes: string[];
-      sessionToken: object | null;
-    }) => Promise<{ suggestions?: GoogleAutocompleteSuggestion[] }>;
-  };
-  AutocompleteSessionToken: new () => object;
-};
-
-type GoogleGeocoderResult = {
-  formatted_address?: string;
-  geometry?: {
-    location?: {
-      lat: () => number;
-      lng: () => number;
-    };
-  };
-};
-
-type GoogleMapsApi = {
-  accounts?: {
-    id: {
-      initialize: (config: {
-        client_id: string;
-        callback: (response: { credential?: string }) => void;
-        auto_select?: boolean;
-        cancel_on_tap_outside?: boolean;
-      }) => void;
-      prompt: () => void;
-      renderButton: (element: HTMLElement, options: Record<string, string | number | boolean>) => void;
-    };
-  };
-  maps?: {
-    importLibrary: (name: "places") => Promise<GooglePlacesLibrary>;
-    Geocoder: new () => {
-      geocode: (options: {
-        address: string;
-        componentRestrictions: { country: string };
-        region: string;
-      }) => Promise<{ results?: GoogleGeocoderResult[] }>;
-    };
-  };
-};
-
-declare global {
-  interface Window {
-    google?: GoogleMapsApi;
-    __localproGooglePlacesReady?: () => void;
-  }
-}
 
 const photoFieldMetadata = {
   maxItems: 8,
@@ -183,48 +109,6 @@ const travelRangeOptions = [
   { value: "100", label: "Iki 100 km" },
   { value: "lt", label: "Visa Lietuva" }
 ] as const;
-const googlePlacesApiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ?? "";
-const googlePlacesCountry = process.env.NEXT_PUBLIC_GOOGLE_PLACES_COUNTRY ?? "LT";
-const googlePlacesFields = ["formattedAddress", "id", "location"];
-const googlePlacesCallbackName = "__localproGooglePlacesReady";
-const googlePlacesScriptTimeoutMs = 10_000;
-let googlePlacesScriptPromise: Promise<void> | null = null;
-
-export function normalizePlacesSuggestion(suggestion: GoogleAutocompleteSuggestion): PlacesSuggestion | null {
-  if (!suggestion.placePrediction) {
-    return null;
-  }
-
-  const label = suggestion.placePrediction.text?.toString() ?? suggestion.label ?? suggestion.placePrediction.placeId ?? "";
-
-  if (!label) {
-    return null;
-  }
-
-  return {
-    id: suggestion.placePrediction.placeId ?? label,
-    label,
-    placePrediction: suggestion.placePrediction
-  };
-}
-
-export async function resolvePlacesSuggestionSelection(suggestion: PlacesSuggestion) {
-  const placeId = suggestion.placePrediction.placeId ?? suggestion.id;
-  const place = suggestion.placePrediction.toPlace();
-  await place.fetchFields({ fields: googlePlacesFields });
-  const address = place.formattedAddress ?? suggestion.label;
-  const derived = deriveAddressParts(address);
-
-  return {
-    address,
-    placeId: place.id ?? placeId,
-    latitude: place.location?.lat() ?? null,
-    longitude: place.location?.lng() ?? null,
-    town: derived.town,
-    street: derived.street,
-    postcode: derived.postcode
-  };
-}
 
 export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [trade, setTrade] = useState("all");
@@ -244,11 +128,6 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [mapZoom, setMapZoom] = useState(0);
   const [loading, setLoading] = useState(false);
   const [locationResolving, setLocationResolving] = useState(false);
-  const [addressSuggestions, setAddressSuggestions] = useState<PlacesSuggestion[]>([]);
-  const [addressSearchOpen, setAddressSearchOpen] = useState(false);
-  const [addressLoading, setAddressLoading] = useState(false);
-  const [addressActiveIndex, setAddressActiveIndex] = useState(-1);
-  const [addressStatus, setAddressStatus] = useState("");
   const [formState, setFormState] = useState<RegistrationDraft>({
     name: "",
     phone: "",
@@ -288,9 +167,6 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const areaLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const hasPrefilledGoogleProfile = useRef(false);
   const lastFitKeyRef = useRef("");
-  const placesSessionTokenRef = useRef<object | null>(null);
-  const addressSuggestionRequestRef = useRef(0);
-  const selectedPlaceCacheRef = useRef(new Map<string, Pick<RegistrationDraft, "address" | "placeId" | "latitude" | "longitude" | "town" | "street" | "postcode">>());
 
   const activeSpecialist = useMemo(
     () => specialists.find((specialist) => specialist.id === activeId) ?? null,
@@ -463,60 +339,6 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
       controller.abort();
     };
   }, [city]);
-
-  useEffect(() => {
-    const input = formState.address.trim();
-    const requestId = ++addressSuggestionRequestRef.current;
-    if (!input || formState.placeId || input.length < 3 || !googlePlacesApiKey) {
-      setAddressSuggestions([]);
-      setAddressSearchOpen(false);
-      setAddressLoading(false);
-      return;
-    }
-
-    const timer = window.setTimeout(async () => {
-      setAddressLoading(true);
-      setAddressStatus("");
-
-      try {
-        const places = await loadGooglePlacesLibrary();
-        const AutocompleteSuggestion = places.AutocompleteSuggestion;
-        const AutocompleteSessionToken = places.AutocompleteSessionToken;
-        placesSessionTokenRef.current ??= new AutocompleteSessionToken();
-
-        const response = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
-          input,
-          includedRegionCodes: [googlePlacesCountry.toLowerCase()],
-          sessionToken: placesSessionTokenRef.current
-        });
-        const suggestions = (response.suggestions ?? [])
-          .map(normalizePlacesSuggestion)
-          .filter((suggestion): suggestion is PlacesSuggestion => Boolean(suggestion));
-
-        if (requestId !== addressSuggestionRequestRef.current) {
-          return;
-        }
-
-        setAddressSuggestions(suggestions);
-        setAddressSearchOpen(Boolean(suggestions.length));
-        setAddressActiveIndex(suggestions.length ? 0 : -1);
-      } catch {
-        if (requestId !== addressSuggestionRequestRef.current) {
-          return;
-        }
-
-        setAddressSuggestions([]);
-        setAddressSearchOpen(false);
-        setAddressStatus("Adreso paieška laikinai neveikia. Galite adresą įrašyti ranka.");
-      } finally {
-        if (requestId === addressSuggestionRequestRef.current) {
-          setAddressLoading(false);
-        }
-      }
-    }, 300);
-
-    return () => window.clearTimeout(timer);
-  }, [formState.address, formState.placeId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -695,85 +517,25 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     setMapNeedsSearch(false);
   }
 
-  function updateRegistrationAddress(value: string) {
-    setFormState((current) => ({
-      ...current,
-      address: value,
-      placeId: "",
-      latitude: null,
-      longitude: null
-    }));
-  }
-
-  async function selectAddressSuggestion(suggestion: PlacesSuggestion) {
-    const placeId = suggestion.placePrediction.placeId ?? suggestion.id;
-    const cached = selectedPlaceCacheRef.current.get(placeId);
-
-    if (cached) {
-      setFormState((current) => ({ ...current, ...cached }));
-      closeAddressSuggestions();
-      return;
-    }
-
-    setAddressLoading(true);
-    try {
-      const selected = await resolvePlacesSuggestionSelection(suggestion);
-
-      selectedPlaceCacheRef.current.set(selected.placeId, selected);
-      setFormState((current) => ({ ...current, ...selected, city: selected.town || current.city }));
-      placesSessionTokenRef.current = null;
-      closeAddressSuggestions();
-      setAddressStatus("");
-    } catch {
-      setAddressStatus("Adreso pasirinkti nepavyko. Galite adresą palikti įrašytą ranka.");
-    } finally {
-      setAddressLoading(false);
-    }
-  }
-
-  function closeAddressSuggestions() {
-    setAddressSearchOpen(false);
-    setAddressSuggestions([]);
-    setAddressActiveIndex(-1);
-  }
-
   async function resolveManualAddressBeforeSubmit() {
     if (formState.latitude !== null && formState.longitude !== null) {
       return formState;
     }
 
     const address = formState.address.trim();
-    if (!address || !googlePlacesApiKey) {
+    if (!address) {
       return formState;
     }
 
     try {
-      await loadGooglePlacesScript();
-      const maps = window.google?.maps;
-      if (!maps) {
-        return formState;
-      }
-      const geocoder = new maps.Geocoder();
-      const response = await geocoder.geocode({
-        address,
-        componentRestrictions: { country: googlePlacesCountry },
-        region: googlePlacesCountry.toLowerCase()
-      });
-      const result = response.results?.[0];
-      const location = result?.geometry?.location;
-      if (!location) {
-        return formState;
-      }
-
-      const derived = deriveAddressParts(result.formatted_address ?? address);
+      const geocoded = await geocodeLithuanianAddress(address);
+      if (!geocoded) return formState;
       const resolved = {
         ...formState,
-        address: result.formatted_address ?? address,
-        latitude: location.lat(),
-        longitude: location.lng(),
-        town: formState.town || derived.town,
-        street: formState.street || derived.street,
-        postcode: formState.postcode || derived.postcode
+        ...geocoded,
+        town: formState.town || geocoded.town,
+        street: formState.street || geocoded.street || "",
+        postcode: formState.postcode || geocoded.postcode || ""
       };
       setFormState(resolved);
       return resolved;
@@ -1212,66 +974,23 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   El. pastas *
                   <input value={formState.email} onChange={(event) => setFormState({ ...formState, email: event.target.value })} type="email" autoComplete="email" />
                 </label>
-                <label className="address-autocomplete">
-                  Registracijos adresas *
-                  <input
-                    aria-activedescendant={addressActiveIndex >= 0 ? `address-suggestion-${addressActiveIndex}` : undefined}
-                    aria-autocomplete="list"
-                    aria-controls="address-suggestions"
-                    aria-expanded={addressSearchOpen}
-                    role="combobox"
-                    value={formState.address}
-                    onBlur={() => window.setTimeout(closeAddressSuggestions, 120)}
-                    onChange={(event) => updateRegistrationAddress(event.target.value)}
-                    onFocus={() => setAddressSearchOpen(Boolean(addressSuggestions.length))}
-                    onKeyDown={(event) => {
-                      if (event.key === "Escape") {
-                        closeAddressSuggestions();
-                      }
-                      if (event.key === "ArrowDown") {
-                        event.preventDefault();
-                        setAddressActiveIndex((current) => Math.min(current + 1, addressSuggestions.length - 1));
-                      }
-                      if (event.key === "ArrowUp") {
-                        event.preventDefault();
-                        setAddressActiveIndex((current) => Math.max(current - 1, 0));
-                      }
-                      if (event.key === "Enter" && addressSearchOpen && addressSuggestions[addressActiveIndex]) {
-                        event.preventDefault();
-                        selectAddressSuggestion(addressSuggestions[addressActiveIndex]).catch(() => {
-                          setAddressStatus("Adreso pasirinkti nepavyko. Galite adresa palikti irasyta ranka.");
-                        });
-                      }
-                    }}
-                    placeholder="Pvz. Traku g. 10, Lentvaris"
-                    type="text"
-                    autoComplete="street-address"
-                  />
-                  {addressLoading ? <span className="address-loading">Ieskoma...</span> : null}
-                  {addressSearchOpen && addressSuggestions.length ? (
-                    <ul className="address-suggestions" id="address-suggestions" role="listbox">
-                      {addressSuggestions.map((suggestion, index) => (
-                        <li
-                          aria-selected={index === addressActiveIndex}
-                          id={`address-suggestion-${index}`}
-                          key={suggestion.id}
-                          role="option"
-                        >
-                          <button
-                            type="button"
-                            onPointerDown={(event) => event.preventDefault()}
-                            onClick={() => selectAddressSuggestion(suggestion)}
-                          >
-                            {suggestion.label}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </label>
+                <AddressAutocomplete
+                  label="Registracijos adresas"
+                  required
+                  value={{
+                    address: formState.address,
+                    placeId: formState.placeId,
+                    latitude: formState.latitude,
+                    longitude: formState.longitude,
+                    town: formState.town,
+                    street: formState.street,
+                    postcode: formState.postcode
+                  }}
+                  onChange={(address) => setFormState((current) => ({ ...current, ...address, city: address.town || current.city }))}
+                  placeholder="Pvz. Trakų g. 10, Lentvaris"
+                />
               </div>
               <p className="field-note">Tai pagrindinė darbo vieta. Tikslus adresas naudojamas privačiam geokodavimui; viešai rodoma tik apytikslė vieta.</p>
-              {addressStatus ? <p className="status-message error">{addressStatus}</p> : null}
               <fieldset>
                 <legend>Darbo sritys *</legend>
                 {categories.map((category) => (
@@ -1607,90 +1326,6 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-async function loadGooglePlacesLibrary() {
-  await loadGooglePlacesScript();
-  return window.google?.maps?.importLibrary("places") ?? Promise.reject(new Error("Google Places API is not available."));
-}
-
-export async function fetchLithuanianPlacesSuggestions(input: string) {
-  const places = await loadGooglePlacesLibrary();
-  const sessionToken = new places.AutocompleteSessionToken();
-  const response = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
-    input,
-    includedRegionCodes: [googlePlacesCountry.toLowerCase()],
-    sessionToken
-  });
-  return (response.suggestions ?? []).map(normalizePlacesSuggestion).filter((item): item is PlacesSuggestion => Boolean(item));
-}
-
-export function loadGooglePlacesScript() {
-  if (!googlePlacesApiKey) {
-    return Promise.reject(new Error("Google Places API key is not configured."));
-  }
-
-  if (window.google?.maps?.importLibrary) {
-    return Promise.resolve();
-  }
-
-  if (googlePlacesScriptPromise) {
-    return googlePlacesScriptPromise;
-  }
-
-  googlePlacesScriptPromise = new Promise((resolve, reject) => {
-    const cleanup = () => {
-      window.clearTimeout(timeoutId);
-      if (window[googlePlacesCallbackName] === handleReady) {
-        delete window[googlePlacesCallbackName];
-      }
-    };
-    const rejectWith = (error: Error) => {
-      cleanup();
-      googlePlacesScriptPromise = null;
-      reject(error);
-    };
-    const handleReady = () => {
-      if (typeof window.google?.maps?.importLibrary !== "function") {
-        rejectWith(new Error("Google Maps loaded without importLibrary."));
-        return;
-      }
-
-      cleanup();
-      resolve();
-    };
-
-    window[googlePlacesCallbackName] = handleReady;
-    const timeoutId = window.setTimeout(() => {
-      rejectWith(new Error("Google Places timed out before the Google callback fired."));
-    }, googlePlacesScriptTimeoutMs);
-
-    const existingScript = document.querySelector<HTMLScriptElement>("script[data-localpro-google-places]");
-    if (existingScript) {
-      existingScript.addEventListener("error", () => rejectWith(new Error("Google Places failed to load.")), { once: true });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googlePlacesApiKey)}&v=weekly&libraries=places&loading=async&callback=${googlePlacesCallbackName}`;
-    script.async = true;
-    script.defer = true;
-    script.dataset.localproGooglePlaces = "true";
-    script.onerror = () => rejectWith(new Error("Google Places failed to load."));
-    document.head.appendChild(script);
-  });
-
-  return googlePlacesScriptPromise;
-}
-
-function deriveAddressParts(address: string) {
-  const parts = address.split(",").map((part) => part.trim()).filter(Boolean);
-  const street = parts[0] ?? "";
-  const townLine = parts.find((part) => /\bLT-?\d{5}\b/i.test(part)) ?? parts[1] ?? "";
-  const postcode = townLine.match(/\bLT-?\d{5}\b/i)?.[0] ?? "";
-  const town = townLine.replace(/\bLT-?\d{5}\b/i, "").trim() || parts[1] || "";
-
-  return { street, postcode, town };
 }
 
 function formatTravelRange(radiusKm: number) {
