@@ -225,10 +225,7 @@ export default function AddressAutocomplete({ label, value, onChange, required, 
             <li aria-selected={index === activeIndex} id={`${listId}-${index}`} key={suggestion.id} role="option">
               <button
                 type="button"
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.currentTarget.click();
-                }}
+                onPointerDown={(event) => event.preventDefault()}
                 onClick={() => void selectSuggestion(suggestion)}
               >
                 {suggestion.label}
@@ -341,9 +338,8 @@ export function loadGooglePlacesScript() {
 function deriveAddressParts(address: string) {
   const parts = address.split(",").map((part) => part.trim()).filter(Boolean);
   const street = parts[0] ?? "";
-  const postcodePattern = /\b(?:LT-?)?\d{5}\b/i;
-  const townLine = parts.find((part) => postcodePattern.test(part)) ?? parts[1] ?? "";
-  const postcode = townLine.match(postcodePattern)?.[0] ?? "";
-  const town = townLine.replace(postcodePattern, "").trim() || parts[1] || "";
+  const townLine = parts.find((part) => /\bLT-?\d{5}\b/i.test(part)) ?? parts[1] ?? "";
+  const postcode = townLine.match(/\bLT-?\d{5}\b/i)?.[0] ?? "";
+  const town = townLine.replace(/\bLT-?\d{5}\b/i, "").trim() || parts[1] || "";
   return { street, postcode, town };
 }
