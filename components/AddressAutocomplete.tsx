@@ -225,7 +225,10 @@ export default function AddressAutocomplete({ label, value, onChange, required, 
             <li aria-selected={index === activeIndex} id={`${listId}-${index}`} key={suggestion.id} role="option">
               <button
                 type="button"
-                onPointerDown={(event) => event.preventDefault()}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.currentTarget.click();
+                }}
                 onClick={() => void selectSuggestion(suggestion)}
               >
                 {suggestion.label}
