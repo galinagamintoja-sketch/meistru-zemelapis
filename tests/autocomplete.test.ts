@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { normalizePlacesSuggestion, resolvePlacesSuggestionSelection } from "../components/LocalProApp";
+import {
+  addressNoResultsLabel,
+  manualAddressValue,
+  normalizePlacesSuggestion,
+  resolvePlacesSuggestionSelection,
+  shouldRequestAddressSuggestions
+} from "../components/AddressAutocomplete";
 
 class ClassLikeAutocompleteSuggestion {
   #prediction: ClassLikePlacePrediction;
@@ -38,6 +44,28 @@ class ClassLikePlacePrediction {
 }
 
 describe("Google Places autocomplete helpers", () => {
+  it("starts after three characters and keeps manual entry as a private fallback", () => {
+    expect(shouldRequestAddressSuggestions("Tr", "")).toBe(false);
+    expect(shouldRequestAddressSuggestions("Tra", "")).toBe(true);
+    expect(shouldRequestAddressSuggestions("Trakai", "selected-place")).toBe(false);
+    expect(addressNoResultsLabel).toBe("Adresų nerasta");
+    expect(manualAddressValue({
+      address: "Old",
+      placeId: "selected-place",
+      latitude: 54.6,
+      longitude: 25.0,
+      town: "Trakai"
+    }, "Rankinis adresas")).toEqual({
+      address: "Rankinis adresas",
+      placeId: "",
+      latitude: null,
+      longitude: null,
+      town: "",
+      street: "",
+      postcode: ""
+    });
+  });
+
   it("normalizes suggestions returned from a Google class-like object without spreading away placePrediction", () => {
     const prediction = new ClassLikePlacePrediction();
     const googleSuggestion = new ClassLikeAutocompleteSuggestion(prediction);

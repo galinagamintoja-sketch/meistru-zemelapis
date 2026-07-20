@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { fetchLithuanianPlacesSuggestions, resolvePlacesSuggestionSelection, type PlacesSuggestion } from "../../components/LocalProApp";
+import AddressAutocomplete from "../../components/AddressAutocomplete";
 import type { Category } from "../../lib/types";
 import type { Specialist } from "../../lib/types";
 
@@ -14,7 +14,6 @@ export default function JobRequestPage() {
   const [subcategorySlug, setSubcategorySlug] = useState("");
   const [address, setAddress] = useState("");
   const [place, setPlace] = useState({ placeId: "", latitude: null as number | null, longitude: null as number | null, town: "" });
-  const [suggestions, setSuggestions] = useState<PlacesSuggestion[]>([]);
   const [description, setDescription] = useState("");
   const [urgency, setUrgency] = useState("flexible");
   const [preferredContactMethod, setPreferredContactMethod] = useState("phone");
@@ -34,26 +33,11 @@ export default function JobRequestPage() {
   }, []);
 
   useEffect(() => {
-    if (address.trim().length < 3 || place.placeId) return setSuggestions([]);
-    const timer = window.setTimeout(() => {
-      fetchLithuanianPlacesSuggestions(address).then(setSuggestions).catch(() => setSuggestions([]));
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [address, place.placeId]);
-
-  useEffect(() => {
     if (!requestId) return;
     fetch(`/api/job-requests/${requestId}/matches`).then((response) => response.json()).then((data) => setMatches((data.matches ?? []).filter((item: { specialist?: Specialist }) => Boolean(item.specialist)))).catch(() => setMatches([]));
   }, [requestId]);
 
   const category = categories.find((item) => item.slug === categorySlug);
-
-  async function selectSuggestion(suggestion: PlacesSuggestion) {
-    const selected = await resolvePlacesSuggestionSelection(suggestion);
-    setAddress(selected.address);
-    setPlace({ placeId: selected.placeId, latitude: selected.latitude, longitude: selected.longitude, town: selected.town });
-    setSuggestions([]);
-  }
 
   async function choosePhotos(files: FileList | null) {
     const selected = Array.from(files ?? []).slice(0, 4);
@@ -95,7 +79,17 @@ export default function JobRequestPage() {
     <div className="job-request-grid">
       <label>Kategorija *<select required value={categorySlug} onChange={(event) => { setCategorySlug(event.target.value); setSubcategorySlug(""); }}><option value="">Pasirinkite</option>{categories.map((item) => <option key={item.id} value={item.slug}>{item.name}</option>)}</select></label>
       <label>Paslauga<select value={subcategorySlug} onChange={(event) => setSubcategorySlug(event.target.value)}><option value="">Nebūtina</option>{category?.subcategories.map((item) => <option key={item.id} value={item.slug}>{item.name}</option>)}</select></label>
-      <label className="job-request-wide">Darbo vieta *<input required value={address} onChange={(event) => { setAddress(event.target.value); setPlace({ placeId: "", latitude: null, longitude: null, town: "" }); }} placeholder="Pradėkite rašyti adresą" />{suggestions.length ? <ul className="address-suggestions">{suggestions.map((item) => <li key={item.id}><button type="button" onClick={() => selectSuggestion(item)}>{item.label}</button></li>)}</ul> : null}</label>
+      <AddressAutocomplete
+        className="job-request-wide"
+        label="Darbo vieta"
+        required
+        value={{ address, ...place }}
+        onChange={(selected) => {
+          setAddress(selected.address);
+          setPlace({ placeId: selected.placeId, latitude: selected.latitude, longitude: selected.longitude, town: selected.town });
+        }}
+        placeholder="Pradėkite rašyti adresą"
+      />
       <label className="job-request-wide">Trumpas aprašymas *<textarea required minLength={10} maxLength={1500} rows={6} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
       <label>Skubumas *<select value={urgency} onChange={(event) => setUrgency(event.target.value)}><option value="flexible">Lankstus terminas</option><option value="within_week">Per savaitę</option><option value="urgent">Skubu</option></select></label>
       <label>Pageidaujamas kontaktas *<select value={preferredContactMethod} onChange={(event) => setPreferredContactMethod(event.target.value)}><option value="phone">Telefonu</option><option value="whatsapp">WhatsApp</option><option value="email">El. paštu</option></select></label>
