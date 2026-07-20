@@ -29,7 +29,7 @@ class ClassLikePlacePrediction {
   toPlace() {
     return {
       id: "google-place-123",
-      formattedAddress: "Trakų g. 10, Lentvaris, Trakai District Municipality, Lithuania",
+      formattedAddress: "Trakų g. 10, 25112 Lentvaris, Lithuania",
       location: {
         lat: () => 54.6376,
         lng: () => 25.0512
@@ -91,10 +91,12 @@ describe("Google Places autocomplete helpers", () => {
 
     expect(prediction.fetchFields).toHaveBeenCalledWith({ fields: ["formattedAddress", "id", "location"] });
     expect(selected).toMatchObject({
-      address: "Trakų g. 10, Lentvaris, Trakai District Municipality, Lithuania",
+      address: "Trakų g. 10, 25112 Lentvaris, Lithuania",
       placeId: "google-place-123",
       latitude: 54.6376,
-      longitude: 25.0512
+      longitude: 25.0512,
+      town: "Lentvaris",
+      postcode: "25112"
     });
   });
 });
