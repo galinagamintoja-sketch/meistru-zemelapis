@@ -1,13 +1,29 @@
 import { NextResponse } from "next/server";
 import { specialists as seedSpecialists } from "../../../../lib/seed-data";
 import { requireAdminSession } from "../../../../lib/auth-session";
-import { profileRowToSpecialist, type ProfileRow } from "../../../../lib/db-mappers";
+import { profileRowToSpecialist, toPublicSafeSpecialist, type ProfileRow } from "../../../../lib/db-mappers";
+import {
+  assignNullableText,
+  assignText,
+  cleanText,
+  insertOperatingAreas,
+  insertPhotoRecords,
+  insertProfileServices,
+  normalizeCities,
+  normalizeRadius,
+  normalizeSlugList,
+  normalizeUrlList,
+  replaceOperatingAreas,
+  replaceProfileServices,
+  resolveSelectedCategories,
+  resolveSelectedSubcategories,
+  syncProfilePhotos
+} from "../../../../lib/profile-write-service";
 import { createServerSupabase } from "../../../../lib/supabase";
-import { isLithuanianPhone, normalizeLithuanianPhone, photoFieldMetadata } from "../../../../lib/validators";
-import { signManagedPhotoUrls } from "../../../../lib/specialists";
+import { isLithuanianPhone, normalizeLithuanianPhone } from "../../../../lib/validators";
 
 const validStatuses = new Set(["pending", "approved", "rejected", "suspended", "all"]);
-const validActions = new Set(["approve", "reject", "suspend", "verify_contact", "verify_whatsapp", "update", "moderate_photo", "record_public_contact_consent"]);
+const validActions = new Set(["approve", "reject", "suspend", "return_pending", "verify_contact", "verify_whatsapp", "update", "moderate_photo", "record_public_contact_consent", "admin_note"]);
 const validSources = new Set(["self-registration", "whatsapp-onboarding", "admin-created", "imported-lead"]);
 const validConsentChannels = new Set(["website", "whatsapp", "telephone", "written_form"]);
 
@@ -18,6 +34,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") ?? "pending";
+  const previewId = searchParams.get("preview");
 
   if (!validStatuses.has(status)) {
     return NextResponse.json({ error: "Invalid status filter" }, { status: 400 });
@@ -32,39 +49,57 @@ export async function GET(request: Request) {
     });
   }
 
+  const select = `
+    id,
+    display_name,
+    company_name,
+    phone,
+    whatsapp_number,
+    email,
+    base_city,
+    radius_km,
+    latitude,
+    longitude,
+    description,
+    review_score,
+    review_count,
+    verification_labels,
+    public_status,
+    approval_status,
+    is_demo,
+    source,
+    service_area_label,
+    terms_accepted_at,
+    privacy_acknowledged_at,
+    public_contact_consent_at,
+    service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
+    profile_services(service_categories(name, slug), service_subcategories(name, slug)),
+    operating_areas(city, radius_km),
+    profile_photos(id, label, url, moderation_status, sort_order, removed_from_profile_at),
+    reviews(client_name, rating, text, moderation_status),
+    admin_actions(id, action, notes, created_at, created_by_role)
+  `;
+
+  if (previewId) {
+    const { data, error } = await supabase
+      .from("tradesperson_profiles")
+      .select(select)
+      .eq("id", previewId)
+      .single();
+
+    if (error || !data) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      mode: "database",
+      specialist: toPublicSafeSpecialist(profileRowToSpecialist(data as unknown as ProfileRow))
+    });
+  }
+
   let query = supabase
     .from("tradesperson_profiles")
-    .select(
-      `
-        id,
-        display_name,
-        company_name,
-        phone,
-        whatsapp_number,
-        email,
-        base_city,
-        radius_km,
-        latitude,
-        longitude,
-        description,
-        review_score,
-        review_count,
-        verification_labels,
-        public_status,
-        approval_status,
-        is_demo,
-        source,
-        service_area_label,
-        terms_accepted_at,
-        privacy_acknowledged_at,
-        public_contact_consent_at,
-        service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
-        profile_services(service_categories(name, slug), service_subcategories(name, slug)),
-        operating_areas(city, radius_km),
-        profile_photos(id, label, url, storage_path, moderation_status, sort_order, removed_from_profile_at),
-        reviews(client_name, rating, text, moderation_status)
-      `
-    )
+    .select(select)
     .order("created_at", { ascending: false });
 
   if (status !== "all") {
@@ -77,8 +112,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const rows = await signManagedPhotoUrls((data ?? []) as unknown as ProfileRow[], true);
-  return NextResponse.json({ mode: "database", profiles: rows.map((row) => profileRowToSpecialist(row, { includeUnapprovedPhotos: true })) });
+  return NextResponse.json({ mode: "database", profiles: ((data ?? []) as unknown as ProfileRow[]).map((row) => profileRowToSpecialist(row, { includeUnapprovedPhotos: true, includeRemovedPhotos: true })) });
 }
 
 export async function POST(request: Request) {
@@ -126,40 +160,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, mode: "seed", message: "Admin-created profile accepted in demo mode." });
   }
 
-  const { data: categories, error: categoryError } = await supabase
-    .from("service_categories")
-    .select("id,slug")
-    .in("slug", categorySlugs);
-
-  if (categoryError) {
-    return NextResponse.json({ error: categoryError.message }, { status: 500 });
+  const categoryResult = await resolveSelectedCategories(supabase, {
+    categorySlugs,
+    invalidMessage: "Choose valid categories."
+  });
+  if ("error" in categoryResult) {
+    return NextResponse.json({ error: categoryResult.error.message }, { status: categoryResult.error.status });
   }
 
-  if (!categories?.length || categories.length !== categorySlugs.length) {
-    return NextResponse.json({ error: "Choose valid categories." }, { status: 400 });
-  }
-
-  const primaryCategory = categories.find((category) => category.slug === categorySlugs[0]) ?? categories[0];
-  const { data: subcategories, error: subcategoryError } = subcategorySlugs.length
-    ? await supabase
-        .from("service_subcategories")
-        .select("id,slug,service_category_id")
-        .in("slug", subcategorySlugs)
-    : { data: [], error: null };
-
-  if (subcategoryError) {
-    return NextResponse.json({ error: subcategoryError.message }, { status: 500 });
-  }
-
-  if ((subcategories ?? []).length !== subcategorySlugs.length) {
-    return NextResponse.json({ error: "Choose valid subcategories." }, { status: 400 });
-  }
-
-  const selectedCategoryIds = new Set(categories.map((category) => category.id));
-  const selectedSubcategories = (subcategories ?? []).filter((subcategory) => selectedCategoryIds.has(subcategory.service_category_id));
-
-  if (selectedSubcategories.length !== (subcategories ?? []).length) {
-    return NextResponse.json({ error: "Selected subcategories must belong to the selected categories." }, { status: 400 });
+  const subcategoryResult = await resolveSelectedSubcategories(supabase, {
+    categoryIds: categoryResult.categories.map((category) => category.id),
+    subcategorySlugs,
+    invalidMessage: "Choose valid subcategories.",
+    mismatchMessage: "Selected subcategories must belong to the selected categories."
+  });
+  if ("error" in subcategoryResult) {
+    return NextResponse.json({ error: subcategoryResult.error.message }, { status: subcategoryResult.error.status });
   }
 
   const { data: profile, error } = await supabase
@@ -172,7 +188,7 @@ export async function POST(request: Request) {
       base_city: city,
       radius_km: radius,
       description: description || null,
-      service_category_id: primaryCategory.id,
+      service_category_id: categoryResult.primaryCategory.id,
       service_area_label: operatingCities.join(", "),
       public_status: "private",
       approval_status: "pending",
@@ -186,48 +202,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (selectedSubcategories.length) {
-    const { error: serviceError } = await supabase.from("profile_services").insert(
-      selectedSubcategories.map((subcategory) => ({
-        tradesperson_profile_id: profile.id,
-        service_category_id: subcategory.service_category_id,
-        service_subcategory_id: subcategory.id
-      }))
-    );
-
-    if (serviceError) {
-      return NextResponse.json({ error: serviceError.message }, { status: 500 });
-    }
+  const serviceError = await insertProfileServices(supabase, profile.id, subcategoryResult.selectedSubcategories);
+  if (serviceError) {
+    return NextResponse.json({ error: serviceError }, { status: 500 });
   }
 
-  const { error: areaError } = await supabase.from("operating_areas").insert(
-    operatingCities.map((areaCity) => ({
-      tradesperson_profile_id: profile.id,
-      city: areaCity,
-      radius_km: radius
-    }))
-  );
-
+  const areaError = await insertOperatingAreas(supabase, profile.id, operatingCities, radius);
   if (areaError) {
-    return NextResponse.json({ error: areaError.message }, { status: 500 });
+    return NextResponse.json({ error: areaError }, { status: 500 });
   }
 
-  if (photoUrls.length) {
-    const { error: photoError } = await supabase.from("profile_photos").insert(
-      photoUrls.map((url, index) => ({
-        tradesperson_profile_id: profile.id,
-        url,
-        label: null,
-        alt_text: `${name} nuotrauka`,
-        sort_order: index + 1,
-        moderation_status: "pending",
-        removed_from_profile_at: null
-      }))
-    );
-
-    if (photoError) {
-      return NextResponse.json({ error: photoError.message }, { status: 500 });
-    }
+  const photoError = await insertPhotoRecords(supabase, profile.id, photoUrls, name, true);
+  if (photoError) {
+    return NextResponse.json({ error: photoError }, { status: 500 });
   }
 
   await supabase.from("admin_actions").insert({
@@ -290,41 +277,28 @@ export async function PATCH(request: Request) {
       if (!categorySlugs.length) {
         serviceCategoryId = null;
       } else {
-        const { data: categories, error: categoryError } = await supabase
-          .from("service_categories")
-          .select("id,slug")
-          .in("slug", categorySlugs);
-
-        if (categoryError) {
-          return NextResponse.json({ error: categoryError.message }, { status: 500 });
+        const categoryResult = await resolveSelectedCategories(supabase, {
+          categorySlugs,
+          invalidMessage: "Choose valid categories."
+        });
+        if ("error" in categoryResult) {
+          return NextResponse.json({ error: categoryResult.error.message }, { status: categoryResult.error.status });
         }
 
-        if (!categories?.length || categories.length !== categorySlugs.length) {
-          return NextResponse.json({ error: "Choose valid categories." }, { status: 400 });
-        }
-
-        serviceCategoryId = categories.find((category) => category.slug === categorySlugs[0])?.id ?? categories[0].id;
+        serviceCategoryId = categoryResult.primaryCategory.id;
 
         if (subcategorySlugs.length) {
-          const { data: subcategories, error: subcategoryError } = await supabase
-            .from("service_subcategories")
-            .select("id,slug,service_category_id")
-            .in("slug", subcategorySlugs);
-
-          if (subcategoryError) {
-            return NextResponse.json({ error: subcategoryError.message }, { status: 500 });
+          const subcategoryResult = await resolveSelectedSubcategories(supabase, {
+            categoryIds: categoryResult.categories.map((category) => category.id),
+            subcategorySlugs,
+            invalidMessage: "Choose valid subcategories.",
+            mismatchMessage: "Selected subcategories must belong to the selected categories."
+          });
+          if ("error" in subcategoryResult) {
+            return NextResponse.json({ error: subcategoryResult.error.message }, { status: subcategoryResult.error.status });
           }
 
-          if (!subcategories?.length || subcategories.length !== subcategorySlugs.length) {
-            return NextResponse.json({ error: "Choose valid subcategories." }, { status: 400 });
-          }
-
-          const selectedCategoryIds = new Set(categories.map((category) => category.id));
-          selectedSubcategories = subcategories.filter((subcategory) => selectedCategoryIds.has(subcategory.service_category_id));
-
-          if (selectedSubcategories.length !== subcategories.length) {
-            return NextResponse.json({ error: "Selected subcategories must belong to the selected categories." }, { status: 400 });
-          }
+          selectedSubcategories = subcategoryResult.selectedSubcategories;
         }
       }
     } else if (subcategorySlugs.length) {
@@ -368,23 +342,11 @@ export async function PATCH(request: Request) {
       ).slice(0, 20) as string[];
 
       if (cities.length) {
-        const { error: deleteError } = await supabase.from("operating_areas").delete().eq("tradesperson_profile_id", id);
-
-        if (deleteError) {
-          return NextResponse.json({ error: deleteError.message }, { status: 500 });
-        }
-
         const radiusKm = typeof patch.radius_km === "number" ? patch.radius_km : null;
-        const { error: insertError } = await supabase.from("operating_areas").insert(
-          cities.map((city) => ({
-            tradesperson_profile_id: id,
-            city,
-            radius_km: radiusKm
-          }))
-        );
+        const areaError = await replaceOperatingAreas(supabase, id, cities, radiusKm);
 
-        if (insertError) {
-          return NextResponse.json({ error: insertError.message }, { status: 500 });
+        if (areaError) {
+          return NextResponse.json({ error: areaError }, { status: 500 });
         }
       }
     }
@@ -398,24 +360,9 @@ export async function PATCH(request: Request) {
     }
 
     if (hasSubcategoryUpdate) {
-      const { error: deleteServicesError } = await supabase.from("profile_services").delete().eq("tradesperson_profile_id", id);
-
-      if (deleteServicesError) {
-        return NextResponse.json({ error: deleteServicesError.message }, { status: 500 });
-      }
-
-      if (selectedSubcategories.length) {
-        const { error: insertServicesError } = await supabase.from("profile_services").insert(
-          selectedSubcategories.map((subcategory) => ({
-            tradesperson_profile_id: id,
-            service_category_id: subcategory.service_category_id,
-            service_subcategory_id: subcategory.id
-          }))
-        );
-
-        if (insertServicesError) {
-          return NextResponse.json({ error: insertServicesError.message }, { status: 500 });
-        }
+      const serviceError = await replaceProfileServices(supabase, id, selectedSubcategories);
+      if (serviceError) {
+        return NextResponse.json({ error: serviceError }, { status: 500 });
       }
     }
 
@@ -436,14 +383,25 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Invalid photo moderation request" }, { status: 400 });
     }
 
+    const photoPatch = {
+      moderation_status: moderationStatus,
+      removed_from_profile_at: moderationStatus === "rejected" ? new Date().toISOString() : null
+    };
     const { error } = await supabase
       .from("profile_photos")
-      .update({ moderation_status: moderationStatus })
+      .update(photoPatch)
       .eq("id", photoId)
       .eq("tradesperson_profile_id", id);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+  }
+
+  if (action === "admin_note") {
+    const note = cleanText(body.notes);
+    if (note.length < 2) {
+      return NextResponse.json({ error: "Įrašykite administratoriaus pastabą." }, { status: 400 });
     }
   }
 
@@ -522,6 +480,8 @@ export async function PATCH(request: Request) {
         ? { approval_status: "rejected", public_status: "private" }
         : action === "suspend"
           ? { approval_status: "suspended", public_status: "private" }
+          : action === "return_pending"
+            ? { approval_status: "pending", public_status: "private" }
           : null;
 
   if (patch) {
@@ -557,61 +517,6 @@ export async function PATCH(request: Request) {
   return NextResponse.json({ ok: true });
 }
 
-function cleanText(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function normalizeSlugList(value: unknown) {
-  const rawValues = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
-  return Array.from(
-    new Set(
-      rawValues
-        .map((entry) => cleanText(entry).toLowerCase())
-        .filter((entry) => entry.length >= 2)
-    )
-  ).slice(0, 20) as string[];
-}
-
-function normalizeUrlList(value: unknown) {
-  const rawValues = Array.isArray(value) ? value : [];
-  return Array.from(
-    new Set(
-      rawValues
-        .map((entry) => cleanText(entry))
-        .filter((entry) => entry.length > 0 && isProbablyPhotoUrl(entry))
-    )
-  ).slice(0, photoFieldMetadata.maxItems) as string[];
-}
-
-function normalizeCities(value: unknown, fallbackCity: string) {
-  const rawCities = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [fallbackCity];
-  return Array.from(
-    new Set(
-      rawCities
-        .map((city: unknown) => cleanText(city))
-        .filter((city: string) => city.length >= 2)
-    )
-  ).slice(0, 20) as string[];
-}
-
-function normalizeRadius(value: unknown) {
-  const radius = Number(value);
-  return Number.isFinite(radius) && radius >= 1 && radius <= 200 ? Math.round(radius) : 30;
-}
-
-function assignText(patch: Record<string, string | number | null>, key: string, value: unknown) {
-  const nextValue = cleanText(value);
-  if (nextValue) {
-    patch[key] = nextValue;
-  }
-}
-
-function assignNullableText(patch: Record<string, string | number | null>, key: string, value: unknown) {
-  if (typeof value === "string") {
-    patch[key] = value.trim() || null;
-  }
-}
-
 function assignPhone(patch: Record<string, string | number | null>, key: string, value: unknown) {
   if (typeof value === "string") {
     const nextValue = normalizeLithuanianPhone(value);
@@ -621,31 +526,21 @@ function assignPhone(patch: Record<string, string | number | null>, key: string,
   }
 }
 
-function isProbablyPhotoUrl(value: string) {
-  try {
-    const parsed = new URL(value);
-    return /^https?:$/.test(parsed.protocol);
-  } catch {
-    return false;
-  }
-}
-
 async function validateProfileForPublication(supabase: NonNullable<ReturnType<typeof createServerSupabase>>, id: string) {
   const errors: string[] = [];
   const { data: profile, error } = await supabase
     .from("tradesperson_profiles")
-    .select(`
-      display_name,
-      company_name,
-      phone,
-      latitude,
-      longitude,
-      service_category_id,
-      description,
-      public_contact_consent_at,
-      profile_services(service_subcategory_id),
-      profile_photos(moderation_status, removed_from_profile_at)
-    `)
+      .select(`
+        display_name,
+        company_name,
+        phone,
+        service_category_id,
+        description,
+        public_contact_consent_at,
+        operating_areas(city, radius_km),
+        profile_services(service_subcategory_id),
+        profile_photos(moderation_status, removed_from_profile_at)
+      `)
     .eq("id", id)
     .single();
 
@@ -661,12 +556,13 @@ async function validateProfileForPublication(supabase: NonNullable<ReturnType<ty
     errors.push("Truksta galiojancio telefono numerio.");
   }
 
-  if (typeof profile.latitude !== "number" || typeof profile.longitude !== "number") {
-    errors.push("Truksta geokoduotos pagrindines darbo vietos.");
-  }
-
   if (!profile.service_category_id) {
     errors.push("Truksta pagrindines darbo srities.");
+  }
+
+  const operatingAreaCount = (profile.operating_areas ?? []).filter((area: { city?: string | null; radius_km?: number | null }) => cleanText(area.city).length >= 2 && Number(area.radius_km) > 0).length;
+  if (operatingAreaCount < 1) {
+    errors.push("Truksta aptarnavimo miesto ir spindulio.");
   }
 
   const serviceTagCount = (profile.profile_services ?? []).filter((service: { service_subcategory_id: string | null }) => service.service_subcategory_id).length;
@@ -682,81 +578,11 @@ async function validateProfileForPublication(supabase: NonNullable<ReturnType<ty
     errors.push("Truksta aiskaus sutikimo viesai rodyti kontaktus.");
   }
 
-  const rejectedPhotos = (profile.profile_photos ?? []).some((photo: { moderation_status: string; removed_from_profile_at?: string | null }) => !photo.removed_from_profile_at && photo.moderation_status === "rejected");
-  if (rejectedPhotos) {
-    errors.push("Profilis turi atmestu viesu nuotrauku.");
+  const visiblePhotos = (profile.profile_photos ?? []).filter((photo: { moderation_status: string; removed_from_profile_at?: string | null }) => !photo.removed_from_profile_at);
+  const hasUnapprovedVisiblePhoto = visiblePhotos.some((photo: { moderation_status: string }) => photo.moderation_status !== "approved");
+  if (hasUnapprovedVisiblePhoto) {
+    errors.push("Visos rodomos nuotraukos turi būti patvirtintos arba pašalintos iš profilio.");
   }
 
   return errors;
-}
-
-async function syncProfilePhotos(
-  supabase: NonNullable<ReturnType<typeof createServerSupabase>>,
-  profileId: string,
-  photoUrls: string[],
-  profileName: string
-) {
-  const { data: existingPhotos, error: existingError } = await supabase
-    .from("profile_photos")
-    .select("id,url,moderation_status")
-    .eq("tradesperson_profile_id", profileId);
-
-  if (existingError) {
-    return existingError.message;
-  }
-
-  const existingByUrl = new Map(
-    (existingPhotos ?? [])
-      .filter((photo: { id?: string | null; url?: string | null }) => photo.id && photo.url)
-      .map((photo: { id: string; url: string; moderation_status?: string }) => [photo.url, photo])
-  );
-  const selectedUrls = new Set(photoUrls);
-
-  for (const photo of existingByUrl.values()) {
-    if (!selectedUrls.has(photo.url)) {
-      const { error } = await supabase
-        .from("profile_photos")
-        .update({ removed_from_profile_at: new Date().toISOString() })
-        .eq("id", photo.id)
-        .eq("tradesperson_profile_id", profileId);
-
-      if (error) {
-        return error.message;
-      }
-    }
-  }
-
-  for (const [index, url] of photoUrls.entries()) {
-    const existing = existingByUrl.get(url);
-
-    if (existing) {
-      const { error } = await supabase
-        .from("profile_photos")
-        .update({ sort_order: index + 1, removed_from_profile_at: null })
-        .eq("id", existing.id)
-        .eq("tradesperson_profile_id", profileId);
-
-      if (error) {
-        return error.message;
-      }
-
-      continue;
-    }
-
-    const { error } = await supabase.from("profile_photos").insert({
-      tradesperson_profile_id: profileId,
-      url,
-      label: null,
-      alt_text: profileName ? `${profileName} nuotrauka` : null,
-      sort_order: index + 1,
-      moderation_status: "pending",
-      removed_from_profile_at: null
-    });
-
-    if (error) {
-      return error.message;
-    }
-  }
-
-  return null;
 }

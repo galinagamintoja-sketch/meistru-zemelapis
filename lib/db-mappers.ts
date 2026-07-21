@@ -33,9 +33,10 @@ export type ProfileRow = {
   operating_areas?: Array<{ city: string; radius_km: number | null }>;
   profile_photos?: Array<{ id?: string | null; label: string | null; url: string | null; storage_path?: string | null; moderation_status?: "pending" | "approved" | "rejected" | null; sort_order: number | null; removed_from_profile_at?: string | null }>;
   reviews?: Array<{ client_name: string; rating: number; text: string | null; moderation_status: string }>;
+  admin_actions?: Array<{ id?: string | null; action: string; notes?: string | null; created_at: string; created_by_role?: string | null }>;
 };
 
-export function profileRowToSpecialist(row: ProfileRow, options: { includeUnapprovedPhotos?: boolean } = {}): Specialist {
+export function profileRowToSpecialist(row: ProfileRow, options: { includeUnapprovedPhotos?: boolean; includeRemovedPhotos?: boolean } = {}): Specialist {
   const operatingCities = uniqueList([row.base_city, ...(row.operating_areas?.map((area) => area.city).filter(Boolean) ?? [])]);
   const coordinates = profileCoordinates(row.latitude, row.longitude, operatingCities);
   const publicCoordinates = approximatePublicCoordinates(row.id, coordinates);
@@ -65,7 +66,7 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
       )
       .filter((subcategory): subcategory is { name: string; slug: string } => Boolean(subcategory)) ?? [];
   const visiblePhotoRows = (row.profile_photos ?? [])
-    .filter((photo) => !photo.removed_from_profile_at)
+    .filter((photo) => options.includeRemovedPhotos || !photo.removed_from_profile_at)
     .filter((photo) => options.includeUnapprovedPhotos || (photo.moderation_status ?? "approved") === "approved")
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   const photos = visiblePhotoRows
@@ -80,7 +81,8 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
       id: String(photo.id),
       url: String(photo.url),
       label: photo.label,
-      moderationStatus: photo.moderation_status ?? "approved"
+      moderationStatus: photo.moderation_status ?? "approved",
+      removedAt: photo.removed_from_profile_at ?? null
     }));
 
   return {
@@ -118,12 +120,29 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
     photos: photos?.length ? photos : ["Darbų pavyzdžiai laukiami"],
     photoUrls: photoUrls?.length ? photoUrls : undefined,
     photoRecords: photoRecords.length ? photoRecords : undefined,
+    adminActions: (row.admin_actions ?? []).map((action) => ({
+      id: String(action.id ?? `${action.action}-${action.created_at}`),
+      action: action.action,
+      notes: action.notes ?? null,
+      createdAt: action.created_at,
+      createdByRole: action.created_by_role ?? null
+    })),
     reviews: approvedReviews.map((review) => [review.client_name, review.rating, review.text ?? ""] as [string, number, string]),
     status: row.approval_status,
     source: row.source,
     isDemo: Boolean(row.is_demo),
     publicContactConsentAt: row.public_contact_consent_at ?? null
   };
+}
+
+export function toPublicSafeSpecialist(specialist: Specialist): Specialist {
+  const publicSpecialist = { ...specialist };
+  delete publicSpecialist.registeredLat;
+  delete publicSpecialist.registeredLng;
+  delete publicSpecialist.streetArea;
+  delete publicSpecialist.adminActions;
+  delete publicSpecialist.photoRecords;
+  return publicSpecialist;
 }
 
 function uniqueList(values: string[]) {

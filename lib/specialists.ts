@@ -1,6 +1,6 @@
 import { categories, specialists as seedSpecialists } from "./seed-data";
 import { isObviousPublicTestProfile } from "./display";
-import { profileRowToSpecialist, type ProfileRow } from "./db-mappers";
+import { profileRowToSpecialist, toPublicSafeSpecialist, type ProfileRow } from "./db-mappers";
 import { approximatePublicCoordinates, cityCoordinates, distanceKm, isNationwideTravelRange } from "./geo";
 import { createServerSupabase } from "./supabase";
 import type { Specialist } from "./types";
@@ -241,13 +241,7 @@ function toPrivacySafeSeedSpecialist(specialist: Specialist) {
 }
 
 function toPublicSpecialistList(list: Specialist[]) {
-  return list.map((item) => {
-    const specialist = { ...item };
-    delete specialist.registeredLat;
-    delete specialist.registeredLng;
-    delete specialist.streetArea;
-    return specialist;
-  });
+  return list.map(toPublicSafeSpecialist);
 }
 
 function isMissingPhase1MigrationError(message: string) {
