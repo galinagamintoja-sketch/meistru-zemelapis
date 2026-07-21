@@ -66,6 +66,94 @@ type LocationResolveResponse = {
   };
 };
 
+export type PlacesSuggestion = {
+  id: string;
+  label: string;
+  placePrediction: {
+    placeId?: string;
+    text?: { toString: () => string };
+    toPlace: () => {
+      id?: string;
+      formattedAddress?: string;
+      location?: {
+        lat: () => number;
+        lng: () => number;
+      };
+      fetchFields: (options: { fields: string[] }) => Promise<void>;
+    };
+  };
+};
+
+type GoogleAutocompleteSuggestion = {
+  label?: string;
+  placePrediction?: PlacesSuggestion["placePrediction"];
+};
+
+type GooglePlacesLibrary = {
+  AutocompleteSuggestion: {
+    fetchAutocompleteSuggestions: (options: {
+      input: string;
+      includedRegionCodes: string[];
+      sessionToken: object | null;
+    }) => Promise<{ suggestions?: GoogleAutocompleteSuggestion[] }>;
+  };
+  AutocompleteSessionToken: new () => object;
+};
+
+type GoogleGeocoderResult = {
+  formatted_address?: string;
+  geometry?: {
+    location?: {
+      lat: () => number;
+      lng: () => number;
+    };
+  };
+};
+
+type GoogleMapsApi = {
+  accounts?: {
+    id: {
+      initialize: (config: {
+        client_id: string;
+        callback: (response: { credential?: string }) => void;
+        auto_select?: boolean;
+        cancel_on_tap_outside?: boolean;
+      }) => void;
+      prompt: () => void;
+      renderButton: (element: HTMLElement, options: Record<string, string | number | boolean>) => void;
+    };
+  };
+  maps?: {
+    importLibrary: (name: "places") => Promise<GooglePlacesLibrary>;
+    Geocoder: new () => {
+      geocode: (options: {
+        address: string;
+        componentRestrictions: { country: string };
+        region: string;
+      }) => Promise<{ results?: GoogleGeocoderResult[] }>;
+    };
+  };
+};
+
+type RegistrationAddressResolutionOptions = {
+  googlePlacesCountry?: string;
+  googlePlacesApiKeyConfigured?: boolean;
+  timeoutMs?: number;
+  loadGooglePlacesScript?: () => Promise<void>;
+  getGoogleMaps?: () => GoogleMapsApi["maps"] | undefined;
+};
+
+type RegistrationSubmitOptions = RegistrationAddressResolutionOptions & {
+  selectedCategoryNames?: string[];
+  fetcher?: typeof fetch;
+};
+
+declare global {
+  interface Window {
+    google?: GoogleMapsApi;
+    __localproGooglePlacesReady?: () => void;
+  }
+}
 
 const photoFieldMetadata = {
   maxItems: 8,
@@ -109,6 +197,54 @@ const travelRangeOptions = [
   { value: "100", label: "Iki 100 km" },
   { value: "lt", label: "Visa Lietuva" }
 ] as const;
+const googlePlacesApiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ?? "";
+const googlePlacesCountry = normalizeGooglePlacesCountryCode(process.env.NEXT_PUBLIC_GOOGLE_PLACES_COUNTRY);
+const googlePlacesFields = ["formattedAddress", "id", "location"];
+const googlePlacesCallbackName = "__localproGooglePlacesReady";
+const googlePlacesScriptTimeoutMs = 10_000;
+const googleAddressResolutionTimeoutMs = 3_500;
+let googlePlacesScriptPromise: Promise<void> | null = null;
+
+export function normalizePlacesSuggestion(suggestion: GoogleAutocompleteSuggestion): PlacesSuggestion | null {
+  if (!suggestion.placePrediction) {
+    return null;
+  }
+
+  const label = suggestion.placePrediction.text?.toString() ?? suggestion.label ?? suggestion.placePrediction.placeId ?? "";
+
+  if (!label) {
+    return null;
+  }
+
+  return {
+    id: suggestion.placePrediction.placeId ?? label,
+    label,
+    placePrediction: suggestion.placePrediction
+  };
+}
+
+export function normalizeGooglePlacesCountryCode(value: string | undefined | null) {
+  const normalized = value?.trim().toUpperCase() ?? "";
+  return /^[A-Z]{2}$/.test(normalized) ? normalized : "LT";
+}
+
+export async function resolvePlacesSuggestionSelection(suggestion: PlacesSuggestion) {
+  const placeId = suggestion.placePrediction.placeId ?? suggestion.id;
+  const place = suggestion.placePrediction.toPlace();
+  await place.fetchFields({ fields: googlePlacesFields });
+  const address = place.formattedAddress ?? suggestion.label;
+  const derived = deriveAddressParts(address);
+
+  return {
+    address,
+    placeId: place.id ?? placeId,
+    latitude: place.location?.lat() ?? null,
+    longitude: place.location?.lng() ?? null,
+    town: derived.town,
+    street: derived.street,
+    postcode: derived.postcode
+  };
+}
 
 export async function resolveRegistrationAddressWithFallback(
   draft: RegistrationDraft,
@@ -647,30 +783,14 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   }
 
   async function resolveManualAddressBeforeSubmit() {
-    if (formState.latitude !== null && formState.longitude !== null) {
-      return formState;
-    }
-
-    const address = formState.address.trim();
-    if (!address) {
-      return formState;
-    }
-
-    try {
-      const geocoded = await geocodeLithuanianAddress(address);
-      if (!geocoded) return formState;
-      const resolved = {
-        ...formState,
-        ...geocoded,
-        town: formState.town || geocoded.town,
-        street: formState.street || geocoded.street || "",
-        postcode: formState.postcode || geocoded.postcode || ""
-      };
-      setFormState(resolved);
-      return resolved;
-    } catch {
-      return formState;
-    }
+    const resolution = await resolveRegistrationAddressWithFallback(formState, {
+      googlePlacesCountry,
+      googlePlacesApiKeyConfigured: Boolean(googlePlacesApiKey),
+      loadGooglePlacesScript,
+      getGoogleMaps: () => window.google?.maps
+    });
+    setFormState(resolution.draft);
+    return resolution;
   }
 
   async function submitRegistration(event: FormEvent<HTMLFormElement>) {
@@ -1479,6 +1599,110 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function serviceLabel(categories: Category[], slug: string) {
+  for (const category of categories) {
+    if (category.slug === slug) {
+      return category.name;
+    }
+
+    const subcategory = category.subcategories.find((item) => item.slug === slug);
+    if (subcategory) {
+      return subcategory.name;
+    }
+  }
+
+  return slug;
+}
+
+async function loadGooglePlacesLibrary() {
+  await loadGooglePlacesScript();
+  return window.google?.maps?.importLibrary("places") ?? Promise.reject(new Error("Google Places API is not available."));
+}
+
+async function withTimeout<T>(operation: () => Promise<T>, timeoutMs: number, message: string) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation(),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
+export function loadGooglePlacesScript() {
+  if (!googlePlacesApiKey) {
+    return Promise.reject(new Error("Google Places API key is not configured."));
+  }
+
+  if (window.google?.maps?.importLibrary) {
+    return Promise.resolve();
+  }
+
+  if (googlePlacesScriptPromise) {
+    return googlePlacesScriptPromise;
+  }
+
+  googlePlacesScriptPromise = new Promise((resolve, reject) => {
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      if (window[googlePlacesCallbackName] === handleReady) {
+        delete window[googlePlacesCallbackName];
+      }
+    };
+    const rejectWith = (error: Error) => {
+      cleanup();
+      googlePlacesScriptPromise = null;
+      reject(error);
+    };
+    const handleReady = () => {
+      if (typeof window.google?.maps?.importLibrary !== "function") {
+        rejectWith(new Error("Google Maps loaded without importLibrary."));
+        return;
+      }
+
+      cleanup();
+      resolve();
+    };
+
+    window[googlePlacesCallbackName] = handleReady;
+    const timeoutId = window.setTimeout(() => {
+      rejectWith(new Error("Google Places timed out before the Google callback fired."));
+    }, googlePlacesScriptTimeoutMs);
+
+    const existingScript = document.querySelector<HTMLScriptElement>("script[data-localpro-google-places]");
+    if (existingScript) {
+      existingScript.addEventListener("error", () => rejectWith(new Error("Google Places failed to load.")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googlePlacesApiKey)}&v=weekly&libraries=places&loading=async&callback=${googlePlacesCallbackName}`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.localproGooglePlaces = "true";
+    script.onerror = () => rejectWith(new Error("Google Places failed to load."));
+    document.head.appendChild(script);
+  });
+
+  return googlePlacesScriptPromise;
+}
+
+function deriveAddressParts(address: string) {
+  const parts = address.split(",").map((part) => part.trim()).filter(Boolean);
+  const street = parts[0] ?? "";
+  const townLine = parts.find((part) => /\bLT-?\d{5}\b/i.test(part)) ?? parts[1] ?? "";
+  const postcode = townLine.match(/\bLT-?\d{5}\b/i)?.[0] ?? "";
+  const town = townLine.replace(/\bLT-?\d{5}\b/i, "").trim() || parts[1] || "";
+
+  return { street, postcode, town };
 }
 
 function formatTravelRange(radiusKm: number) {

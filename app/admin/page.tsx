@@ -43,6 +43,12 @@ type PreviewState = {
   profileId: string;
   specialist: Specialist;
 };
+type JobRequest = {
+  id: string; client_name: string; client_phone?: string | null; client_email?: string | null;
+  source_city: string; source_service: string; source_address: string; message: string;
+  urgency: string; preferred_contact_method: string; privacy_consent_at: string; created_at: string;
+  enquiry_photos?: Array<{ id: string; original_name?: string | null; preview_url?: string | null }>;
+};
 
 const statuses: Array<{ value: StatusFilter; label: string }> = [
   { value: "pending", label: "Laukiantys" },
@@ -87,6 +93,7 @@ export default function AdminPage() {
   const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({});
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [jobRequests, setJobRequests] = useState<JobRequest[]>([]);
   const nextLoadMessageRef = useRef<string | null>(null);
 
   async function logout() {
@@ -160,6 +167,13 @@ export default function AdminPage() {
     const response = await fetch("/api/categories");
     const data = await response.json();
     setCategories(data.categories ?? []);
+  }
+
+  async function loadJobRequests() {
+    if (!isAdmin) return;
+    const response = await fetch("/api/admin/job-requests");
+    const data = await response.json();
+    if (response.ok) setJobRequests(data.requests ?? []);
   }
 
   async function runAction(id: string, action: "approve" | "reject" | "suspend" | "return_pending") {

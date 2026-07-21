@@ -146,7 +146,18 @@ export async function POST(request: Request) {
     uploadedPhotos.push(uploaded);
   }
 
-  const photoError = await insertPhotoRecords(supabase, profile.id, [...uploadedPhotoUrls, ...payload.photoUrls], payload.name);
+  const { error: uploadedPhotoError } = uploadedPhotos.length
+    ? await supabase.from("profile_photos").insert(uploadedPhotos.map((photo, index) => ({
+        tradesperson_profile_id: profile.id,
+        storage_path: photo.storagePath,
+        label: null,
+        alt_text: `${payload.name} nuotrauka`,
+        sort_order: index + 1,
+        moderation_status: "pending",
+        removed_from_profile_at: null
+      })))
+    : { error: null };
+  const photoError = uploadedPhotoError?.message ?? await insertPhotoRecords(supabase, profile.id, payload.photoUrls, payload.name);
   if (photoError) {
     await cleanupProfile(profile.id, supabase);
     return NextResponse.json({ error: photoError }, { status: 500 });
