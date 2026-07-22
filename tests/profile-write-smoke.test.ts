@@ -18,6 +18,7 @@ function installProfileWriteTables(operations: Array<Record<string, unknown>>, e
       service_subcategories: [
         { id: "sub-dazymas", slug: "dazymas", service_category_id: "cat-apdaila" },
         { id: "sub-glaistymas", slug: "glaistymas", service_category_id: "cat-apdaila" },
+        { id: "sub-grindys", slug: "grindys", service_category_id: "cat-apdaila" },
         { id: "sub-plyteles", slug: "plyteles", service_category_id: "cat-apdaila" }
       ],
       tradesperson_profiles: [],

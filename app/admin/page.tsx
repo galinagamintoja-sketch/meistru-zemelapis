@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import type { Category, Specialist } from "../../lib/types";
+import { isLithuanianPhone, normalizeLithuanianPhone } from "../../lib/phone";
 
 type StatusFilter = "pending" | "approved" | "rejected" | "suspended" | "all";
 type EditDraft = {
@@ -91,10 +92,24 @@ export default function AdminPage() {
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({});
+  const [phoneErrors, setPhoneErrors] = useState<Record<string, string>>({});
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [jobRequests, setJobRequests] = useState<JobRequest[]>([]);
   const nextLoadMessageRef = useRef<string | null>(null);
+  const pendingActionKeysRef = useRef(new Set<string>());
+
+  async function withPendingAction<T>(key: string, task: () => Promise<T>) {
+    if (pendingActionKeysRef.current.has(key)) return undefined;
+    pendingActionKeysRef.current.add(key);
+    setPendingActions((current) => ({ ...current, [key]: true }));
+    try {
+      return await task();
+    } finally {
+      pendingActionKeysRef.current.delete(key);
+      setPendingActions((current) => ({ ...current, [key]: false }));
+    }
+  }
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -181,34 +196,44 @@ export default function AdminPage() {
       return;
     }
 
+    const key = `${id}:${action}`;
     const label = action === "approve" ? "Tvirtinama" : action === "reject" ? "Atmetama" : action === "suspend" ? "Stabdoma" : "Grąžinama patikrai";
-    setPendingActions((current) => ({ ...current, [`${id}:${action}`]: true }));
-    setMessage(`${label}...`);
+    await withPendingAction(key, async () => {
+      setMessage(`${label}...`);
+      try {
+        const { response, data } = await adminJsonRequest("/api/admin/profiles", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id, action })
+        });
+        if (!response.ok) {
+          setMessage([data.error ?? `${label} nepavyko.`, ...(data.validationErrors ?? [])].join(" "));
+          return;
+        }
 
-    const response = await fetch("/api/admin/profiles", {
-      method: "PATCH",
-      headers: {
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({ id, action })
+        const verification = await adminJsonRequest("/api/admin/profiles?status=all");
+        const profile = (verification.data.profiles ?? []).find((item: Specialist) => item.id === id);
+        const expected = action === "approve"
+          ? profile?.status === "approved" && profile?.publicStatus === "public"
+          : action === "return_pending"
+            ? profile?.status === "pending" && profile?.publicStatus === "private"
+            : action === "reject"
+              ? profile?.status === "rejected" && profile?.publicStatus === "private"
+              : profile?.status === "suspended" && profile?.publicStatus === "private";
+        if (!verification.response.ok || !expected) throw new Error("Serveris nepatvirtino naujos profilio būsenos.");
+
+        nextLoadMessageRef.current = action === "approve"
+          ? "Profilis patvirtintas ir publikuotas."
+          : action === "return_pending"
+            ? "Profilis grąžintas patikrai ir paslėptas."
+            : action === "reject"
+              ? "Profilis atmestas ir paslėptas."
+              : "Profilis sustabdytas ir paslėptas.";
+        await loadProfiles();
+      } catch (error) {
+        setMessage(adminActionErrorMessage(error, `${label} nepavyko.`));
+      }
     });
-    const data = await response.json();
-
-    if (!response.ok) {
-      setMessage([data.error ?? `${label} nepavyko.`, ...(data.validationErrors ?? [])].join(" "));
-      setPendingActions((current) => ({ ...current, [`${id}:${action}`]: false }));
-      return;
-    }
-
-    setMessage(
-      action === "approve"
-        ? "Profilis patvirtintas ir publikuotas."
-        : action === "reject"
-          ? "Profilis atmestas ir paslėptas."
-          : "Profilis sustabdytas ir paslėptas."
-    );
-    await loadProfiles();
-    setPendingActions((current) => ({ ...current, [`${id}:${action}`]: false }));
   }
 
   async function moderatePhoto(profileId: string, photoId: string, moderationStatus: "approved" | "rejected") {
@@ -216,55 +241,42 @@ export default function AdminPage() {
       return;
     }
 
-    setPendingActions((current) => ({ ...current, [`${profileId}:photo:${photoId}`]: true }));
-    setMessage(moderationStatus === "approved" ? "Nuotrauka tvirtinama..." : "Nuotrauka atmetama...");
-
-    const response = await fetch("/api/admin/profiles", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: profileId, action: "moderate_photo", photoId, moderationStatus })
+    const key = `${profileId}:photo:${photoId}`;
+    await withPendingAction(key, async () => {
+      setMessage(moderationStatus === "approved" ? "Nuotrauka tvirtinama..." : "Nuotrauka atmetama...");
+      try {
+        const { response, data } = await adminJsonRequest("/api/admin/profiles", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: profileId, action: "moderate_photo", photoId, moderationStatus })
+        });
+        if (!response.ok) { setMessage(data.error ?? "Nuotraukos būsenos pakeisti nepavyko."); return; }
+        nextLoadMessageRef.current = moderationStatus === "approved" ? "Nuotrauka patvirtinta." : "Nuotrauka atmesta.";
+        await loadProfiles();
+      } catch (error) {
+        setMessage(adminActionErrorMessage(error, "Nuotraukos būsenos pakeisti nepavyko."));
+      }
     });
-    const data = await response.json();
-
-    if (!response.ok) {
-      setMessage(data.error ?? "Nuotraukos busenos pakeisti nepavyko.");
-      setPendingActions((current) => ({ ...current, [`${profileId}:photo:${photoId}`]: false }));
-      return;
-    }
-
-    nextLoadMessageRef.current = moderationStatus === "approved" ? "Nuotrauka patvirtinta." : "Nuotrauka atmesta.";
-    await loadProfiles();
-    setPendingActions((current) => ({ ...current, [`${profileId}:photo:${photoId}`]: false }));
   }
 
   async function recordPublicContactConsent(profileId: string) {
     const draft = consentDrafts[profileId] ?? emptyConsentDraft();
-    setPendingActions((current) => ({ ...current, [`${profileId}:consent`]: true }));
-    setMessage("Irasomas viesu kontaktu sutikimas...");
-
-    const response = await fetch("/api/admin/profiles", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        id: profileId,
-        action: "record_public_contact_consent",
-        consentChannel: draft.channel,
-        consentText: draft.consentText,
-        capturedAt: draft.capturedAt,
-        evidenceReference: draft.evidenceReference
-      })
+    const key = `${profileId}:consent`;
+    await withPendingAction(key, async () => {
+      setMessage("Įrašomas viešų kontaktų sutikimas...");
+      try {
+        const { response, data } = await adminJsonRequest("/api/admin/profiles", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: profileId, action: "record_public_contact_consent", consentChannel: draft.channel, consentText: draft.consentText, capturedAt: draft.capturedAt, evidenceReference: draft.evidenceReference })
+        });
+        if (!response.ok) { setMessage(data.error ?? "Sutikimo įrašyti nepavyko."); return; }
+        nextLoadMessageRef.current = "Viešų kontaktų sutikimas įrašytas.";
+        await loadProfiles();
+      } catch (error) {
+        setMessage(adminActionErrorMessage(error, "Sutikimo įrašyti nepavyko."));
+      }
     });
-    const data = await response.json();
-
-    if (!response.ok) {
-      setMessage(data.error ?? "Sutikimo irasyti nepavyko.");
-      setPendingActions((current) => ({ ...current, [`${profileId}:consent`]: false }));
-      return;
-    }
-
-    nextLoadMessageRef.current = "Viesu kontaktu sutikimas irasytas.";
-    await loadProfiles();
-    setPendingActions((current) => ({ ...current, [`${profileId}:consent`]: false }));
   }
 
   async function saveProfile(id: string) {
@@ -273,9 +285,24 @@ export default function AdminPage() {
       return;
     }
 
-    setMessage("Saugomi profilio pakeitimai...");
-    setPendingActions((current) => ({ ...current, [`${id}:save`]: true }));
-    const response = await fetch("/api/admin/profiles", {
+    const phone = normalizeLithuanianPhone(draft.phone);
+    const whatsapp = draft.whatsapp.trim() ? normalizeLithuanianPhone(draft.whatsapp) : "";
+    if (!isLithuanianPhone(phone) || (whatsapp && !isLithuanianPhone(whatsapp))) {
+      setPhoneErrors((current) => ({
+        ...current,
+        [`${id}:phone`]: isLithuanianPhone(phone) ? "" : "Įveskite lietuvišką numerį, pvz. 063601230 arba +37063601230.",
+        [`${id}:whatsapp`]: !whatsapp || isLithuanianPhone(whatsapp) ? "" : "Įveskite galiojantį lietuvišką WhatsApp numerį."
+      }));
+      setMessage("Patikrinkite telefono numerius.");
+      return;
+    }
+    setDrafts((current) => ({ ...current, [id]: { ...draft, phone, whatsapp } }));
+
+    const key = `${id}:save`;
+    await withPendingAction(key, async () => {
+      setMessage("Saugomi profilio pakeitimai...");
+      try {
+        const { response, data } = await adminJsonRequest("/api/admin/profiles", {
       method: "PATCH",
       headers: {
         "content-type": "application/json"
@@ -286,8 +313,8 @@ export default function AdminPage() {
         profile: {
           name: draft.name,
           companyName: draft.companyName,
-          phone: draft.phone,
-          whatsapp: draft.whatsapp,
+          phone,
+          whatsapp,
           email: draft.email,
           categorySlug: draft.categorySlugs[0] ?? "",
           categorySlugs: draft.categorySlugs,
@@ -300,22 +327,30 @@ export default function AdminPage() {
           description: draft.description
         }
       })
+        });
+        if (!response.ok) { setMessage(data.error ?? "Išsaugoti nepavyko."); return; }
+        nextLoadMessageRef.current = "Profilio pakeitimai išsaugoti.";
+        await loadProfiles();
+      } catch (error) {
+        setMessage(adminActionErrorMessage(error, "Išsaugoti nepavyko."));
+      }
     });
-    const data = await response.json();
-
-    if (!response.ok) {
-      setMessage(data.error ?? "Išsaugoti nepavyko.");
-      setPendingActions((current) => ({ ...current, [`${id}:save`]: false }));
-      return;
-    }
-
-    setMessage("Profilio pakeitimai išsaugoti.");
-    await loadProfiles();
-    setPendingActions((current) => ({ ...current, [`${id}:save`]: false }));
   }
 
   async function addTradesperson(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const phone = normalizeLithuanianPhone(addDraft.phone);
+    const whatsapp = addDraft.whatsapp.trim() ? normalizeLithuanianPhone(addDraft.whatsapp) : "";
+    if (!isLithuanianPhone(phone) || (whatsapp && !isLithuanianPhone(whatsapp))) {
+      setPhoneErrors((current) => ({
+        ...current,
+        "add:phone": isLithuanianPhone(phone) ? "" : "Įveskite lietuvišką numerį, pvz. 063601230 arba +37063601230.",
+        "add:whatsapp": !whatsapp || isLithuanianPhone(whatsapp) ? "" : "Įveskite galiojantį lietuvišką WhatsApp numerį."
+      }));
+      setMessage("Patikrinkite telefono numerius.");
+      return;
+    }
+    setAddDraft((current) => ({ ...current, phone, whatsapp }));
     setPendingActions((current) => ({ ...current, add: true }));
     setMessage("Pridedamas specialistas...");
     setAddSucceeded(false);
@@ -327,7 +362,7 @@ export default function AdminPage() {
       },
       body: JSON.stringify({
         name: addDraft.name,
-        phone: addDraft.phone,
+        phone,
         categorySlug: addDraft.categorySlugs[0] ?? "",
         categorySlugs: addDraft.categorySlugs,
         subcategorySlugs: addDraft.subcategorySlugs,
@@ -335,7 +370,7 @@ export default function AdminPage() {
         city: addDraft.city,
         operatingCities: splitList(addDraft.operatingCities || addDraft.city),
         email: addDraft.email,
-        whatsapp: addDraft.whatsapp,
+        whatsapp,
         description: addDraft.description,
         radius: Number(addDraft.radius),
         source: addDraft.source
@@ -441,6 +476,21 @@ export default function AdminPage() {
       return nextDraft;
     });
     setAddSucceeded(false);
+  }
+
+  function normalizeAdminPhoneField(key: string, value: string, onValid: (normalized: string) => void, optional = false) {
+    if (optional && !value.trim()) {
+      setPhoneErrors((current) => ({ ...current, [key]: "" }));
+      onValid("");
+      return;
+    }
+    const normalized = normalizeLithuanianPhone(value);
+    if (isLithuanianPhone(normalized)) {
+      onValid(normalized);
+      setPhoneErrors((current) => ({ ...current, [key]: "" }));
+      return;
+    }
+    setPhoneErrors((current) => ({ ...current, [key]: "Įveskite lietuvišką numerį, pvz. 063601230 arba +37063601230." }));
   }
 
   function updateConsentDraft(id: string, field: keyof ConsentDraft, value: string) {
@@ -610,7 +660,14 @@ export default function AdminPage() {
             </label>
             <label>
               Telefonas *
-              <input required value={addDraft.phone} onChange={(event) => updateAddDraft("phone", event.target.value)} />
+              <input
+                required
+                value={addDraft.phone}
+                onChange={(event) => updateAddDraft("phone", event.target.value)}
+                onBlur={() => normalizeAdminPhoneField("add:phone", addDraft.phone, (value) => updateAddDraft("phone", value))}
+                aria-invalid={Boolean(phoneErrors["add:phone"])}
+              />
+              {phoneErrors["add:phone"] ? <span className="field-error">{phoneErrors["add:phone"]}</span> : null}
             </label>
             <label>
               Kategorijos *
@@ -677,7 +734,13 @@ export default function AdminPage() {
             </label>
             <label>
               WhatsApp
-              <input value={addDraft.whatsapp} onChange={(event) => updateAddDraft("whatsapp", event.target.value)} />
+              <input
+                value={addDraft.whatsapp}
+                onChange={(event) => updateAddDraft("whatsapp", event.target.value)}
+                onBlur={() => normalizeAdminPhoneField("add:whatsapp", addDraft.whatsapp, (value) => updateAddDraft("whatsapp", value), true)}
+                aria-invalid={Boolean(phoneErrors["add:whatsapp"])}
+              />
+              {phoneErrors["add:whatsapp"] ? <span className="field-error">{phoneErrors["add:whatsapp"]}</span> : null}
             </label>
             <label>
               Šaltinis
@@ -897,11 +960,23 @@ export default function AdminPage() {
                 </label>
                 <label>
                   Telefonas
-                  <input value={draft.phone} onChange={(event) => updateDraft(profile.id, "phone", event.target.value)} />
+                  <input
+                    value={draft.phone}
+                    onChange={(event) => updateDraft(profile.id, "phone", event.target.value)}
+                    onBlur={() => normalizeAdminPhoneField(`${profile.id}:phone`, draft.phone, (value) => updateDraft(profile.id, "phone", value))}
+                    aria-invalid={Boolean(phoneErrors[`${profile.id}:phone`])}
+                  />
+                  {phoneErrors[`${profile.id}:phone`] ? <span className="field-error">{phoneErrors[`${profile.id}:phone`]}</span> : null}
                 </label>
                 <label>
                   WhatsApp
-                  <input value={draft.whatsapp} onChange={(event) => updateDraft(profile.id, "whatsapp", event.target.value)} />
+                  <input
+                    value={draft.whatsapp}
+                    onChange={(event) => updateDraft(profile.id, "whatsapp", event.target.value)}
+                    onBlur={() => normalizeAdminPhoneField(`${profile.id}:whatsapp`, draft.whatsapp, (value) => updateDraft(profile.id, "whatsapp", value), true)}
+                    aria-invalid={Boolean(phoneErrors[`${profile.id}:whatsapp`])}
+                  />
+                  {phoneErrors[`${profile.id}:whatsapp`] ? <span className="field-error">{phoneErrors[`${profile.id}:whatsapp`]}</span> : null}
                 </label>
                 <label>
                   El. paštas
@@ -1142,4 +1217,36 @@ function splitList(value: string) {
 
 function profilesLoadedMessage(count: number, mode: string) {
   return mode === "seed" ? "Vietinis demo režimas: Supabase neprijungtas." : `Įkelta profilių: ${count}.`;
+}
+
+type AdminResponseData = {
+  error?: string;
+  validationErrors?: string[];
+  profiles?: Specialist[];
+  [key: string]: unknown;
+};
+
+export async function adminJsonRequest(input: RequestInfo | URL, init?: RequestInit, timeoutMs = 12_000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    const text = await response.text();
+    let data: AdminResponseData;
+    try {
+      data = text ? JSON.parse(text) as AdminResponseData : {};
+    } catch {
+      data = { error: text.trim() || `Serveris grąžino HTTP ${response.status} be tinkamo JSON atsakymo.` };
+    }
+    return { response, data };
+  } finally {
+    clearTimeout(timeout);
+  }
+
+}
+
+export function adminActionErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof DOMException && error.name === "AbortError") return `${fallback} Užklausa viršijo 12 sekundžių limitą.`;
+  if (error instanceof Error && error.message) return `${fallback} ${error.message}`;
+  return fallback;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RegistrationDraft } from "../components/LocalProApp";
-import { normalizeGooglePlacesCountryCode, submitRegistrationDraft } from "../components/LocalProApp";
+import { normalizeGooglePlacesCountryCode, submitRegistrationDraft, validateRegistrationDraftClient } from "../components/LocalProApp";
 
 const baseDraft: RegistrationDraft = {
   name: "Test Meistras",
@@ -17,10 +17,10 @@ const baseDraft: RegistrationDraft = {
   houseNumber: "",
   trade: "",
   categorySlugs: ["apdaila"],
-  subcategorySlugs: ["dazymas"],
+  subcategorySlugs: ["dazymas", "glaistymas", "grindys"],
   photoUrls: [" https://example.lt/photo.jpg "],
   photoUploads: [],
-  description: "Testinis meistro profilio aprasymas validacijai.",
+  description: "Testinis meistro profilio aprašymas, turintis daugiau nei aštuoniasdešimt simbolių patikimai publikavimo validacijai.",
   radiusKm: 25,
   travelRange: "25",
   operatingCities: [],
@@ -40,6 +40,28 @@ function okResponse(id = "pending-profile") {
 }
 
 describe("registration submit address fallback", () => {
+  it("blocks incomplete publication fields on the client", () => {
+    expect(validateRegistrationDraftClient({ ...baseDraft, subcategorySlugs: ["dazymas"], description: "Per trumpas" })).toMatchObject({
+      services: expect.any(String),
+      description: expect.any(String)
+    });
+  });
+
+  it("normalizes a 06 number before submission", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input;
+      void init;
+      return okResponse();
+    });
+    await submitRegistrationDraft({ ...baseDraft, phone: "063601230" }, {
+      selectedCategoryNames: ["Apdaila"],
+      googlePlacesApiKeyConfigured: false,
+      fetcher: fetcher as unknown as typeof fetch
+    });
+    const body = JSON.parse(String(fetcher.mock.calls[0][1]?.body));
+    expect(body.phone).toBe("+37063601230");
+  });
+
   it("uses LT when the country setting is missing or not a CLDR two-letter code", () => {
     expect(normalizeGooglePlacesCountryCode("LT")).toBe("LT");
     expect(normalizeGooglePlacesCountryCode("lt")).toBe("LT");
