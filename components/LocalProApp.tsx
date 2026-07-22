@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AddressAutocomplete, { geocodeLithuanianAddress } from "./AddressAutocomplete";
+import SafeProfileImage from "./SafeProfileImage";
 import type { Category, Specialist } from "../lib/types";
 import { formatMasterCount, formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
 
@@ -1123,9 +1124,14 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               ) : null}
               {activeSpecialist ? (
                 <div className="selected-map-card">
-                  <div className="selected-card-photo">
-                    {activePhotoUrl ? <img src={activePhotoUrl} alt={`${activeSpecialist.name} darbų nuotrauka`} /> : activeSpecialist.trade.charAt(0)}
-                  </div>
+                  <SafeProfileImage
+                    src={activePhotoUrl}
+                    alt={`${activeSpecialist.name} darbų nuotrauka`}
+                    specialistName={activeSpecialist.name}
+                    trade={activeSpecialist.trade}
+                    className="selected-card-photo"
+                    loading="eager"
+                  />
                   <div>
                     <strong>{activeSpecialist.companyName || activeSpecialist.name}</strong>
                     <span>{activeSpecialist.trade}</span>
@@ -1182,13 +1188,16 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                 <p className="eyebrow">Darbų nuotraukos</p>
                 <div className="photo-grid">
                   {activeWorkPhotos.map((photo, index) => (
-                    <div
-                      className={photo.url ? "work-photo has-image" : "work-photo"}
+                    <SafeProfileImage
+                      src={photo.url}
+                      alt={photo.label}
+                      specialistName={activeSpecialist.name}
+                      trade={activeSpecialist.trade}
+                      className="work-photo"
+                      fallbackText="Nuotraukos nėra"
                       key={photo.id}
                       style={{ "--photo-color": index === 0 ? activeSpecialist.color : index === 1 ? "#56717a" : "#b8763a" } as React.CSSProperties}
-                    >
-                      {photo.url ? <img src={photo.url} alt={photo.label} loading="lazy" /> : photo.label}
-                    </div>
+                    />
                   ))}
                 </div>
                 <p className="eyebrow">Atsiliepimai</p>
@@ -1407,6 +1416,16 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   <span className="tag">Laukia patikros</span>
                 </div>
                 <p>{formState.description || "Trumpas darbų aprašymas bus rodomas čia."}</p>
+                {formState.photoUploads[0]?.dataUrl || formState.photoUrls.find(Boolean) ? (
+                  <SafeProfileImage
+                    src={formState.photoUploads[0]?.dataUrl || formState.photoUrls.find(Boolean)}
+                    alt={`${formState.name || "Naujo specialisto"} registracijos nuotrauka`}
+                    specialistName={formState.name}
+                    trade={formState.trade}
+                    className="registration-preview-photo"
+                    fallbackText="Nuotraukos nėra"
+                  />
+                ) : null}
                 {formState.photoUploads.length || formState.photoUrls.filter(Boolean).length ? (
                   <div className="verification-list">
                     {formState.photoUploads.map((photo) => <span key={photo.name}>{photo.name}</span>)}
@@ -1543,9 +1562,10 @@ function spreadDuplicateCoordinates(specialists: Specialist[], map: import("leaf
 // Kept as a fallback if we return to Leaflet popups; the primary mobile flow now uses the bottom card.
 function createMapPopup(specialist: Specialist) {
   const imageUrl = specialist.photoUrls?.find(Boolean);
+  const fallback = `<span class="map-popup-thumb-fallback"${imageUrl ? " hidden" : ""}>${escapeHtml(specialist.trade.charAt(0))}</span>`;
   const thumbnail = imageUrl
-    ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(`${specialist.name} darbų nuotrauka`)}" loading="lazy" />`
-    : `<span class="map-popup-thumb-fallback">${escapeHtml(specialist.trade.charAt(0))}</span>`;
+    ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(`${specialist.name} darbų nuotrauka`)}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false" />${fallback}`
+    : fallback;
   const rating = specialist.rating ? `${specialist.rating.toFixed(1)} ★` : "Naujas";
   const whatsapp = specialist.whatsapp.replace(/[^\d]/g, "");
 

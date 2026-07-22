@@ -543,6 +543,49 @@ textarea {
   object-fit: cover;
 }
 
+.safe-profile-image {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+}
+
+.safe-profile-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.safe-profile-image-fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  overflow: hidden;
+  padding: 8px;
+  background: var(--spruce);
+  color: white;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  text-shadow: none;
+}
+
+.safe-profile-image-fallback small {
+  max-width: 100%;
+  overflow: hidden;
+  font-family: "Manrope", sans-serif;
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .selected-map-card strong,
 .selected-map-card span {
   display: block;
@@ -706,6 +749,10 @@ textarea {
   color: white;
   font-family: "IBM Plex Mono", monospace;
   font-weight: 900;
+}
+
+.map-popup-thumb-fallback[hidden] {
+  display: none;
 }
 
 .map-popup strong,
@@ -942,12 +989,30 @@ textarea {
   background: #eee8dc;
 }
 
+.work-photo.safe-profile-image {
+  min-height: 160px;
+  padding: 0;
+}
+
+.work-photo.safe-profile-image.is-fallback {
+  background: #eee8dc;
+}
+
 .work-photo img {
   width: 100%;
   height: 100%;
   min-height: 160px;
   object-fit: cover;
   display: block;
+}
+
+.registration-preview-photo {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin: 12px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
 }
 
 .reviews {

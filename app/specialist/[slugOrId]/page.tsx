@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
+import SafeProfileImage from "../../../components/SafeProfileImage";
 import { notFound } from "next/navigation";
 import { formatVerificationSummary } from "../../../lib/display";
 import { getSpecialist } from "../../../lib/specialists";
@@ -79,9 +79,15 @@ export default async function SpecialistPage({ params }: PageProps) {
             <h2>Darbų nuotraukos</h2>
             <div className="photo-grid">
               {specialist.photoUrls.map((url, index) => (
-                <div className="public-profile-photo" key={url}>
-                  <Image src={url} alt={`${specialist.name} darbų nuotrauka ${index + 1}`} fill sizes="(max-width: 760px) 100vw, 33vw" unoptimized />
-                </div>
+                <SafeProfileImage
+                  src={url}
+                  alt={`${specialist.name} darbų nuotrauka ${index + 1}`}
+                  specialistName={specialist.name}
+                  trade={specialist.trade}
+                  className="public-profile-photo"
+                  fallbackText="Nuotraukos nėra"
+                  key={url}
+                />
               ))}
             </div>
           </section>

@@ -504,7 +504,7 @@
 .public-profile-actions .secondary-action { background: var(--spruce); }
 
 .public-profile-gallery { margin-top: 42px; }
-.public-profile-photo { position: relative; min-height: 260px; overflow: hidden; border-radius: 10px; background: var(--soft); }
+.public-profile-photo { position: relative; min-height: 260px; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 10px; background: var(--soft); }
 .public-profile-photo img { object-fit: cover; }
 
 .job-request-shell { min-height: 100vh; padding: clamp(18px, 5vw, 60px); }
