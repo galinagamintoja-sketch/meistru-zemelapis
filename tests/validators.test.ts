@@ -14,8 +14,8 @@ const validRegistration = {
   postcode: "01103",
   trade: "Apdaila",
   categorySlugs: ["apdaila"],
-  subcategorySlugs: ["dazymas"],
-  description: "Testinis meistro profilio aprasymas validacijai.",
+  subcategorySlugs: ["dazymas", "glaistymas", "grindys"],
+  description: "Testinis meistro profilio aprašymas, turintis daugiau nei aštuoniasdešimt simbolių patikimai publikavimo validacijai.",
   travelRange: "25",
   photoUrls: [],
   photoUploads: [],
@@ -32,8 +32,18 @@ describe("registration validation", () => {
 
   it("rejects invalid Lithuanian phone numbers", () => {
     expect(isLithuanianPhone("+37061234567")).toBe(true);
+    expect(normalizeLithuanianPhone("063601230")).toBe("+37063601230");
+    expect(normalizeLithuanianPhone("863601230")).toBe("+37063601230");
+    expect(normalizeLithuanianPhone("+37063601230")).toBe("+37063601230");
+    expect(normalizeLithuanianPhone("37063601230")).toBe("+37063601230");
+    expect(normalizeLithuanianPhone("12345")).toBe("12345");
     expect(normalizeLithuanianPhone("861234567")).toBe("+37061234567");
     expect(registrationSchema.safeParse({ ...validRegistration, phone: "12345" }).success).toBe(false);
+  });
+
+  it("requires three services and an 80-character description", () => {
+    expect(registrationSchema.safeParse({ ...validRegistration, subcategorySlugs: ["dazymas", "glaistymas"] }).success).toBe(false);
+    expect(registrationSchema.safeParse({ ...validRegistration, description: "Per trumpas aprašymas" }).success).toBe(false);
   });
 
   it("requires terms, privacy, and public contact consent", () => {

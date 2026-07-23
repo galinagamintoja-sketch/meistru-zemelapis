@@ -5,6 +5,7 @@ import AddressAutocomplete, { geocodeLithuanianAddress } from "./AddressAutocomp
 import SafeProfileImage from "./SafeProfileImage";
 import type { Category, Specialist } from "../lib/types";
 import { formatMasterCount, formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
+import { isLithuanianPhone, normalizeLithuanianPhone } from "../lib/phone";
 
 type Props = {
   initialSpecialists: Specialist[];
@@ -59,6 +60,9 @@ type RegistrationErrorResponse = {
     formErrors?: string[];
   };
 };
+
+type RegistrationClientField = "phone" | "services" | "description" | "termsAccepted" | "publicContactConsent";
+export type RegistrationClientErrors = Partial<Record<RegistrationClientField, string>>;
 
 type LocationResolveResponse = {
   coordinates?: {
@@ -181,7 +185,10 @@ const registrationFieldLabels: Record<string, string> = {
   operatingCities: "aptarnaujamas vietas",
   photoUrls: "nuotraukų URL",
   photoUploads: "įkeltas nuotraukas",
-  consentAccepted: "sutikimą dėl profilio peržiūros"
+  consentAccepted: "sutikimą dėl profilio peržiūros",
+  termsAccepted: "naudojimosi sąlygų ir privatumo sutikimą",
+  privacyAcknowledged: "privatumo politikos patvirtinimą",
+  publicContactConsent: "viešų kontaktų rodymo sutikimą"
 };
 
 const cities = ["Vilnius", "Kaunas", "Klaipėda", "Šiauliai", "Panevėžys", "Lentvaris", "Alytus", "Marijampolė", "Utena", "Tauragė", "Telšiai"];
@@ -307,8 +314,10 @@ export async function resolveRegistrationAddressWithFallback(
 
 export async function submitRegistrationDraft(draft: RegistrationDraft, options: RegistrationSubmitOptions = {}) {
   const addressResolution = await resolveRegistrationAddressWithFallback(draft, options);
+  const normalizedPhone = normalizeLithuanianPhone(addressResolution.draft.phone);
   const registrationPayload = {
     ...addressResolution.draft,
+    phone: isLithuanianPhone(normalizedPhone) ? normalizedPhone : addressResolution.draft.phone,
     trade: addressResolution.draft.trade || options.selectedCategoryNames?.[0] || addressResolution.draft.categorySlugs[0] || "",
     photoUrls: addressResolution.draft.photoUrls.map((url) => url.trim()).filter(Boolean)
   };
@@ -318,7 +327,7 @@ export async function submitRegistrationDraft(draft: RegistrationDraft, options:
     headers: { "content-type": "application/json" },
     body: JSON.stringify(registrationPayload)
   });
-  const data = await response.json();
+  const data = await response.json().catch(() => ({ error: "Serveris grąžino netinkamą atsakymą. Bandykite dar kartą." }));
 
   return {
     response,
@@ -326,6 +335,16 @@ export async function submitRegistrationDraft(draft: RegistrationDraft, options:
     payload: registrationPayload,
     usedManualFallback: addressResolution.usedManualFallback
   };
+}
+
+export function validateRegistrationDraftClient(draft: RegistrationDraft): RegistrationClientErrors {
+  const errors: RegistrationClientErrors = {};
+  if (!isLithuanianPhone(draft.phone)) errors.phone = "Įveskite lietuvišką numerį, pvz. 063601230 arba +37063601230.";
+  if (draft.subcategorySlugs.length < 3) errors.services = "Pasirinkite bent 3 konkrečias paslaugas.";
+  if (draft.description.trim().length < 80) errors.description = "Aprašymas turi būti bent 80 simbolių.";
+  if (!draft.termsAccepted || !draft.privacyAcknowledged) errors.termsAccepted = "Sutikite su sąlygomis ir patvirtinkite, kad susipažinote su privatumo politika.";
+  if (!draft.publicContactConsent) errors.publicContactConsent = "Patvirtinkite viešų kontaktų rodymo sutikimą.";
+  return errors;
 }
 
 export default function LocalProApp({ initialSpecialists, categories }: Props) {
@@ -377,10 +396,13 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   });
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitTone, setSubmitTone] = useState<"success" | "error" | "">("");
+  const [registrationErrors, setRegistrationErrors] = useState<RegistrationClientErrors>({});
+  const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
   const [submittedProfileId, setSubmittedProfileId] = useState("");
   const [submittedManualAddressReview, setSubmittedManualAddressReview] = useState(false);
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const profileSectionRef = useRef<HTMLElement | null>(null);
+  const registrationFormRef = useRef<HTMLFormElement | null>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const markerLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const areaLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
@@ -796,35 +818,64 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
   async function submitRegistration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSubmittingRegistration) return;
+
+    const normalizedPhone = normalizeLithuanianPhone(formState.phone);
+    const nextDraft = isLithuanianPhone(normalizedPhone) ? { ...formState, phone: normalizedPhone } : formState;
+    const clientErrors = validateRegistrationDraftClient(nextDraft);
+    setFormState(nextDraft);
+    setRegistrationErrors(clientErrors);
+    const firstInvalidField = (Object.keys(clientErrors) as RegistrationClientField[])[0];
+    if (firstInvalidField) {
+      setSubmitTone("error");
+      setSubmitMessage(clientErrors[firstInvalidField] ?? "Patikrinkite registracijos laukus.");
+      requestAnimationFrame(() => registrationFormRef.current?.querySelector<HTMLElement>(`[name="${firstInvalidField}"]`)?.focus());
+      return;
+    }
+
+    setIsSubmittingRegistration(true);
     setSubmitMessage("Siunčiama registracija...");
     setSubmitTone("");
     setSubmittedProfileId("");
     setSubmittedManualAddressReview(false);
-    const addressResolution = await resolveManualAddressBeforeSubmit();
+    try {
+      const addressResolution = await resolveManualAddressBeforeSubmit();
+      const registration = await submitRegistrationDraft({ ...addressResolution.draft, phone: normalizedPhone }, {
+        selectedCategoryNames,
+        googlePlacesApiKeyConfigured: false
+      });
+      setFormState(registration.payload);
 
-    const registration = await submitRegistrationDraft(addressResolution.draft, {
-      selectedCategoryNames,
-      googlePlacesApiKeyConfigured: false
-    });
-    setFormState(registration.payload);
+      if (!registration.response.ok) {
+        setSubmitTone("error");
+        setSubmitMessage(formatRegistrationError(registration.data));
+        return;
+      }
 
-    const response = registration.response;
-    const data = registration.data;
-
-    if (!response.ok) {
+      setSubmitTone("success");
+      setSubmittedProfileId(registration.data.profile?.id ?? "");
+      setSubmittedManualAddressReview(addressResolution.usedManualFallback);
+      setSubmitMessage(
+        addressResolution.usedManualFallback
+          ? "Registracija gauta. Profilį patikrinsime per 1-2 darbo dienas, o adresą prireikus peržiūrėsime rankiniu būdu."
+          : "Registracija gauta. Profilį patikrinsime per 1-2 darbo dienas."
+      );
+    } catch {
       setSubmitTone("error");
-      setSubmitMessage(formatRegistrationError(data));
+      setSubmitMessage("Registracijos išsiųsti nepavyko. Patikrinkite ryšį ir bandykite dar kartą.");
+    } finally {
+      setIsSubmittingRegistration(false);
+    }
+  }
+
+  function normalizeRegistrationPhone() {
+    const normalized = normalizeLithuanianPhone(formState.phone);
+    if (isLithuanianPhone(normalized)) {
+      setFormState((current) => ({ ...current, phone: normalized }));
+      setRegistrationErrors((current) => ({ ...current, phone: undefined }));
       return;
     }
-
-    setSubmitTone("success");
-    setSubmittedProfileId(data.profile?.id ?? "");
-    setSubmittedManualAddressReview(addressResolution.usedManualFallback);
-    setSubmitMessage(
-      addressResolution.usedManualFallback
-        ? "Registracija gauta. Profilį patikrinsime per 1-2 darbo dienas, o adresą prireikus peržiūrėsime rankiniu būdu."
-        : "Registracija gauta. Profilį patikrinsime per 1-2 darbo dienas."
-    );
+    setRegistrationErrors((current) => ({ ...current, phone: "Įveskite lietuvišką numerį, pvz. 063601230 arba +37063601230." }));
   }
 
   function updateCategory(slug: string, checked: boolean) {
@@ -1240,7 +1291,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                 <a className="primary-action" href="/">Grįžti į žemėlapį</a>
               </article>
             ) : (
-            <form className="registration-form" aria-label="LocalPro specialisto registracijos forma" onSubmit={submitRegistration}>
+            <form ref={registrationFormRef} className="registration-form" aria-label="LocalPro specialisto registracijos forma" onSubmit={submitRegistration} noValidate>
               <div className="form-row">
                 <label>
                   Vardas arba imones pavadinimas *
@@ -1248,7 +1299,19 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                 </label>
                 <label>
                   Telefono numeris *
-                  <input value={formState.phone} onChange={(event) => setFormState({ ...formState, phone: event.target.value })} type="tel" autoComplete="tel" />
+                  <input
+                    name="phone"
+                    value={formState.phone}
+                    onChange={(event) => {
+                      setFormState({ ...formState, phone: event.target.value });
+                      setRegistrationErrors((current) => ({ ...current, phone: undefined }));
+                    }}
+                    onBlur={normalizeRegistrationPhone}
+                    type="tel"
+                    autoComplete="tel"
+                    aria-invalid={Boolean(registrationErrors.phone)}
+                  />
+                  {registrationErrors.phone ? <span className="field-error">{registrationErrors.phone}</span> : null}
                 </label>
               </div>
               <div className="form-row">
@@ -1287,24 +1350,39 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                 ))}
               </fieldset>
               {selectedSubcategories.length ? (
-                <fieldset>
-                  <legend>Konkrečios paslaugos nebūtinos</legend>
-                  <p className="field-note">Pažymėkite tik tai, kas tiksliai tinka. Jei paslaugos sąraše nėra, įrašykite ją aprašyme.</p>
+                <fieldset aria-invalid={Boolean(registrationErrors.services)}>
+                  <legend>Konkrečios paslaugos * ({formState.subcategorySlugs.length}/3)</legend>
+                  <p className="field-note">Pasirinkite bent 3 konkrečias paslaugas. Jei paslaugos sąraše nėra, įrašykite ją aprašyme.</p>
                   {selectedSubcategories.map((subcategory) => (
                     <label key={subcategory.id}>
                       <input
                         type="checkbox"
+                        name="services"
                         checked={formState.subcategorySlugs.includes(subcategory.slug)}
-                        onChange={(event) => updateSubcategory(subcategory.slug, event.target.checked)}
+                        onChange={(event) => {
+                          updateSubcategory(subcategory.slug, event.target.checked);
+                          setRegistrationErrors((current) => ({ ...current, services: undefined }));
+                        }}
                       />
                       {subcategory.name}
                     </label>
                   ))}
+                  {registrationErrors.services ? <span className="field-error">{registrationErrors.services}</span> : null}
                 </fieldset>
               ) : null}
               <label>
-                Trumpas aprašymas *
-                <textarea value={formState.description} onChange={(event) => setFormState({ ...formState, description: event.target.value })} rows={4} />
+                Trumpas aprašymas * ({formState.description.trim().length}/80)
+                <textarea
+                  name="description"
+                  value={formState.description}
+                  onChange={(event) => {
+                    setFormState({ ...formState, description: event.target.value });
+                    setRegistrationErrors((current) => ({ ...current, description: undefined }));
+                  }}
+                  rows={4}
+                  aria-invalid={Boolean(registrationErrors.description)}
+                />
+                {registrationErrors.description ? <span className="field-error">{registrationErrors.description}</span> : null}
               </label>
               <fieldset>
                 <legend>Darbų nuotraukos nebūtinos</legend>
@@ -1368,35 +1446,35 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               </fieldset>
               <label>
                 <span>
-                  <input type="checkbox" checked={formState.termsAccepted} onChange={(event) => setFormState({ ...formState, termsAccepted: event.target.checked, consentAccepted: event.target.checked && formState.privacyAcknowledged && formState.publicContactConsent })} />
-                  Sutinku su LocalPro naudojimosi salygomis.
+                  <input
+                    type="checkbox"
+                    name="termsAccepted"
+                    checked={formState.termsAccepted && formState.privacyAcknowledged}
+                    onChange={(event) => {
+                      setFormState({ ...formState, termsAccepted: event.target.checked, privacyAcknowledged: event.target.checked, consentAccepted: event.target.checked && formState.publicContactConsent });
+                      setRegistrationErrors((current) => ({ ...current, termsAccepted: undefined }));
+                    }}
+                  />
+                  Sutinku su LocalPro <a href="/terms" target="_blank" rel="noreferrer">naudojimosi sąlygomis</a> ir susipažinau su <a href="/privacy" target="_blank" rel="noreferrer">privatumo politika</a>.
                 </span>
+                {registrationErrors.termsAccepted ? <span className="field-error">{registrationErrors.termsAccepted}</span> : null}
               </label>
               <label>
                 <span>
-                  <input type="checkbox" checked={formState.privacyAcknowledged} onChange={(event) => setFormState({ ...formState, privacyAcknowledged: event.target.checked, consentAccepted: formState.termsAccepted && event.target.checked && formState.publicContactConsent })} />
-                  Susipazinau su privatumo politika.
+                  <input
+                    type="checkbox"
+                    name="publicContactConsent"
+                    checked={formState.publicContactConsent}
+                    onChange={(event) => {
+                      setFormState({ ...formState, publicContactConsent: event.target.checked, consentAccepted: formState.termsAccepted && formState.privacyAcknowledged && event.target.checked });
+                      setRegistrationErrors((current) => ({ ...current, publicContactConsent: undefined }));
+                    }}
+                  />
+                  Sutinku, kad po profilio patvirtinimo viešai būtų rodomi mano pasirinkti kontaktai.
                 </span>
+                {registrationErrors.publicContactConsent ? <span className="field-error">{registrationErrors.publicContactConsent}</span> : null}
               </label>
-              <label>
-                <span>
-                  <input type="checkbox" checked={formState.publicContactConsent} onChange={(event) => setFormState({ ...formState, publicContactConsent: event.target.checked, consentAccepted: formState.termsAccepted && formState.privacyAcknowledged && event.target.checked })} />
-                  Sutinku, kad po patvirtinimo profilyje viesai butu rodomi mano pasirinkti kontaktai.
-                </span>
-              </label>
-              <label>
-                <span>
-                  <input type="checkbox" checked={formState.marketingConsent} onChange={(event) => setFormState({ ...formState, marketingConsent: event.target.checked })} />
-                  Sutinku gauti neprivalomus LocalPro naujienu ir pasiulymu pranesimus.
-                </span>
-              </label>
-              <label>
-                <span>
-                  <input type="checkbox" checked={formState.whatsappCommunicationConsent} onChange={(event) => setFormState({ ...formState, whatsappCommunicationConsent: event.target.checked })} />
-                  Sutinku, kad del registracijos klausimu su manimi butu susisiekta WhatsApp.
-                </span>
-              </label>
-              <button type="submit">Siųsti registraciją</button>
+              <button type="submit" disabled={isSubmittingRegistration}>{isSubmittingRegistration ? "Siunčiama..." : "Siųsti registraciją"}</button>
               {submitMessage ? <p className={`status-message ${submitTone}`}>{submitMessage}</p> : null}
             </form>
             )}

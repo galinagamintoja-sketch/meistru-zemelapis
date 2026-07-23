@@ -1,38 +1,13 @@
 import { z } from "zod";
+import { isLithuanianPhone } from "./phone";
+
+export { isLithuanianPhone, normalizeLithuanianPhone } from "./phone";
 
 export const photoFieldMetadata = {
   maxItems: 8,
   maxSizeMb: 5,
   acceptedTypes: ["image/jpeg", "image/png", "image/webp"] as const
 };
-
-export function normalizeLithuanianPhone(value: unknown) {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return "";
-  }
-
-  const digits = trimmed.replace(/[^\d]/g, "");
-
-  if (digits.startsWith("370") && digits.length === 11) {
-    return `+${digits}`;
-  }
-
-  if (digits.startsWith("8") && digits.length === 9) {
-    return `+370${digits.slice(1)}`;
-  }
-
-  return trimmed;
-}
-
-export function isLithuanianPhone(value: string) {
-  const normalized = normalizeLithuanianPhone(value);
-  return /^\+370\d{8}$/.test(normalized.replace(/\s+/g, ""));
-}
 
 export const lithuanianPhoneSchema = z
   .string()
@@ -67,8 +42,8 @@ export const registrationSchema = z.object({
   houseNumber: z.string().trim().max(20).optional().default(""),
   trade: z.string().trim().min(2).max(120).optional().default(""),
   categorySlugs: z.array(z.string().trim().min(2).max(80)).max(8).optional().default([]),
-  subcategorySlugs: z.array(z.string().trim().min(2).max(80)).max(20).optional().default([]),
-  description: z.string().trim().min(10).max(1200),
+  subcategorySlugs: z.array(z.string().trim().min(2).max(80)).min(3, "Pasirinkite bent 3 konkrečias paslaugas.").max(20).optional().default([]),
+  description: z.string().trim().min(80, "Aprašymas turi būti bent 80 simbolių.").max(1200),
   radiusKm: z.coerce.number().min(5).max(150).optional().default(25),
   travelRange: travelRangeSchema,
   operatingCities: z.array(z.string().trim().min(2).max(80)).max(20).optional().default([]),
@@ -82,9 +57,9 @@ export const registrationSchema = z.object({
   whatsappCommunicationConsent: z.boolean().optional().default(false)
 }).superRefine((payload, context) => {
   const requiredConsents = [
-    ["termsAccepted", payload.termsAccepted, "Patvirtinkite, kad sutinkate su naudojimosi salygomis."],
-    ["privacyAcknowledged", payload.privacyAcknowledged, "Patvirtinkite, kad susipazinote su privatumo politika."],
-    ["publicContactConsent", payload.publicContactConsent, "Patvirtinkite, kad sutinkate viesai rodyti pasirinktus kontaktus."]
+    ["termsAccepted", payload.termsAccepted, "Patvirtinkite, kad sutinkate su naudojimosi sąlygomis."],
+    ["privacyAcknowledged", payload.privacyAcknowledged, "Patvirtinkite, kad susipažinote su privatumo politika."],
+    ["publicContactConsent", payload.publicContactConsent, "Patvirtinkite, kad sutinkate viešai rodyti pasirinktus kontaktus."]
   ] as const;
 
   for (const [path, accepted, message] of requiredConsents) {
