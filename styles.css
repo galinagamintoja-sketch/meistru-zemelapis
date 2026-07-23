@@ -1052,9 +1052,13 @@ textarea {
 
 .registration-form > *,
 .form-row > *,
+.registration-form fieldset,
+.registration-form fieldset > *,
+.registration-form fieldset .form-row,
 .registration-form input,
 .registration-form textarea,
-.registration-form select {
+.registration-form select,
+.registration-form button {
   min-width: 0;
   max-width: 100%;
 }
