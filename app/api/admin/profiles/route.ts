@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { specialists as seedSpecialists } from "../../../../lib/seed-data";
 import { requireAdminSession } from "../../../../lib/auth-session";
 import { profileRowToSpecialist, toPublicSafeSpecialist, type ProfileRow } from "../../../../lib/db-mappers";
+import { signManagedPhotoUrls } from "../../../../lib/specialists";
 import {
   assignNullableText,
   assignText,
@@ -75,7 +76,7 @@ export async function GET(request: Request) {
     service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
     profile_services(service_categories(name, slug), service_subcategories(name, slug)),
     operating_areas(city, radius_km),
-    profile_photos(id, label, url, moderation_status, sort_order, removed_from_profile_at),
+    profile_photos(id, label, url, storage_path, moderation_status, sort_order, removed_from_profile_at),
     reviews(client_name, rating, text, moderation_status),
     admin_actions(id, action, notes, created_at, created_by_role)
   `;
@@ -91,9 +92,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
+    const [signedProfile] = await signManagedPhotoUrls([data as unknown as ProfileRow], false);
+
     return NextResponse.json({
       mode: "database",
-      specialist: toPublicSafeSpecialist(profileRowToSpecialist(data as unknown as ProfileRow))
+      specialist: toPublicSafeSpecialist(profileRowToSpecialist(signedProfile))
     });
   }
 
@@ -112,7 +115,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ mode: "database", profiles: ((data ?? []) as unknown as ProfileRow[]).map((row) => profileRowToSpecialist(row, { includeUnapprovedPhotos: true, includeRemovedPhotos: true })) });
+  const signedProfiles = await signManagedPhotoUrls((data ?? []) as unknown as ProfileRow[], true);
+
+  return NextResponse.json({
+    mode: "database",
+    profiles: signedProfiles.map((row) => profileRowToSpecialist(row, { includeUnapprovedPhotos: true, includeRemovedPhotos: true }))
+  });
 }
 
 export async function POST(request: Request) {
