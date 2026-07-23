@@ -1050,6 +1050,15 @@ textarea {
   padding: 18px;
 }
 
+.registration-form > *,
+.form-row > *,
+.registration-form input,
+.registration-form textarea,
+.registration-form select {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .success-panel {
   align-content: start;
 }
