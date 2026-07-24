@@ -24,7 +24,7 @@ import { createServerSupabase } from "../../../../lib/supabase";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../../../../lib/validators";
 
 const validStatuses = new Set(["pending", "approved", "rejected", "suspended", "all"]);
-const validActions = new Set(["approve", "reject", "suspend", "return_pending", "verify_contact", "verify_whatsapp", "update", "moderate_photo", "record_public_contact_consent", "admin_note"]);
+const validActions = new Set(["approve", "reject", "suspend", "return_pending", "verify_contact", "verify_whatsapp", "update", "moderate_photo", "record_public_contact_consent", "admin_note", "upload_photo", "remove_photo", "reorder_photos"]);
 const validSources = new Set(["self-registration", "whatsapp-onboarding", "admin-created", "imported-lead"]);
 const validConsentChannels = new Set(["website", "whatsapp", "telephone", "written_form"]);
 
@@ -404,6 +404,51 @@ export async function PATCH(request: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+  }
+
+  if (action === "upload_photo") {
+    const photo = body.photo ?? {};
+    const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+    const type = String(photo.type ?? "");
+    const size = Number(photo.size);
+    const dataUrl = String(photo.dataUrl ?? "");
+    if (!allowedTypes.has(type) || !Number.isFinite(size) || size < 1 || size > 5 * 1024 * 1024 || !dataUrl.startsWith(`data:${type};base64,`)) {
+      return NextResponse.json({ error: "JPG, PNG arba WebP nuotrauka gali būti iki 5 MB." }, { status: 400 });
+    }
+    const { count } = await supabase.from("profile_photos").select("id", { count: "exact", head: true }).eq("tradesperson_profile_id", id).is("removed_from_profile_at", null);
+    if ((count ?? 0) >= 8) return NextResponse.json({ error: "Galima turėti daugiausia 8 nuotraukas." }, { status: 400 });
+    const bytes = Buffer.from(dataUrl.split(",")[1] ?? "", "base64");
+    if (bytes.length < 1 || bytes.length > 5 * 1024 * 1024) return NextResponse.json({ error: "Netinkamas nuotraukos dydis." }, { status: 400 });
+    const extension = type === "image/png" ? "png" : type === "image/webp" ? "webp" : "jpg";
+    const storagePath = `${id}/${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from("profile-photos").upload(storagePath, bytes, { contentType: type, upsert: false });
+    if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 });
+    const { error: insertError } = await supabase.from("profile_photos").insert({
+      tradesperson_profile_id: id, storage_path: storagePath, url: null,
+      label: cleanText(photo.name).slice(0, 160) || "Profilio nuotrauka",
+      moderation_status: "pending", sort_order: count ?? 0
+    });
+    if (insertError) {
+      await supabase.storage.from("profile-photos").remove([storagePath]);
+      return NextResponse.json({ error: insertError.message }, { status: 500 });
+    }
+  }
+
+  if (action === "remove_photo") {
+    const photoId = String(body.photoId ?? "");
+    if (!photoId) return NextResponse.json({ error: "Nuotrauka nerasta." }, { status: 400 });
+    const { error } = await supabase.from("profile_photos").update({ removed_from_profile_at: new Date().toISOString() }).eq("id", photoId).eq("tradesperson_profile_id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (action === "reorder_photos") {
+    const photoIds = Array.isArray(body.photoIds) ? body.photoIds.map(String).slice(0, 8) : [];
+    if (!photoIds.length || new Set(photoIds).size !== photoIds.length) return NextResponse.json({ error: "Netinkamas nuotraukų eiliškumas." }, { status: 400 });
+    const updates = await Promise.all(photoIds.map((photoId: string, sortOrder: number) =>
+      supabase.from("profile_photos").update({ sort_order: sortOrder }).eq("id", photoId).eq("tradesperson_profile_id", id)
+    ));
+    const error = updates.find((result) => result.error)?.error;
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   if (action === "admin_note") {

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import type { Category, Specialist } from "../../lib/types";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../../lib/phone";
 
@@ -39,10 +39,6 @@ type ConsentDraft = {
   consentText: string;
   capturedAt: string;
   evidenceReference: string;
-};
-type PreviewState = {
-  profileId: string;
-  specialist: Specialist;
 };
 type JobRequest = {
   id: string; client_name: string; client_phone?: string | null; client_email?: string | null;
@@ -88,13 +84,15 @@ export default function AdminPage() {
   const [consentDrafts, setConsentDrafts] = useState<Record<string, ConsentDraft>>({});
   const [addDraft, setAddDraft] = useState<AddDraft>(emptyAddDraft);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [section, setSection] = useState<"requests" | "specialists" | "add">("specialists");
+  const [openProfileId, setOpenProfileId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [addSucceeded, setAddSucceeded] = useState(false);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({});
   const [phoneErrors, setPhoneErrors] = useState<Record<string, string>>({});
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
-  const [preview, setPreview] = useState<PreviewState | null>(null);
   const [jobRequests, setJobRequests] = useState<JobRequest[]>([]);
   const nextLoadMessageRef = useRef<string | null>(null);
   const pendingActionKeysRef = useRef(new Set<string>());
@@ -259,6 +257,77 @@ export default function AdminPage() {
     });
   }
 
+  async function uploadPhotos(profileId: string, event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    const profile = profiles.find((item) => item.id === profileId);
+    const currentCount = profile?.photoRecords?.filter((photo) => !photo.removedAt).length ?? 0;
+    if (!files.length) return;
+    if (currentCount + files.length > 8) {
+      setMessage("Galima turėti daugiausia 8 nuotraukas.");
+      return;
+    }
+    const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
+    if (files.some((file) => !allowed.has(file.type) || file.size > 5 * 1024 * 1024)) {
+      setMessage("Rinkitės JPG, PNG arba WebP failus, iki 5 MB kiekvieną.");
+      return;
+    }
+    const key = `${profileId}:upload`;
+    await withPendingAction(key, async () => {
+      try {
+        for (let index = 0; index < files.length; index += 1) {
+          setUploadProgress((current) => ({ ...current, [profileId]: Math.round((index / files.length) * 100) }));
+          const file = files[index];
+          const dataUrl = await fileToDataUrl(file);
+          const { response, data } = await adminJsonRequest("/api/admin/profiles", {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ id: profileId, action: "upload_photo", photo: { name: file.name, type: file.type, size: file.size, dataUrl } })
+          });
+          if (!response.ok) throw new Error(data.error ?? "Nuotraukos įkelti nepavyko.");
+        }
+        setUploadProgress((current) => ({ ...current, [profileId]: 100 }));
+        nextLoadMessageRef.current = "Nuotraukos įkeltos privačiai ir laukia patvirtinimo.";
+        await loadProfiles();
+      } catch (error) {
+        setMessage(adminActionErrorMessage(error, "Nuotraukų įkelti nepavyko."));
+      } finally {
+        setUploadProgress((current) => {
+          const next = { ...current };
+          delete next[profileId];
+          return next;
+        });
+      }
+    });
+  }
+
+  async function removePhoto(profileId: string, photoId: string) {
+    if (!confirm("Pašalinti šią nuotrauką iš profilio?")) return;
+    const { response, data } = await adminJsonRequest("/api/admin/profiles", {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: profileId, action: "remove_photo", photoId })
+    });
+    if (!response.ok) { setMessage(data.error ?? "Nuotraukos pašalinti nepavyko."); return; }
+    nextLoadMessageRef.current = "Nuotrauka pašalinta.";
+    await loadProfiles();
+  }
+
+  async function movePhoto(profileId: string, photoId: string, direction: -1 | 1) {
+    const records = profiles.find((item) => item.id === profileId)?.photoRecords?.filter((photo) => !photo.removedAt) ?? [];
+    const index = records.findIndex((photo) => photo.id === photoId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= records.length) return;
+    const ids = records.map((photo) => photo.id);
+    [ids[index], ids[target]] = [ids[target], ids[index]];
+    const { response, data } = await adminJsonRequest("/api/admin/profiles", {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: profileId, action: "reorder_photos", photoIds: ids })
+    });
+    if (!response.ok) { setMessage(data.error ?? "Eiliškumo pakeisti nepavyko."); return; }
+    nextLoadMessageRef.current = "Nuotraukų eiliškumas pakeistas.";
+    await loadProfiles();
+  }
+
   async function recordPublicContactConsent(profileId: string) {
     const draft = consentDrafts[profileId] ?? emptyConsentDraft();
     const key = `${profileId}:consent`;
@@ -393,24 +462,6 @@ export default function AdminPage() {
       setStatus("pending");
     }
     setPendingActions((current) => ({ ...current, add: false }));
-  }
-
-  async function previewPublicProfile(profileId: string) {
-    setPendingActions((current) => ({ ...current, [`${profileId}:preview`]: true }));
-    setMessage("Ruošiama viešo profilio peržiūra...");
-
-    const response = await fetch(`/api/admin/profiles?preview=${encodeURIComponent(profileId)}`);
-    const data = await response.json();
-
-    if (!response.ok) {
-      setMessage(data.error ?? "Peržiūros paruošti nepavyko.");
-      setPendingActions((current) => ({ ...current, [`${profileId}:preview`]: false }));
-      return;
-    }
-
-    setPreview({ profileId, specialist: data.specialist });
-    setMessage("Viešo profilio peržiūra paruošta.");
-    setPendingActions((current) => ({ ...current, [`${profileId}:preview`]: false }));
   }
 
   async function addAdminNote(profileId: string) {
@@ -604,7 +655,13 @@ export default function AdminPage() {
         </button>
       </section>
 
-      <div className="admin-toolbar">
+      <nav className="admin-tabs" aria-label="Administravimo skyriai">
+        <button type="button" aria-current={section === "requests" ? "page" : undefined} onClick={() => setSection("requests")}>Užklausos</button>
+        <button type="button" aria-current={section === "specialists" ? "page" : undefined} onClick={() => setSection("specialists")}>Meistrai</button>
+        <button type="button" aria-current={section === "add" ? "page" : undefined} onClick={() => { setSection("add"); setIsAddOpen(true); }}>Pridėti meistrą</button>
+      </nav>
+
+      {section === "specialists" ? <div className="admin-toolbar">
         <label>
           Būsena
           <select value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}>
@@ -618,14 +675,11 @@ export default function AdminPage() {
         <button type="button" onClick={() => loadProfiles()} disabled={isLoading}>
           {isLoading ? "Kraunama..." : "Atnaujinti"}
         </button>
-        <button type="button" onClick={() => setIsAddOpen((current) => !current)}>
-          {isAddOpen ? "Uždaryti pridėjimo formą" : "Pridėti specialistą"}
-        </button>
-      </div>
+      </div> : null}
 
       <p className="admin-message">{message}</p>
 
-      <section className="admin-add-panel">
+      {section === "requests" ? <section className="admin-add-panel">
         <div className="admin-card-header"><div><p className="eyebrow">Namų savininkų užklausos</p><h2>Privačios darbų užklausos</h2><p>Matomos tik prisijungusiam administratoriui.</p></div><button className="admin-secondary" type="button" onClick={loadJobRequests}>Atnaujinti</button></div>
         <div className="admin-grid">{jobRequests.length ? jobRequests.map((item) => <article className="admin-card" key={item.id}>
           <div className="admin-card-header"><div><p className="eyebrow">{item.urgency} / {formatDateTime(item.created_at)}</p><h2>{item.client_name}</h2><p>{item.source_service} · {item.source_city}</p></div></div>
@@ -633,9 +687,9 @@ export default function AdminPage() {
           <p className="admin-description">{item.message}</p>
           {item.enquiry_photos?.length ? <div className="admin-meta">{item.enquiry_photos.map((photo) => photo.preview_url ? <a key={photo.id} href={photo.preview_url} target="_blank" rel="noreferrer">{photo.original_name || "Peržiūrėti nuotrauką"}</a> : <span key={photo.id}>Nuotraukos peržiūra nepasiekiama</span>)}</div> : null}
         </article>) : <p>Naujų darbų užklausų nėra.</p>}</div>
-      </section>
+      </section> : null}
 
-      {isAddOpen ? (
+      {section === "add" && isAddOpen ? (
         <section className="admin-add-panel">
           <div className="admin-card-header">
             <div>
@@ -784,7 +838,7 @@ export default function AdminPage() {
         </section>
       ) : null}
 
-      <section className="admin-grid">
+      {section === "specialists" ? <section className="admin-grid admin-profile-list">
         {profiles.map((profile) => {
           const draft = drafts[profile.id] ?? profileToDraft(profile);
           const eligibility = publicationEligibility(profile);
@@ -799,24 +853,29 @@ export default function AdminPage() {
                   <h2>{profile.name}</h2>
                   <p>{profile.trade} / {formatSubcategories(profile)}</p>
                 </div>
-                <div className="admin-actions">
-                  <button type="button" onClick={() => runAction(profile.id, "approve")} disabled={!canApprove || pendingActions[`${profile.id}:approve`]}>
-                    Tvirtinti
-                  </button>
-                  <button className="admin-danger" type="button" onClick={() => runAction(profile.id, "reject")} disabled={profile.status === "rejected" || pendingActions[`${profile.id}:reject`]}>
-                    Atmesti
-                  </button>
-                  <button className="admin-danger" type="button" onClick={() => runAction(profile.id, "suspend")} disabled={profile.status === "suspended" || pendingActions[`${profile.id}:suspend`]}>
-                    Sustabdyti
-                  </button>
-                  <button type="button" onClick={() => runAction(profile.id, "return_pending")} disabled={profile.status === "pending" || pendingActions[`${profile.id}:return_pending`]}>
-                    Grąžinti patikrai
-                  </button>
-                  <button type="button" className="admin-secondary" onClick={() => previewPublicProfile(profile.id)} disabled={pendingActions[`${profile.id}:preview`]}>
-                    Vieša peržiūra
-                  </button>
-                </div>
+                <button className="admin-secondary" type="button" onClick={() => setOpenProfileId((current) => current === profile.id ? null : profile.id)}>
+                  {openProfileId === profile.id ? "Uždaryti" : "Peržiūrėti ir redaguoti"}
+                </button>
+                {openProfileId === profile.id ? <div className="admin-actions admin-context-actions">
+                  {profile.status === "pending" && canApprove ? <button type="button" onClick={() => runAction(profile.id, "approve")} disabled={pendingActions[`${profile.id}:approve`]}>Tvirtinti</button> : null}
+                  <button type="button" className="admin-secondary" onClick={() => saveProfile(profile.id)} disabled={pendingActions[`${profile.id}:save`]}>Išsaugoti</button>
+                  {profile.status === "approved" ? <button type="button" onClick={() => runAction(profile.id, "return_pending")}>Paslėpti ir grąžinti patikrai</button> : null}
+                  {profile.status === "rejected" || profile.status === "suspended" ? <button type="button" onClick={() => runAction(profile.id, "return_pending")}>Grąžinti patikrai</button> : null}
+                  {profile.status === "pending" || profile.status === "approved" ? <details className="admin-overflow">
+                    <summary aria-label="Daugiau veiksmų">⋮</summary>
+                    <button className="admin-danger" type="button" onClick={() => runAction(profile.id, "reject")} disabled={pendingActions[`${profile.id}:reject`]}>Atmesti</button>
+                  </details> : null}
+                </div> : null}
               </div>
+
+              {openProfileId !== profile.id ? <dl className="admin-card-compact">
+                <div><dt>Kategorija</dt><dd>{profile.trade || "-"}</dd></div>
+                <div><dt>Miestas / zona</dt><dd>{profile.town || profile.operatingCities.join(", ") || "-"}</dd></div>
+                <div><dt>Būsena</dt><dd>{formatApprovalStatus(profile.status)}</dd></div>
+                <div><dt>Nuotraukos</dt><dd>{profile.photoRecords?.filter((photo) => !photo.removedAt).length ?? 0}</dd></div>
+              </dl> : null}
+
+              {openProfileId === profile.id ? <>
 
               <dl className="admin-summary">
                 <div><dt>Vardas</dt><dd>{profile.name}</dd></div>
@@ -833,39 +892,23 @@ export default function AdminPage() {
 
               <p className="admin-description">{profile.description || "Aprašymo dar nėra."}</p>
 
-              <section className="admin-eligibility" aria-label="Publication eligibility">
+              {!canApprove && profile.status === "pending" ? <section className="admin-eligibility" aria-label="Ko trūksta patvirtinimui">
                 <div>
-                  <strong>Publikavimo parengtis</strong>
-                  <span>{eligibility.every((item) => item.ok) ? "Profilis turi pagrindinius publikavimo duomenis." : "Pries publikavima perziurekite pazymetus punktus."}</span>
+                  <strong>Profilio dar negalima patvirtinti</strong>
+                  <span>Atverkite pažymėtą skiltį ir papildykite trūkstamus duomenis.</span>
                 </div>
                 <ul>
-                  {eligibility.map((item) => (
+                  {eligibility.filter((item) => !item.ok && !item.isState).map((item) => (
                     <li key={item.label} data-ok={item.ok ? "true" : "false"}>
                       <span aria-hidden="true">{item.ok ? "OK" : "!"}</span>
-                      {item.label}
+                      <a href={eligibilitySectionHref(item.label)}>{item.label}</a>
                     </li>
                   ))}
                 </ul>
-              </section>
+              </section> : null}
 
-              {preview?.profileId === profile.id ? (
-                <section className="admin-preview" aria-label="Viešo profilio peržiūra">
-                  <div>
-                    <strong>Vieša peržiūra</strong>
-                    <span>Naudojamas viešas duomenų formatas, be tikslaus adreso, vidinių pastabų ar sutikimų žurnalų.</span>
-                  </div>
-                  <dl className="admin-summary">
-                    <div><dt>Vardas</dt><dd>{preview.specialist.name}</dd></div>
-                    <div><dt>Kontaktas</dt><dd>{preview.specialist.phone}</dd></div>
-                    <div><dt>Vieta</dt><dd>{preview.specialist.approximateLocation}</dd></div>
-                    <div><dt>Paslaugos</dt><dd>{formatSubcategories(preview.specialist, "-")}</dd></div>
-                    <div><dt>Nuotraukos</dt><dd>{preview.specialist.photoUrls?.length ?? 0}</dd></div>
-                    <div><dt>Koordinatės</dt><dd>Apytikslės</dd></div>
-                  </dl>
-                </section>
-              ) : null}
-
-              <section className="admin-consent-panel">
+              <details className="admin-consent-panel admin-edit-section" id="admin-consents">
+                <summary>Sutikimai</summary>
                 <p className="field-note">
                   Record this only after the specialist explicitly agreed that selected contact details may be displayed publicly.
                 </p>
@@ -909,9 +952,10 @@ export default function AdminPage() {
                     Įrašyti viešų kontaktų sutikimą
                   </button>
                 </div>
-              </section>
+              </details>
 
-              <section className="admin-history" aria-label="Vidinės pastabos ir auditas">
+              <details className="admin-history admin-edit-section" aria-label="Vidinės pastabos ir auditas">
+                <summary>Vidinės pastabos ir istorija</summary>
                 <div className="admin-card-header">
                   <div>
                     <strong>Vidinės pastabos ir auditas</strong>
@@ -944,9 +988,11 @@ export default function AdminPage() {
                 ) : (
                   <p className="field-note">Audito veiksmų dar nėra.</p>
                 )}
-              </section>
+              </details>
 
-              <form className="admin-edit" onSubmit={(event) => {
+              <details className="admin-edit-section">
+                <summary>Pagrindinė informacija, paslaugos ir darbo zona</summary>
+              <form className="admin-edit" id="admin-main" onSubmit={(event) => {
                 event.preventDefault();
                 saveProfile(profile.id);
               }}>
@@ -1045,8 +1091,19 @@ export default function AdminPage() {
                   Aprašymas
                   <textarea value={draft.description} onChange={(event) => updateDraft(profile.id, "description", event.target.value)} rows={4} />
                 </label>
-                <fieldset className="admin-wide">
-                  <legend>Nuotraukų URL</legend>
+                <details className="admin-wide admin-edit-section" id="admin-photos">
+                  <summary>Nuotraukos</summary>
+                <fieldset>
+                  <legend>Nuotraukos</legend>
+                  <label className="admin-upload-button">
+                    Pridėti nuotraukas
+                    <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => uploadPhotos(profile.id, event)} />
+                  </label>
+                  <label className="admin-upload-button admin-secondary">
+                    Fotografuoti
+                    <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => uploadPhotos(profile.id, event)} />
+                  </label>
+                  {uploadProgress[profile.id] !== undefined ? <progress max="100" value={uploadProgress[profile.id]}>{uploadProgress[profile.id]}%</progress> : null}
                   <p className="field-note">JPG, PNG arba WebP, iki 8 nuotraukų, iki 5 MB kiekviena. Naudokite viešus URL.</p>
                   <p className="field-note">
                     {approvedPhotos.length ? `Pagrindinė vieša nuotrauka: ${approvedPhotos[0].label || approvedPhotos[0].url}` : "Patvirtintų viešų nuotraukų dar nėra."}
@@ -1055,21 +1112,24 @@ export default function AdminPage() {
                     <div className="admin-photo-moderation">
                       {profile.photoRecords.map((photo) => (
                         <div className="admin-photo-row" key={photo.id}>
-                          <span>{photo.label || photo.url}</span>
+                          <img src={photo.url} alt={photo.label || "Profilio nuotrauka"} />
                           <span>{formatPhotoStatus(photo)}{approvedPhotos[0]?.id === photo.id ? " / pagrindinė" : ""}</span>
+                          <button type="button" className="admin-secondary" onClick={() => movePhoto(profile.id, photo.id, -1)}>↑</button>
+                          <button type="button" className="admin-secondary" onClick={() => movePhoto(profile.id, photo.id, 1)}>↓</button>
                           <button type="button" className="admin-secondary" onClick={() => moderatePhoto(profile.id, photo.id, "approved")} disabled={(photo.moderationStatus === "approved" && !photo.removedAt) || pendingActions[`${profile.id}:photo:${photo.id}`]}>
                             Patvirtinti nuotrauka
                           </button>
                           <button type="button" className="admin-danger" onClick={() => moderatePhoto(profile.id, photo.id, "rejected")} disabled={photo.moderationStatus === "rejected" || pendingActions[`${profile.id}:photo:${photo.id}`]}>
                             Atmesti nuotrauka
                           </button>
+                          <button type="button" className="admin-danger" onClick={() => removePhoto(profile.id, photo.id)}>Pašalinti</button>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <p className="field-note">Nuotraukų nėra. Profilis gali būti tvarkomas, bet viešai bus rodomas be darbų nuotraukų.</p>
                   )}
-                  {draft.photoUrls.map((photoUrl, index) => (
+                  <details className="admin-advanced"><summary>Advanced: nuotraukų URL</summary>{draft.photoUrls.map((photoUrl, index) => (
                     <div className="form-row" key={`photo-${profile.id}-${index}`}>
                       <label>
                         Nuotraukos URL {index + 1}
@@ -1084,17 +1144,20 @@ export default function AdminPage() {
                         Pašalinti
                       </button>
                     </div>
-                  ))}
+                  ))}</details>
                   <button type="button" className="admin-secondary" onClick={() => addDraftPhotoField(profile.id)} disabled={draft.photoUrls.length >= 8}>
                     Pridėti URL
                   </button>
                 </fieldset>
+                </details>
                 <button type="submit" disabled={pendingActions[`${profile.id}:save`]}>Išsaugoti pakeitimus</button>
               </form>
+              </details>
+              </> : null}
             </article>
           );
         })}
-      </section>
+      </section> : null}
     </main>
   );
 }
@@ -1213,6 +1276,23 @@ function splitList(value: string) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Failo perskaityti nepavyko."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function eligibilitySectionHref(label: string) {
+  const normalized = label.toLowerCase();
+  if (normalized.includes("sutik")) return "#admin-consents";
+  if (normalized.includes("nuotrauk")) return "#admin-photos";
+  if (normalized.includes("miest") || normalized.includes("zon")) return "#admin-services";
+  return "#admin-main";
 }
 
 function profilesLoadedMessage(count: number, mode: string) {
