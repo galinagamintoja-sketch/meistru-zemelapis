@@ -40,6 +40,7 @@ type ConsentDraft = {
   capturedAt: string;
   evidenceReference: string;
 };
+type SelectedPhoto = { id: string; file: File; previewUrl: string };
 type JobRequest = {
   id: string; client_name: string; client_phone?: string | null; client_email?: string | null;
   source_city: string; source_service: string; source_address: string; message: string;
@@ -87,6 +88,8 @@ export default function AdminPage() {
   const [section, setSection] = useState<"requests" | "specialists" | "add">("specialists");
   const [openProfileId, setOpenProfileId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [selectedPhotos, setSelectedPhotos] = useState<Record<string, SelectedPhoto[]>>({});
+  const [addSelectedPhotos, setAddSelectedPhotos] = useState<SelectedPhoto[]>([]);
   const [addSucceeded, setAddSucceeded] = useState(false);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -257,13 +260,14 @@ export default function AdminPage() {
     });
   }
 
-  async function uploadPhotos(profileId: string, event: ChangeEvent<HTMLInputElement>) {
+  function selectPhotos(profileId: string | "add", event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    const profile = profiles.find((item) => item.id === profileId);
+    const profile = profileId === "add" ? undefined : profiles.find((item) => item.id === profileId);
     const currentCount = profile?.photoRecords?.filter((photo) => !photo.removedAt).length ?? 0;
+    const alreadySelected = profileId === "add" ? addSelectedPhotos : selectedPhotos[profileId] ?? [];
     if (!files.length) return;
-    if (currentCount + files.length > 8) {
+    if (currentCount + alreadySelected.length + files.length > 8) {
       setMessage("Galima turėti daugiausia 8 nuotraukas.");
       return;
     }
@@ -272,21 +276,58 @@ export default function AdminPage() {
       setMessage("Rinkitės JPG, PNG arba WebP failus, iki 5 MB kiekvieną.");
       return;
     }
+    const next = files.map((file) => ({ id: crypto.randomUUID(), file, previewUrl: URL.createObjectURL(file) }));
+    if (profileId === "add") setAddSelectedPhotos((current) => [...current, ...next]);
+    else setSelectedPhotos((current) => ({ ...current, [profileId]: [...(current[profileId] ?? []), ...next] }));
+    setMessage(`${next.length} nuotraukos paruoštos. Patvirtinkite įkėlimą.`);
+  }
+
+  function removeSelectedPhoto(profileId: string | "add", photoId: string) {
+    const without = (items: SelectedPhoto[]) => {
+      const removed = items.find((item) => item.id === photoId);
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      return items.filter((item) => item.id !== photoId);
+    };
+    if (profileId === "add") setAddSelectedPhotos(without);
+    else setSelectedPhotos((current) => ({ ...current, [profileId]: without(current[profileId] ?? []) }));
+  }
+
+  async function uploadSelectedPhotos(profileId: string, files: SelectedPhoto[]) {
+    if (!files.length) return;
     const key = `${profileId}:upload`;
     await withPendingAction(key, async () => {
       try {
         for (let index = 0; index < files.length; index += 1) {
-          setUploadProgress((current) => ({ ...current, [profileId]: Math.round((index / files.length) * 100) }));
-          const file = files[index];
-          const dataUrl = await fileToDataUrl(file);
-          const { response, data } = await adminJsonRequest("/api/admin/profiles", {
+          const file = files[index].file;
+          const prepared = await adminJsonRequest("/api/admin/profiles", {
             method: "PATCH",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ id: profileId, action: "upload_photo", photo: { name: file.name, type: file.type, size: file.size, dataUrl } })
+            body: JSON.stringify({ id: profileId, action: "create_photo_upload", photo: { name: file.name, type: file.type, size: file.size } })
           });
-          if (!response.ok) throw new Error(data.error ?? "Nuotraukos įkelti nepavyko.");
+          if (!prepared.response.ok) throw new Error(prepared.data.error ?? "Nuotraukos įkelti nepavyko.");
+          const signedUrl = String(prepared.data.signedUrl ?? "");
+          const storagePath = String(prepared.data.storagePath ?? "");
+          if (!signedUrl || !storagePath) throw new Error("Serveris negrąžino įkėlimo duomenų.");
+          try {
+            await directUpload(signedUrl, file, (percent) => {
+              setUploadProgress((current) => ({ ...current, [profileId]: Math.round(((index + percent / 100) / files.length) * 100) }));
+            });
+            const finalized = await adminJsonRequest("/api/admin/profiles", {
+              method: "PATCH", headers: { "content-type": "application/json" },
+              body: JSON.stringify({ id: profileId, action: "finalize_photo_upload", storagePath, name: file.name })
+            });
+            if (!finalized.response.ok) throw new Error(finalized.data.error ?? "Nuotraukos įrašo išsaugoti nepavyko.");
+          } catch (error) {
+            await adminJsonRequest("/api/admin/profiles", {
+              method: "PATCH", headers: { "content-type": "application/json" },
+              body: JSON.stringify({ id: profileId, action: "abort_photo_upload", storagePath })
+            });
+            throw error;
+          }
         }
         setUploadProgress((current) => ({ ...current, [profileId]: 100 }));
+        files.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+        setSelectedPhotos((current) => ({ ...current, [profileId]: [] }));
         nextLoadMessageRef.current = "Nuotraukos įkeltos privačiai ir laukia patvirtinimo.";
         await loadProfiles();
       } catch (error) {
@@ -453,6 +494,11 @@ export default function AdminPage() {
       return;
     }
 
+    if (addSelectedPhotos.length && data.profile?.id) {
+      await uploadSelectedPhotos(data.profile.id, addSelectedPhotos);
+      addSelectedPhotos.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+      setAddSelectedPhotos([]);
+    }
     setAddSucceeded(true);
     setAddDraft(emptyAddDraft);
     nextLoadMessageRef.current = "Specialistas pridėtas.";
@@ -811,8 +857,13 @@ export default function AdminPage() {
               <textarea value={addDraft.description} onChange={(event) => updateAddDraft("description", event.target.value)} rows={4} />
             </label>
             <fieldset className="admin-wide">
-              <legend>Nuotraukų URL</legend>
-              <p className="field-note">JPG, PNG arba WebP, iki 8 nuotraukų, iki 5 MB kiekviena. Naudokite viešus URL.</p>
+              <legend>Nuotraukos</legend>
+              <label className="admin-upload-button">Pridėti nuotraukas
+                <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => selectPhotos("add", event)} />
+              </label>
+              <SelectedPhotoPreviews photos={addSelectedPhotos} onRemove={(id) => removeSelectedPhoto("add", id)} />
+              <p className="field-note">JPG, PNG arba WebP; iki 8 nuotraukų; iki 5 MB kiekviena. Nuotraukos bus įkeltos tik sukūrus privatų profilį.</p>
+              <details className="admin-advanced"><summary>Išplėstiniai nustatymai: nuotraukų URL</summary>
               {addDraft.photoUrls.map((photoUrl, index) => (
                 <div className="form-row" key={`add-photo-${index}`}>
                   <label>
@@ -832,6 +883,7 @@ export default function AdminPage() {
               <button type="button" className="admin-secondary" onClick={addAddPhotoField} disabled={addDraft.photoUrls.length >= 8}>
                 Pridėti URL
               </button>
+              </details>
             </fieldset>
             <button type="submit" disabled={pendingActions.add}>Pridėti specialistą</button>
           </form>
@@ -844,6 +896,7 @@ export default function AdminPage() {
           const eligibility = publicationEligibility(profile);
           const canApprove = eligibility.filter((item) => !item.isState).every((item) => item.ok) && profile.status !== "approved";
           const approvedPhotos = profile.photoRecords?.filter((photo) => photo.moderationStatus === "approved" && !photo.removedAt) ?? [];
+          const activePhotos = profile.photoRecords?.filter((photo) => !photo.removedAt) ?? [];
 
           return (
             <article className="admin-card" key={profile.id}>
@@ -901,13 +954,13 @@ export default function AdminPage() {
                   {eligibility.filter((item) => !item.ok && !item.isState).map((item) => (
                     <li key={item.label} data-ok={item.ok ? "true" : "false"}>
                       <span aria-hidden="true">{item.ok ? "OK" : "!"}</span>
-                      <a href={eligibilitySectionHref(item.label)}>{item.label}</a>
+                      <a href={eligibilitySectionHref(profile.id, item.label)}>{item.label}</a>
                     </li>
                   ))}
                 </ul>
               </section> : null}
 
-              <details className="admin-consent-panel admin-edit-section" id="admin-consents">
+              <details className="admin-consent-panel admin-edit-section" id={`admin-consents-${profile.id}`}>
                 <summary>Sutikimai</summary>
                 <p className="field-note">
                   Record this only after the specialist explicitly agreed that selected contact details may be displayed publicly.
@@ -992,7 +1045,7 @@ export default function AdminPage() {
 
               <details className="admin-edit-section">
                 <summary>Pagrindinė informacija, paslaugos ir darbo zona</summary>
-              <form className="admin-edit" id="admin-main" onSubmit={(event) => {
+              <form className="admin-edit" id={`admin-main-${profile.id}`} onSubmit={(event) => {
                 event.preventDefault();
                 saveProfile(profile.id);
               }}>
@@ -1091,45 +1144,39 @@ export default function AdminPage() {
                   Aprašymas
                   <textarea value={draft.description} onChange={(event) => updateDraft(profile.id, "description", event.target.value)} rows={4} />
                 </label>
-                <details className="admin-wide admin-edit-section" id="admin-photos">
+                <details className="admin-wide admin-edit-section" id={`admin-photos-${profile.id}`}>
                   <summary>Nuotraukos</summary>
                 <fieldset>
                   <legend>Nuotraukos</legend>
                   <label className="admin-upload-button">
                     Pridėti nuotraukas
-                    <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => uploadPhotos(profile.id, event)} />
+                    <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => selectPhotos(profile.id, event)} />
                   </label>
-                  <label className="admin-upload-button admin-secondary">
-                    Fotografuoti
-                    <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => uploadPhotos(profile.id, event)} />
-                  </label>
+                  <SelectedPhotoPreviews photos={selectedPhotos[profile.id] ?? []} onRemove={(id) => removeSelectedPhoto(profile.id, id)} />
+                  {(selectedPhotos[profile.id]?.length ?? 0) > 0 ? <button type="button" onClick={() => uploadSelectedPhotos(profile.id, selectedPhotos[profile.id] ?? [])} disabled={pendingActions[`${profile.id}:upload`]}>Įkelti pasirinktas nuotraukas</button> : null}
                   {uploadProgress[profile.id] !== undefined ? <progress max="100" value={uploadProgress[profile.id]}>{uploadProgress[profile.id]}%</progress> : null}
-                  <p className="field-note">JPG, PNG arba WebP, iki 8 nuotraukų, iki 5 MB kiekviena. Naudokite viešus URL.</p>
-                  <p className="field-note">
-                    {approvedPhotos.length ? `Pagrindinė vieša nuotrauka: ${approvedPhotos[0].label || approvedPhotos[0].url}` : "Patvirtintų viešų nuotraukų dar nėra."}
-                  </p>
-                  {profile.photoRecords?.length ? (
+                  <p className="field-note">JPG, PNG arba WebP; iki 8 aktyvių nuotraukų; iki 5 MB kiekviena.</p>
+                  {approvedPhotos.length ? <div className="admin-main-photo"><img src={approvedPhotos[0].url} alt="" /><div><strong>Pagrindinė nuotrauka</strong><span>{formatPhotoStatus(approvedPhotos[0])}</span></div></div> : <p className="field-note">Patvirtintų viešų nuotraukų dar nėra.</p>}
+                  {activePhotos.length ? (
                     <div className="admin-photo-moderation">
-                      {profile.photoRecords.map((photo) => (
+                      {activePhotos.map((photo, photoIndex) => (
                         <div className="admin-photo-row" key={photo.id}>
                           <img src={photo.url} alt={photo.label || "Profilio nuotrauka"} />
-                          <span>{formatPhotoStatus(photo)}{approvedPhotos[0]?.id === photo.id ? " / pagrindinė" : ""}</span>
-                          <button type="button" className="admin-secondary" onClick={() => movePhoto(profile.id, photo.id, -1)}>↑</button>
-                          <button type="button" className="admin-secondary" onClick={() => movePhoto(profile.id, photo.id, 1)}>↓</button>
-                          <button type="button" className="admin-secondary" onClick={() => moderatePhoto(profile.id, photo.id, "approved")} disabled={(photo.moderationStatus === "approved" && !photo.removedAt) || pendingActions[`${profile.id}:photo:${photo.id}`]}>
-                            Patvirtinti nuotrauka
-                          </button>
-                          <button type="button" className="admin-danger" onClick={() => moderatePhoto(profile.id, photo.id, "rejected")} disabled={photo.moderationStatus === "rejected" || pendingActions[`${profile.id}:photo:${photo.id}`]}>
-                            Atmesti nuotrauka
-                          </button>
-                          <button type="button" className="admin-danger" onClick={() => removePhoto(profile.id, photo.id)}>Pašalinti</button>
+                          <div className="admin-photo-info"><strong>{photo.label || `Nuotrauka ${photoIndex + 1}`}</strong><span>{formatPhotoStatus(photo)}{approvedPhotos[0]?.id === photo.id ? " · pagrindinė" : ""}</span></div>
+                          <details className="admin-photo-menu"><summary aria-label={`Nuotraukos ${photoIndex + 1} veiksmai`}>⋮</summary><div>
+                            {photo.moderationStatus !== "approved" ? <button type="button" onClick={() => moderatePhoto(profile.id, photo.id, "approved")}>Patvirtinti</button> : null}
+                            {photo.moderationStatus !== "rejected" ? <button type="button" onClick={() => moderatePhoto(profile.id, photo.id, "rejected")}>Atmesti</button> : null}
+                            {photoIndex > 0 ? <button type="button" onClick={() => movePhoto(profile.id, photo.id, -1)}>Perkelti aukštyn</button> : null}
+                            {photoIndex < activePhotos.length - 1 ? <button type="button" onClick={() => movePhoto(profile.id, photo.id, 1)}>Perkelti žemyn</button> : null}
+                            <button type="button" className="admin-danger" onClick={() => removePhoto(profile.id, photo.id)}>Pašalinti</button>
+                          </div></details>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <p className="field-note">Nuotraukų nėra. Profilis gali būti tvarkomas, bet viešai bus rodomas be darbų nuotraukų.</p>
                   )}
-                  <details className="admin-advanced"><summary>Advanced: nuotraukų URL</summary>{draft.photoUrls.map((photoUrl, index) => (
+                  <details className="admin-advanced"><summary>Išplėstiniai nustatymai: nuotraukų URL</summary>{draft.photoUrls.map((photoUrl, index) => (
                     <div className="form-row" key={`photo-${profile.id}-${index}`}>
                       <label>
                         Nuotraukos URL {index + 1}
@@ -1162,8 +1209,21 @@ export default function AdminPage() {
   );
 }
 
+function SelectedPhotoPreviews({ photos, onRemove }: { photos: SelectedPhoto[]; onRemove: (id: string) => void }) {
+  if (!photos.length) return null;
+  return <div className="admin-selected-photos" aria-label="Pasirinktos nuotraukos">
+    {photos.map((photo) => <div key={photo.id}>
+      <img src={photo.previewUrl} alt="" />
+      <span>{photo.file.name}</span>
+      <button type="button" className="admin-danger" onClick={() => onRemove(photo.id)}>Pašalinti pasirinktą</button>
+    </div>)}
+  </div>;
+}
+
 function profileToDraft(profile: Specialist): EditDraft {
   const categorySlugs = profile.categorySlugs?.length ? profile.categorySlugs : profile.categorySlug ? [profile.categorySlug] : [];
+  const managedPreviewUrls = new Set((profile.photoRecords ?? []).map((photo) => photo.url));
+  const manualPhotoUrls = (profile.photoUrls ?? []).filter((url) => !managedPreviewUrls.has(url) && !url.includes("/storage/v1/object/sign/") && !url.includes("token="));
   return {
     name: profile.name,
     companyName: profile.companyName ?? "",
@@ -1172,7 +1232,7 @@ function profileToDraft(profile: Specialist): EditDraft {
     email: profile.email,
     categorySlugs,
     subcategorySlugs: profile.subcategorySlugs ?? [],
-    photoUrls: profile.photoUrls?.length ? profile.photoUrls : [""],
+    photoUrls: manualPhotoUrls.length ? manualPhotoUrls : [""],
     town: profile.town,
     operatingCities: profile.operatingCities.join(", "),
     radius: String(profile.radius),
@@ -1278,21 +1338,25 @@ function splitList(value: string) {
     .filter(Boolean);
 }
 
-function fileToDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Failo perskaityti nepavyko."));
-    reader.readAsDataURL(file);
+function directUpload(signedUrl: string, file: File, onProgress: (percent: number) => void) {
+  return new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("PUT", signedUrl);
+    request.setRequestHeader("content-type", file.type);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onload = () => request.status >= 200 && request.status < 300 ? resolve() : reject(new Error("Tiesioginis įkėlimas nepavyko."));
+    request.onerror = () => reject(new Error("Tiesioginis įkėlimas nepavyko."));
+    request.send(file);
   });
 }
 
-function eligibilitySectionHref(label: string) {
+function eligibilitySectionHref(profileId: string, label: string) {
   const normalized = label.toLowerCase();
-  if (normalized.includes("sutik")) return "#admin-consents";
-  if (normalized.includes("nuotrauk")) return "#admin-photos";
-  if (normalized.includes("miest") || normalized.includes("zon")) return "#admin-services";
-  return "#admin-main";
+  if (normalized.includes("sutik")) return `#admin-consents-${profileId}`;
+  if (normalized.includes("nuotrauk")) return `#admin-photos-${profileId}`;
+  return `#admin-main-${profileId}`;
 }
 
 function profilesLoadedMessage(count: number, mode: string) {
