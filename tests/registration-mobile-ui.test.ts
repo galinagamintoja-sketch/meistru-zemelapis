@@ -18,7 +18,7 @@ describe("registration mobile UI regressions", () => {
 
   it("shows removable local thumbnails before registration is submitted", () => {
     expect(page).toContain('className="registration-selected-photos"');
-    expect(page).toContain("<img src={photo.dataUrl}");
+    expect(page).toContain("src={photo.previewUrl}");
     expect(page).toContain("removePhotoUpload(index)");
   });
 

@@ -12,6 +12,7 @@ import {
 } from "../../../../lib/profile-write-service";
 import { createServerSupabase, hasSupabaseConfig } from "../../../../lib/supabase";
 import { resolveLithuanianCoordinates, resolveRegisteredAddressCoordinates } from "../../../../lib/geo";
+import { createRegistrationPhotoUploadToken } from "../../../../lib/registration-photo-upload-token";
 
 const PROFILE_PHOTOS_BUCKET = "profile-photos";
 let profilePhotosBucketReady = false;
@@ -135,29 +136,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: areaError }, { status: 500 });
   }
 
-  const uploadedPhotos: Array<{ storagePath: string }> = [];
-  for (const [index, photo] of payload.photoUploads.entries()) {
-    const uploaded = await uploadProfilePhoto(profile.id, photo, index, supabase);
-    if ("error" in uploaded) {
-      await cleanupProfile(profile.id, uploadedPhotos.map((item) => item.storagePath), supabase);
-      return NextResponse.json({ error: uploaded.error }, { status: 500 });
-    }
-
-    uploadedPhotos.push(uploaded);
-  }
-
-  const { error: uploadedPhotoError } = uploadedPhotos.length
-    ? await supabase.from("profile_photos").insert(uploadedPhotos.map((photo, index) => ({
-        tradesperson_profile_id: profile.id,
-        storage_path: photo.storagePath,
-        label: null,
-        alt_text: `${payload.name} nuotrauka`,
-        sort_order: index + 1,
-        moderation_status: "pending",
-        removed_from_profile_at: null
-      })))
-    : { error: null };
-  const photoError = uploadedPhotoError?.message ?? await insertPhotoRecords(supabase, profile.id, payload.photoUrls, payload.name);
+  const photoError = await insertPhotoRecords(supabase, profile.id, payload.photoUrls, payload.name);
   if (photoError) {
     await cleanupProfile(profile.id, supabase);
     return NextResponse.json({ error: photoError }, { status: 500 });
@@ -208,7 +187,7 @@ export async function POST(request: Request) {
   const { error: consentError } = await supabase.from("consent_logs").insert(consentRows);
 
   if (consentError) {
-    await cleanupProfile(profile.id, uploadedPhotos.map((item) => item.storagePath), supabase);
+    await cleanupProfile(profile.id, supabase);
     return NextResponse.json({ error: consentError.message }, { status: 500 });
   }
 
@@ -220,8 +199,39 @@ export async function POST(request: Request) {
   });
 
   if (actionError) {
-    await cleanupProfile(profile.id, uploadedPhotos.map((item) => item.storagePath), supabase);
+    await cleanupProfile(profile.id, supabase);
     return NextResponse.json({ error: actionError.message }, { status: 500 });
+  }
+
+  const uploadPlans: Array<{ storagePath: string; signedUrl: string; uploadToken: string }> = [];
+  if (payload.photoUploads.length) {
+    const bucketError = await ensureProfilePhotosBucket(supabase);
+    if (bucketError) {
+      await cleanupProfile(profile.id, supabase);
+      return NextResponse.json({ error: bucketError }, { status: 500 });
+    }
+
+    for (const photo of payload.photoUploads) {
+      const extension = photo.type === "image/png" ? "png" : photo.type === "image/webp" ? "webp" : "jpg";
+      const storagePath = `${profile.id}/${crypto.randomUUID()}.${extension}`;
+      const { data: signed, error: signError } = await supabase.storage.from(PROFILE_PHOTOS_BUCKET).createSignedUploadUrl(storagePath);
+      if (signError || !signed) {
+        await cleanupProfile(profile.id, supabase);
+        return NextResponse.json({ error: signError?.message ?? "Nepavyko paruošti nuotraukų įkėlimo." }, { status: 500 });
+      }
+      uploadPlans.push({
+        storagePath,
+        signedUrl: signed.signedUrl,
+        uploadToken: createRegistrationPhotoUploadToken({
+          profileId: profile.id,
+          storagePath,
+          name: photo.name,
+          type: photo.type,
+          size: photo.size,
+          expiresAt: Date.now() + 15 * 60 * 1000
+        })
+      });
+    }
   }
 
   return NextResponse.json({
@@ -231,7 +241,8 @@ export async function POST(request: Request) {
       id: profile.id,
       approvalStatus: "pending",
       source: "self-registration"
-    }
+    },
+    photoUploads: uploadPlans
   });
 }
 
@@ -250,37 +261,6 @@ async function cleanupProfile(
   await supabase.from("admin_actions").delete().eq("tradesperson_profile_id", profileId);
   await supabase.from("consent_logs").delete().eq("tradesperson_profile_id", profileId);
   await supabase.from("tradesperson_profiles").delete().eq("id", profileId);
-}
-
-async function uploadProfilePhoto(
-  profileId: string,
-  photo: { name: string; type: "image/jpeg" | "image/png" | "image/webp"; dataUrl: string },
-  index: number,
-  supabase: NonNullable<ReturnType<typeof createServerSupabase>>
-): Promise<{ storagePath: string } | { error: string }> {
-  const bucketError = await ensureProfilePhotosBucket(supabase);
-  if (bucketError) {
-    return { error: bucketError };
-  }
-
-  const base64 = photo.dataUrl.split(",")[1];
-  if (!base64) {
-    return { error: "Nuotraukos failas netinkamas." };
-  }
-
-  const extension = photo.type === "image/png" ? "png" : photo.type === "image/webp" ? "webp" : "jpg";
-  const storagePath = `${profileId}/${index + 1}-${crypto.randomUUID()}.${extension}`;
-  const bytes = Uint8Array.from(Buffer.from(base64, "base64"));
-  const { error } = await supabase.storage.from(PROFILE_PHOTOS_BUCKET).upload(storagePath, bytes, {
-    contentType: photo.type,
-    upsert: false
-  });
-
-  if (error) {
-    return { error: `Nuotraukos nepavyko įkelti: ${error.message}` };
-  }
-
-  return { storagePath };
 }
 
 async function ensureProfilePhotosBucket(supabase: NonNullable<ReturnType<typeof createServerSupabase>>) {

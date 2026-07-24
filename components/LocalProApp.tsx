@@ -6,6 +6,13 @@ import SafeProfileImage from "./SafeProfileImage";
 import type { Category, Specialist } from "../lib/types";
 import { formatMasterCount, formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../lib/phone";
+import {
+  countNonEmptyPhotoUrls,
+  mergeRegistrationPhotoSelections,
+  type RegistrationPhotoSelection,
+  type RegistrationPhotoUploadPlan,
+  uploadRegistrationPhotos
+} from "../lib/registration-photos";
 
 type Props = {
   initialSpecialists: Specialist[];
@@ -29,12 +36,7 @@ export type RegistrationDraft = {
   categorySlugs: string[];
   subcategorySlugs: string[];
   photoUrls: string[];
-  photoUploads: Array<{
-    name: string;
-    type: "image/jpeg" | "image/png" | "image/webp";
-    size: number;
-    dataUrl: string;
-  }>;
+  photoUploads: RegistrationPhotoSelection[];
   description: string;
   radiusKm: number;
   travelRange: "10" | "25" | "50" | "100" | "lt";
@@ -319,7 +321,13 @@ export async function submitRegistrationDraft(draft: RegistrationDraft, options:
     ...addressResolution.draft,
     phone: isLithuanianPhone(normalizedPhone) ? normalizedPhone : addressResolution.draft.phone,
     trade: addressResolution.draft.trade || options.selectedCategoryNames?.[0] || addressResolution.draft.categorySlugs[0] || "",
-    photoUrls: addressResolution.draft.photoUrls.map((url) => url.trim()).filter(Boolean)
+    photoUrls: addressResolution.draft.photoUrls.map((url) => url.trim()).filter(Boolean),
+    photoUploads: addressResolution.draft.photoUploads.map(({ name, type, size, lastModified }) => ({
+      name,
+      type,
+      size,
+      lastModified
+    }))
   };
   const fetcher = options.fetcher ?? fetch;
   const response = await fetcher("/api/tradesperson/register", {
@@ -400,6 +408,8 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
   const [submittedProfileId, setSubmittedProfileId] = useState("");
   const [submittedManualAddressReview, setSubmittedManualAddressReview] = useState(false);
+  const [registrationPhotoProgress, setRegistrationPhotoProgress] = useState<Record<string, number>>({});
+  const [registrationPhotoFailures, setRegistrationPhotoFailures] = useState<Record<string, string>>({});
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const profileSectionRef = useRef<HTMLElement | null>(null);
   const registrationFormRef = useRef<HTMLFormElement | null>(null);
@@ -838,13 +848,15 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     setSubmitTone("");
     setSubmittedProfileId("");
     setSubmittedManualAddressReview(false);
+    setRegistrationPhotoProgress({});
+    setRegistrationPhotoFailures({});
     try {
       const addressResolution = await resolveManualAddressBeforeSubmit();
       const registration = await submitRegistrationDraft({ ...addressResolution.draft, phone: normalizedPhone }, {
         selectedCategoryNames,
         googlePlacesApiKeyConfigured: false
       });
-      setFormState(registration.payload);
+      setFormState({ ...addressResolution.draft, phone: normalizedPhone });
 
       if (!registration.response.ok) {
         setSubmitTone("error");
@@ -852,9 +864,47 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
         return;
       }
 
-      setSubmitTone("success");
       setSubmittedProfileId(registration.data.profile?.id ?? "");
       setSubmittedManualAddressReview(addressResolution.usedManualFallback);
+      const uploadPlans = Array.isArray(registration.data.photoUploads)
+        ? registration.data.photoUploads as RegistrationPhotoUploadPlan[]
+        : [];
+      const uploadResult = await uploadRegistrationPhotos(addressResolution.draft.photoUploads, uploadPlans, {
+        directUpload: async (plan, photo, onProgress) => {
+          if (!photo.file) throw new Error("Pasirinktas nuotraukos failas nepasiekiamas.");
+          await directRegistrationPhotoUpload(plan.signedUrl, photo.file, onProgress);
+        },
+        finalize: async (plan) => {
+          const response = await fetch("/api/tradesperson/register/photos", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "finalize", uploadToken: plan.uploadToken })
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error ?? "Nuotraukos įrašo išsaugoti nepavyko.");
+        },
+        abort: async (plan) => {
+          await fetch("/api/tradesperson/register/photos", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action: "abort", uploadToken: plan.uploadToken })
+          });
+        },
+        onProgress: (photoId, percent) => {
+          setRegistrationPhotoProgress((current) => ({ ...current, [photoId]: percent }));
+        }
+      });
+
+      if (!uploadResult.complete) {
+        setRegistrationPhotoFailures(Object.fromEntries(uploadResult.failures.map((failure) => [failure.photo.id, failure.message])));
+        setSubmitTone("error");
+        setSubmitMessage(
+          `Registracija gauta, tačiau ${uploadResult.failures.length} iš ${addressResolution.draft.photoUploads.length} nuotraukų įkelti nepavyko. Profilis lieka privatus ir laukia patikros.`
+        );
+        return;
+      }
+
+      setSubmitTone("success");
       setSubmitMessage(
         addressResolution.usedManualFallback
           ? "Registracija gauta. Profilį patikrinsime per 1-2 darbo dienas, o adresą prireikus peržiūrėsime rankiniu būdu."
@@ -917,6 +967,17 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   function updatePhotoUrl(index: number, value: string) {
     setFormState((current) => {
       const photoUrls = [...current.photoUrls];
+      const wasEmpty = !photoUrls[index]?.trim();
+      const becomesNonEmpty = Boolean(value.trim());
+      if (
+        wasEmpty &&
+        becomesNonEmpty &&
+        current.photoUploads.length + countNonEmptyPhotoUrls(current.photoUrls) >= photoFieldMetadata.maxItems
+      ) {
+        setSubmitTone("error");
+        setSubmitMessage("Iš viso galima pasirinkti daugiausia 8 nuotraukas.");
+        return current;
+      }
       photoUrls[index] = value;
       return { ...current, photoUrls };
     });
@@ -924,7 +985,9 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
 
   function addPhotoField() {
     setFormState((current) => {
-      if (current.photoUrls.length >= photoFieldMetadata.maxItems) {
+      if (current.photoUploads.length + countNonEmptyPhotoUrls(current.photoUrls) >= photoFieldMetadata.maxItems) {
+        setSubmitTone("error");
+        setSubmitMessage("Iš viso galima pasirinkti daugiausia 8 nuotraukas.");
         return current;
       }
 
@@ -940,54 +1003,39 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   }
 
   function removePhotoUpload(index: number) {
-    setFormState((current) => ({
-      ...current,
-      photoUploads: current.photoUploads.filter((_, currentIndex) => currentIndex !== index)
-    }));
+    setFormState((current) => {
+      const removed = current.photoUploads[index];
+      if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl);
+      return {
+        ...current,
+        photoUploads: current.photoUploads.filter((_, currentIndex) => currentIndex !== index)
+      };
+    });
     setSubmitMessage("");
     setSubmitTone("");
   }
 
-  async function updatePhotoUploads(files: FileList | null) {
-    const selectedFiles = Array.from(files ?? []).slice(0, photoFieldMetadata.maxItems);
-    const allowedTypes = new Set(photoFieldMetadata.acceptedTypes);
-    const maxBytes = photoFieldMetadata.maxSizeMb * 1024 * 1024;
-
-    for (const file of selectedFiles) {
-      if (!allowedTypes.has(file.type as (typeof photoFieldMetadata.acceptedTypes)[number])) {
-        setSubmitTone("error");
-        setSubmitMessage("Įkelkite JPG, PNG arba WebP nuotraukas.");
-        return;
+  function updatePhotoUploads(files: FileList | null) {
+    const result = mergeRegistrationPhotoSelections(
+      formState.photoUploads,
+      Array.from(files ?? []),
+      countNonEmptyPhotoUrls(formState.photoUrls),
+      (file) => {
+        const browserFile = file as File;
+        return {
+          id: crypto.randomUUID(),
+          name: browserFile.name,
+          type: browserFile.type as RegistrationPhotoSelection["type"],
+          size: browserFile.size,
+          lastModified: browserFile.lastModified,
+          previewUrl: URL.createObjectURL(browserFile),
+          file: browserFile
+        };
       }
-
-      if (file.size > maxBytes) {
-        setSubmitTone("error");
-        setSubmitMessage(`Viena nuotrauka gali būti iki ${photoFieldMetadata.maxSizeMb} MB.`);
-        return;
-      }
-    }
-
-    const photoUploads = await Promise.all(
-      selectedFiles.map(
-        (file) =>
-          new Promise<RegistrationDraft["photoUploads"][number]>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () =>
-              resolve({
-                name: file.name,
-                type: file.type as RegistrationDraft["photoUploads"][number]["type"],
-                size: file.size,
-                dataUrl: String(reader.result)
-              });
-            reader.onerror = () => reject(new Error("Nepavyko perskaityti nuotraukos."));
-            reader.readAsDataURL(file);
-          })
-      )
     );
-
-    setFormState((current) => ({ ...current, photoUploads }));
-    setSubmitMessage("");
-    setSubmitTone("");
+    setFormState((current) => ({ ...current, photoUploads: result.next }));
+    setSubmitMessage(result.message || (result.acceptedCount ? `${result.acceptedCount} nuotraukos pridėtos.` : ""));
+    setSubmitTone(result.message ? "error" : "");
   }
 
   function getSubcategoryCategorySlug(subcategorySlug: string) {
@@ -1399,24 +1447,42 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   Galite pridėti darbų pavyzdžius dabar arba papildyti profilį vėliau. {photoFieldMetadata.acceptedTypes.join(", ")}; iki {photoFieldMetadata.maxItems} nuotraukų; iki {photoFieldMetadata.maxSizeMb} MB kiekviena.
                 </p>
                 <label>
-                  Įkelti nuotraukas
+                  {formState.photoUploads.length ? "Pridėti daugiau nuotraukų" : "Pridėti nuotraukas"}
                   <input
                     type="file"
                     accept={photoFieldMetadata.acceptedTypes.join(",")}
                     multiple
-                    onChange={(event) => updatePhotoUploads(event.target.files).catch(() => {
-                      setSubmitTone("error");
-                      setSubmitMessage("Nuotraukų įkelti nepavyko.");
-                    })}
+                    onChange={(event) => {
+                      updatePhotoUploads(event.target.files);
+                      event.currentTarget.value = "";
+                    }}
                   />
-                  <span>{formState.photoUploads.length ? `${formState.photoUploads.length} nuotraukos paruoštos įkelti` : "Pasirinkite failus iš telefono arba kompiuterio"}</span>
+                  <span>
+                    {formState.photoUploads.length || countNonEmptyPhotoUrls(formState.photoUrls)
+                      ? `${formState.photoUploads.length + countNonEmptyPhotoUrls(formState.photoUrls)} iš 8 nuotraukų pasirinktos`
+                      : "Pasirinkite failus iš telefono arba kompiuterio"}
+                  </span>
                 </label>
                 {formState.photoUploads.length ? (
                   <div className="registration-selected-photos" aria-label="Pasirinktos nuotraukos">
                     {formState.photoUploads.map((photo, index) => (
                       <div key={`${photo.name}-${photo.size}-${index}`}>
-                        <img src={photo.dataUrl} alt="" />
-                        <span>{photo.name}</span>
+                        <SafeProfileImage
+                          src={photo.previewUrl}
+                          alt={`${photo.name} peržiūra`}
+                          specialistName={formState.name}
+                          trade={formState.trade}
+                          fallbackText="Peržiūra nepasiekiama"
+                        />
+                        <span>
+                          {photo.name}
+                          {registrationPhotoProgress[photo.id] !== undefined ? (
+                            <progress max="100" value={registrationPhotoProgress[photo.id]}>
+                              {registrationPhotoProgress[photo.id]}%
+                            </progress>
+                          ) : null}
+                          {registrationPhotoFailures[photo.id] ? <small className="field-error">{registrationPhotoFailures[photo.id]}</small> : null}
+                        </span>
                         <button type="button" className="secondary-action" onClick={() => removePhotoUpload(index)}>
                           Pašalinti
                         </button>
@@ -1443,7 +1509,12 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                       </button>
                     </div>
                   ))}
-                  <button type="button" className="secondary-action" onClick={addPhotoField} disabled={formState.photoUrls.length >= photoFieldMetadata.maxItems}>
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    onClick={addPhotoField}
+                    disabled={formState.photoUploads.length + countNonEmptyPhotoUrls(formState.photoUrls) >= photoFieldMetadata.maxItems}
+                  >
                     Pridėti URL
                   </button>
                 </details>
@@ -1519,9 +1590,9 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   <span className="tag">Laukia patikros</span>
                 </div>
                 <p>{formState.description || "Trumpas darbų aprašymas bus rodomas čia."}</p>
-                {formState.photoUploads[0]?.dataUrl || formState.photoUrls.find(Boolean) ? (
+                {formState.photoUploads[0]?.previewUrl || formState.photoUrls.find(Boolean) ? (
                   <SafeProfileImage
-                    src={formState.photoUploads[0]?.dataUrl || formState.photoUrls.find(Boolean)}
+                    src={formState.photoUploads[0]?.previewUrl || formState.photoUrls.find(Boolean)}
                     alt={`${formState.name || "Naujo specialisto"} registracijos nuotrauka`}
                     specialistName={formState.name}
                     trade={formState.trade}
@@ -1844,6 +1915,22 @@ function formatPhotoUrl(value: string) {
   } catch {
     return value.length > 32 ? `${value.slice(0, 29)}...` : value;
   }
+}
+
+function directRegistrationPhotoUpload(signedUrl: string, file: File, onProgress: (percent: number) => void) {
+  return new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("PUT", signedUrl);
+    request.setRequestHeader("content-type", file.type);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onload = () => request.status >= 200 && request.status < 300
+      ? resolve()
+      : reject(new Error("Tiesioginis nuotraukos įkėlimas nepavyko."));
+    request.onerror = () => reject(new Error("Tiesioginis nuotraukos įkėlimas nepavyko."));
+    request.send(file);
+  });
 }
 
 function formatRegistrationError(data: RegistrationErrorResponse) {

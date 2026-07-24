@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { isLithuanianPhone } from "./phone";
+import { REGISTRATION_PHOTO_MAX_BYTES, REGISTRATION_PHOTO_MAX_ITEMS, REGISTRATION_PHOTO_TYPES } from "./registration-photos";
 
 export { isLithuanianPhone, normalizeLithuanianPhone } from "./phone";
 
 export const photoFieldMetadata = {
-  maxItems: 8,
-  maxSizeMb: 5,
-  acceptedTypes: ["image/jpeg", "image/png", "image/webp"] as const
+  maxItems: REGISTRATION_PHOTO_MAX_ITEMS,
+  maxSizeMb: REGISTRATION_PHOTO_MAX_BYTES / 1024 / 1024,
+  acceptedTypes: REGISTRATION_PHOTO_TYPES
 };
 
 export const lithuanianPhoneSchema = z
@@ -22,6 +23,13 @@ export const photoUploadSchema = z.object({
   type: z.enum(photoFieldMetadata.acceptedTypes),
   size: z.number().int().min(1).max(photoFieldMetadata.maxSizeMb * 1024 * 1024),
   dataUrl: z.string().startsWith("data:image/").max(8_000_000)
+});
+
+export const registrationPhotoUploadSchema = z.object({
+  name: z.string().trim().min(1).max(180),
+  type: z.enum(photoFieldMetadata.acceptedTypes),
+  size: z.number().int().min(1).max(photoFieldMetadata.maxSizeMb * 1024 * 1024),
+  lastModified: z.number().int().nonnegative()
 });
 
 export const travelRangeSchema = z.enum(["10", "25", "50", "100", "lt"]);
@@ -48,7 +56,7 @@ export const registrationSchema = z.object({
   travelRange: travelRangeSchema,
   operatingCities: z.array(z.string().trim().min(2).max(80)).max(20).optional().default([]),
   photoUrls: z.array(photoUrlSchema).max(photoFieldMetadata.maxItems).optional().default([]),
-  photoUploads: z.array(photoUploadSchema).max(photoFieldMetadata.maxItems).optional().default([]),
+  photoUploads: z.array(registrationPhotoUploadSchema).max(photoFieldMetadata.maxItems).optional().default([]),
   consentAccepted: z.boolean().optional().default(false),
   termsAccepted: z.boolean().optional().default(false),
   privacyAcknowledged: z.boolean().optional().default(false),
@@ -70,6 +78,15 @@ export const registrationSchema = z.object({
         path: [path]
       });
     }
+  }
+
+  const photoCount = payload.photoUploads.length + payload.photoUrls.filter((url) => url.trim()).length;
+  if (photoCount > photoFieldMetadata.maxItems) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Iš viso galima pridėti daugiausia ${photoFieldMetadata.maxItems} nuotraukas.`,
+      path: ["photoUploads"]
+    });
   }
 });
 
