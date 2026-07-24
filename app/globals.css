@@ -192,6 +192,37 @@
   font-weight: 800;
 }
 
+.admin-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 16px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.admin-tabs button { min-height: 44px; border-radius: 9px; }
+.admin-tabs button[aria-current="page"] { background: var(--ink); color: #fff; }
+.admin-card-compact { display: grid; gap: 8px; margin: 14px 0 0; }
+.admin-card-compact div { display: flex; justify-content: space-between; gap: 12px; }
+.admin-card-compact dt { color: var(--muted); }
+.admin-card-compact dd { margin: 0; text-align: right; }
+.admin-upload-button { display: inline-flex !important; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; border-radius: 9px; background: var(--ink); color: #fff; cursor: pointer; }
+.admin-upload-button input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.admin-photo-row img { width: 84px; height: 64px; object-fit: cover; border-radius: 8px; }
+.admin-advanced { grid-column: 1 / -1; padding: 10px 0; }
+.admin-advanced summary { min-height: 44px; cursor: pointer; display: flex; align-items: center; }
+.admin-context-actions { width: 100%; }
+.admin-overflow { position: relative; }
+.admin-overflow summary { display: grid; place-items: center; min-width: 44px; min-height: 44px; font-size: 1.5rem; cursor: pointer; list-style: none; }
+.admin-overflow button { margin-top: 6px; }
+.admin-edit-section { margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 0 12px 12px; }
+.admin-edit-section > summary { display: flex; align-items: center; min-height: 48px; font-weight: 800; cursor: pointer; }
+
 .admin-grid {
   display: grid;
   gap: 14px;
@@ -577,6 +608,16 @@
 }
 
 @media (max-width: 760px) {
+  .admin-shell { width: 100%; overflow-x: clip; padding: 18px 12px 92px; }
+  .admin-tabs { margin-inline: -4px; }
+  .admin-tabs button { padding-inline: 6px; font-size: .9rem; }
+  .admin-profile-list { display: block; }
+  .admin-profile-list .admin-card { margin-bottom: 12px; }
+  .admin-card-header > button { width: 100%; min-height: 44px; }
+  .admin-context-actions { display: grid; grid-template-columns: 1fr; }
+  .admin-context-actions { position: sticky; bottom: 0; z-index: 15; padding: 8px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--soft-shadow); }
+  .admin-photo-row { display: grid; grid-template-columns: 84px 1fr 44px 44px; align-items: center; }
+  .admin-photo-row button { min-width: 44px; min-height: 44px; }
   .admin-toolbar,
   .admin-summary,
   .admin-edit,
