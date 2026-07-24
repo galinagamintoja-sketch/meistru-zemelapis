@@ -1163,12 +1163,12 @@ export default function AdminPage() {
                         <div className="admin-photo-row" key={photo.id}>
                           <img src={photo.url} alt={photo.label || "Profilio nuotrauka"} />
                           <div className="admin-photo-info"><strong>{photo.label || `Nuotrauka ${photoIndex + 1}`}</strong><span>{formatPhotoStatus(photo)}{approvedPhotos[0]?.id === photo.id ? " · pagrindinė" : ""}</span></div>
-                          <details className="admin-photo-menu"><summary aria-label={`Nuotraukos ${photoIndex + 1} veiksmai`}>⋮</summary><div>
-                            {photo.moderationStatus !== "approved" ? <button type="button" onClick={() => moderatePhoto(profile.id, photo.id, "approved")}>Patvirtinti</button> : null}
-                            {photo.moderationStatus !== "rejected" ? <button type="button" onClick={() => moderatePhoto(profile.id, photo.id, "rejected")}>Atmesti</button> : null}
-                            {photoIndex > 0 ? <button type="button" onClick={() => movePhoto(profile.id, photo.id, -1)}>Perkelti aukštyn</button> : null}
-                            {photoIndex < activePhotos.length - 1 ? <button type="button" onClick={() => movePhoto(profile.id, photo.id, 1)}>Perkelti žemyn</button> : null}
-                            <button type="button" className="admin-danger" onClick={() => removePhoto(profile.id, photo.id)}>Pašalinti</button>
+                          <details className="admin-photo-menu"><summary aria-label={`Atverti nuotraukos „${photo.label || `Nuotrauka ${photoIndex + 1}`}“ veiksmus`} aria-haspopup="menu">⋮</summary><div role="menu" aria-label="Nuotraukos veiksmai">
+                            {photo.moderationStatus !== "approved" ? <button type="button" role="menuitem" onClick={() => moderatePhoto(profile.id, photo.id, "approved")}>Patvirtinti</button> : null}
+                            {photo.moderationStatus !== "rejected" ? <button type="button" role="menuitem" onClick={() => moderatePhoto(profile.id, photo.id, "rejected")}>Atmesti</button> : null}
+                            {photoIndex > 0 ? <button type="button" role="menuitem" onClick={() => movePhoto(profile.id, photo.id, -1)}>Perkelti aukštyn</button> : null}
+                            {photoIndex < activePhotos.length - 1 ? <button type="button" role="menuitem" onClick={() => movePhoto(profile.id, photo.id, 1)}>Perkelti žemyn</button> : null}
+                            <button type="button" role="menuitem" className="admin-danger" onClick={() => removePhoto(profile.id, photo.id)}>Pašalinti</button>
                           </div></details>
                         </div>
                       ))}

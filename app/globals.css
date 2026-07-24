@@ -220,9 +220,11 @@
 .admin-selected-photos { display: grid; gap: 8px; margin-block: 10px; }
 .admin-selected-photos > div { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-width: 0; }
 .admin-photo-menu { position: relative; justify-self: end; }
-.admin-photo-menu summary { display: grid; place-items: center; width: 44px; height: 44px; font-size: 1.5rem; list-style: none; cursor: pointer; }
+.admin-photo-menu summary { display: grid; place-items: center; width: 44px; height: 44px; overflow: hidden; color: var(--ink); font-size: 1.5rem; line-height: 1; list-style: none; cursor: pointer; }
+.admin-photo-menu summary::marker,
+.admin-photo-menu summary::-webkit-details-marker { display: none; content: ""; }
 .admin-photo-menu > div { position: absolute; z-index: 25; right: 0; display: grid; gap: 4px; width: min(220px, calc(100vw - 64px)); padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: white; box-shadow: var(--soft-shadow); }
-.admin-photo-menu button { min-height: 44px; white-space: normal; }
+.admin-photo-menu button { width: 100%; min-height: 44px; padding: 8px 12px; color: white; line-height: 1.25; text-align: center; white-space: normal; }
 .admin-advanced { grid-column: 1 / -1; padding: 10px 0; }
 .admin-advanced summary { min-height: 44px; cursor: pointer; display: flex; align-items: center; }
 .admin-context-actions { width: 100%; }
