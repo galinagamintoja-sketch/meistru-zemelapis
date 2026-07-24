@@ -644,8 +644,8 @@ async function validateProfileForPublication(supabase: NonNullable<ReturnType<ty
   }
 
   const serviceTagCount = (profile.profile_services ?? []).filter((service: { service_subcategory_id: string | null }) => service.service_subcategory_id).length;
-  if (serviceTagCount < 3) {
-    errors.push("Reikia bent 3 konkreciu paslaugu zymu.");
+  if (serviceTagCount < 2) {
+    errors.push("Reikia bent 2 konkreciu paslaugu zymu.");
   }
 
   if (cleanText(profile.description).length < 80) {

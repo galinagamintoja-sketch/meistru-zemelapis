@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, MouseEvent, useEffect, useRef, useState } from "react";
 import type { Category, Specialist } from "../../lib/types";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../../lib/phone";
 
@@ -50,9 +50,9 @@ type JobRequest = {
 
 const statuses: Array<{ value: StatusFilter; label: string }> = [
   { value: "pending", label: "Laukiantys" },
-  { value: "approved", label: "Patvirtinti" },
-  { value: "rejected", label: "Atmesti" },
-  { value: "suspended", label: "Sustabdyti" },
+  { value: "approved", label: "Patvirtinti profiliai" },
+  { value: "rejected", label: "Atmesti profiliai" },
+  { value: "suspended", label: "Sustabdyti profiliai" },
   { value: "all", label: "Visi" }
 ];
 const profileSources = [
@@ -954,16 +954,21 @@ export default function AdminPage() {
                   {eligibility.filter((item) => !item.ok && !item.isState).map((item) => (
                     <li key={item.label} data-ok={item.ok ? "true" : "false"}>
                       <span aria-hidden="true">{item.ok ? "OK" : "!"}</span>
-                      <a href={eligibilitySectionHref(profile.id, item.label)}>{item.label}</a>
+                      <a
+                        href={eligibilitySectionHref(profile.id, item.label)}
+                        onClick={(event) => openAdminSection(event, eligibilitySectionHref(profile.id, item.label))}
+                      >
+                        {item.label}
+                      </a>
                     </li>
                   ))}
                 </ul>
               </section> : null}
 
-              <details className="admin-consent-panel admin-edit-section" id={`admin-consents-${profile.id}`}>
+              <details className="admin-consent-panel admin-edit-section" id={`admin-consents-${profile.id}`} name={`admin-profile-${profile.id}`}>
                 <summary>Sutikimai</summary>
                 <p className="field-note">
-                  Record this only after the specialist explicitly agreed that selected contact details may be displayed publicly.
+                  Įrašykite tik tada, kai specialistas aiškiai sutiko, kad pasirinkti kontaktai būtų rodomi viešai.
                 </p>
                 <div className="admin-edit">
                   <label>
@@ -1007,7 +1012,7 @@ export default function AdminPage() {
                 </div>
               </details>
 
-              <details className="admin-history admin-edit-section" aria-label="Vidinės pastabos ir auditas">
+              <details className="admin-history admin-edit-section" id={`admin-history-${profile.id}`} name={`admin-profile-${profile.id}`} aria-label="Vidinės pastabos ir auditas">
                 <summary>Vidinės pastabos ir istorija</summary>
                 <div className="admin-card-header">
                   <div>
@@ -1043,12 +1048,12 @@ export default function AdminPage() {
                 )}
               </details>
 
-              <details className="admin-edit-section">
-                <summary>Pagrindinė informacija, paslaugos ir darbo zona</summary>
               <form className="admin-edit" id={`admin-main-${profile.id}`} onSubmit={(event) => {
                 event.preventDefault();
                 saveProfile(profile.id);
               }}>
+              <details className="admin-edit-section" id={`admin-main-details-${profile.id}`} name={`admin-profile-${profile.id}`}>
+                <summary>Pagrindinė informacija</summary>
                 <label>
                   Vardas
                   <input value={draft.name} onChange={(event) => updateDraft(profile.id, "name", event.target.value)} />
@@ -1081,6 +1086,9 @@ export default function AdminPage() {
                   El. paštas
                   <input value={draft.email} onChange={(event) => updateDraft(profile.id, "email", event.target.value)} />
                 </label>
+              </details>
+              <details className="admin-edit-section" id={`admin-services-${profile.id}`} name={`admin-profile-${profile.id}`}>
+                <summary>Paslaugos ir darbo zona</summary>
                 <label>
                   Kategorijos
                   <select
@@ -1144,7 +1152,8 @@ export default function AdminPage() {
                   Aprašymas
                   <textarea value={draft.description} onChange={(event) => updateDraft(profile.id, "description", event.target.value)} rows={4} />
                 </label>
-                <details className="admin-wide admin-edit-section" id={`admin-photos-${profile.id}`}>
+              </details>
+                <details className="admin-wide admin-edit-section" id={`admin-photos-${profile.id}`} name={`admin-profile-${profile.id}`}>
                   <summary>Nuotraukos</summary>
                 <fieldset>
                   <legend>Nuotraukos</legend>
@@ -1199,7 +1208,6 @@ export default function AdminPage() {
                 </details>
                 <button type="submit" disabled={pendingActions[`${profile.id}:save`]}>Išsaugoti pakeitimus</button>
               </form>
-              </details>
               </> : null}
             </article>
           );
@@ -1317,13 +1325,13 @@ function publicationEligibility(profile: Specialist) {
   const approvedVisiblePhotos = photoRecords.filter((photo) => photo.moderationStatus === "approved" && !photo.removedAt).length;
   const hasUnmoderatedVisiblePhotos = photoRecords.some((photo) => !photo.removedAt && photo.moderationStatus !== "approved");
   const hasContactDetails = Boolean(profile.phone || profile.email || profile.whatsapp);
-  const hasServices = (profile.subcategorySlugs?.length ?? 0) >= 3 || (profile.subcategoryNames?.length ?? 0) >= 3;
+  const hasServices = (profile.subcategorySlugs?.length ?? 0) >= 2 || (profile.subcategoryNames?.length ?? 0) >= 2;
 
   return [
     { label: "Patvirtinimo būsena: patvirtintas", ok: profile.status === "approved", isState: true },
     { label: "Viešumo būsena: viešas", ok: formatPublicStatus(profile) === "viešas", isState: true },
     { label: "Yra viešų kontaktų sutikimas", ok: Boolean(profile.publicContactConsentAt) },
-    { label: hasServices ? "Yra bent 3 konkrečios paslaugos" : "Trūksta bent 3 konkrečių paslaugų", ok: hasServices },
+    { label: hasServices ? "Yra bent 2 konkrečios paslaugos" : "Trūksta bent 2 konkrečių paslaugų", ok: hasServices },
     { label: "Yra aptarnavimo miestas ir spindulys", ok: profile.operatingCities.length > 0 && profile.radius > 0 },
     { label: "Yra viešas telefono, el. pašto arba WhatsApp kontaktas", ok: hasContactDetails },
     { label: hasPhotoRecords ? "Visos rodomos nuotraukos moderuotos" : "Nuotraukų nėra, viešas profilis naudos tuščią būseną", ok: !hasUnmoderatedVisiblePhotos },
@@ -1356,7 +1364,20 @@ function eligibilitySectionHref(profileId: string, label: string) {
   const normalized = label.toLowerCase();
   if (normalized.includes("sutik")) return `#admin-consents-${profileId}`;
   if (normalized.includes("nuotrauk")) return `#admin-photos-${profileId}`;
-  return `#admin-main-${profileId}`;
+  if (normalized.includes("paslaug") || normalized.includes("kategor") || normalized.includes("miest") || normalized.includes("zon")) {
+    return `#admin-services-${profileId}`;
+  }
+  return `#admin-main-details-${profileId}`;
+}
+
+function openAdminSection(event: MouseEvent<HTMLAnchorElement>, href: string) {
+  const id = href.replace(/^#/, "");
+  const target = document.getElementById(id);
+  if (!(target instanceof HTMLDetailsElement)) return;
+  event.preventDefault();
+  target.open = true;
+  target.scrollIntoView({ block: "start", behavior: "smooth" });
+  window.history.replaceState(null, "", href);
 }
 
 function profilesLoadedMessage(count: number, mode: string) {

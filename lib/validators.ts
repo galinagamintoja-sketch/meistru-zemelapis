@@ -42,7 +42,7 @@ export const registrationSchema = z.object({
   houseNumber: z.string().trim().max(20).optional().default(""),
   trade: z.string().trim().min(2).max(120).optional().default(""),
   categorySlugs: z.array(z.string().trim().min(2).max(80)).max(8).optional().default([]),
-  subcategorySlugs: z.array(z.string().trim().min(2).max(80)).min(3, "Pasirinkite bent 3 konkrečias paslaugas.").max(20).optional().default([]),
+  subcategorySlugs: z.array(z.string().trim().min(2).max(80)).min(2, "Pasirinkite bent 2 konkrečias paslaugas.").max(20).optional().default([]),
   description: z.string().trim().min(80, "Aprašymas turi būti bent 80 simbolių.").max(1200),
   radiusKm: z.coerce.number().min(5).max(150).optional().default(25),
   travelRange: travelRangeSchema,

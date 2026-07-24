@@ -340,7 +340,7 @@ export async function submitRegistrationDraft(draft: RegistrationDraft, options:
 export function validateRegistrationDraftClient(draft: RegistrationDraft): RegistrationClientErrors {
   const errors: RegistrationClientErrors = {};
   if (!isLithuanianPhone(draft.phone)) errors.phone = "Įveskite lietuvišką numerį, pvz. 063601230 arba +37063601230.";
-  if (draft.subcategorySlugs.length < 3) errors.services = "Pasirinkite bent 3 konkrečias paslaugas.";
+  if (draft.subcategorySlugs.length < 2) errors.services = "Pasirinkite bent 2 konkrečias paslaugas.";
   if (draft.description.trim().length < 80) errors.description = "Aprašymas turi būti bent 80 simbolių.";
   if (!draft.termsAccepted || !draft.privacyAcknowledged) errors.termsAccepted = "Sutikite su sąlygomis ir patvirtinkite, kad susipažinote su privatumo politika.";
   if (!draft.publicContactConsent) errors.publicContactConsent = "Patvirtinkite viešų kontaktų rodymo sutikimą.";
@@ -381,7 +381,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
     trade: "",
     categorySlugs: [],
     subcategorySlugs: [],
-    photoUrls: [""],
+    photoUrls: [],
     photoUploads: [],
     description: "",
     radiusKm: 25,
@@ -935,8 +935,17 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
   function removePhotoField(index: number) {
     setFormState((current) => ({
       ...current,
-      photoUrls: current.photoUrls.length > 1 ? current.photoUrls.filter((_, currentIndex) => currentIndex !== index) : [""]
+      photoUrls: current.photoUrls.filter((_, currentIndex) => currentIndex !== index)
     }));
+  }
+
+  function removePhotoUpload(index: number) {
+    setFormState((current) => ({
+      ...current,
+      photoUploads: current.photoUploads.filter((_, currentIndex) => currentIndex !== index)
+    }));
+    setSubmitMessage("");
+    setSubmitTone("");
   }
 
   async function updatePhotoUploads(files: FileList | null) {
@@ -1294,7 +1303,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
             <form ref={registrationFormRef} className="registration-form" aria-label="LocalPro specialisto registracijos forma" onSubmit={submitRegistration} noValidate>
               <div className="form-row">
                 <label>
-                  Vardas arba imones pavadinimas *
+                  Vardas arba įmonės pavadinimas *
                   <input value={formState.name} onChange={(event) => setFormState({ ...formState, name: event.target.value })} type="text" autoComplete="name" />
                 </label>
                 <label>
@@ -1316,7 +1325,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               </div>
               <div className="form-row">
                 <label>
-                  El. pastas *
+                  El. paštas *
                   <input value={formState.email} onChange={(event) => setFormState({ ...formState, email: event.target.value })} type="email" autoComplete="email" />
                 </label>
                 <AddressAutocomplete
@@ -1351,8 +1360,8 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               </fieldset>
               {selectedSubcategories.length ? (
                 <fieldset aria-invalid={Boolean(registrationErrors.services)}>
-                  <legend>Konkrečios paslaugos * ({formState.subcategorySlugs.length}/3)</legend>
-                  <p className="field-note">Pasirinkite bent 3 konkrečias paslaugas. Jei paslaugos sąraše nėra, įrašykite ją aprašyme.</p>
+                  <legend>Konkrečios paslaugos * ({formState.subcategorySlugs.length}/2)</legend>
+                  <p className="field-note">Pasirinkite bent 2 konkrečias paslaugas. Jei paslaugos sąraše nėra, įrašykite ją aprašyme.</p>
                   {selectedSubcategories.map((subcategory) => (
                     <label key={subcategory.id}>
                       <input
@@ -1371,7 +1380,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                 </fieldset>
               ) : null}
               <label>
-                Trumpas aprašymas * ({formState.description.trim().length}/80)
+                Trumpas aprašymas * ({formState.description.trim().length} ženklų; mažiausiai 80)
                 <textarea
                   name="description"
                   value={formState.description}
@@ -1402,26 +1411,42 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   />
                   <span>{formState.photoUploads.length ? `${formState.photoUploads.length} nuotraukos paruoštos įkelti` : "Pasirinkite failus iš telefono arba kompiuterio"}</span>
                 </label>
-                {formState.photoUrls.map((photoUrl, index) => (
-                  <div className="form-row" key={`photo-url-${index}`}>
-                    <label>
-                      Nuotraukos URL {index + 1}
-                      <input
-                        value={photoUrl}
-                        onChange={(event) => updatePhotoUrl(index, event.target.value)}
-                        type="url"
-                        placeholder="https://..."
-                        autoComplete="off"
-                      />
-                    </label>
-                    <button type="button" className="secondary-action" onClick={() => removePhotoField(index)}>
-                      Pašalinti
-                    </button>
+                {formState.photoUploads.length ? (
+                  <div className="registration-selected-photos" aria-label="Pasirinktos nuotraukos">
+                    {formState.photoUploads.map((photo, index) => (
+                      <div key={`${photo.name}-${photo.size}-${index}`}>
+                        <img src={photo.dataUrl} alt="" />
+                        <span>{photo.name}</span>
+                        <button type="button" className="secondary-action" onClick={() => removePhotoUpload(index)}>
+                          Pašalinti
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                <button type="button" className="secondary-action" onClick={addPhotoField} disabled={formState.photoUrls.length >= photoFieldMetadata.maxItems}>
-                  Pridėti URL
-                </button>
+                ) : null}
+                <details className="admin-advanced">
+                  <summary>Išplėstiniai nustatymai: nuotraukų URL</summary>
+                  {formState.photoUrls.map((photoUrl, index) => (
+                    <div className="form-row" key={`photo-url-${index}`}>
+                      <label>
+                        Nuotraukos URL {index + 1}
+                        <input
+                          value={photoUrl}
+                          onChange={(event) => updatePhotoUrl(index, event.target.value)}
+                          type="url"
+                          placeholder="https://..."
+                          autoComplete="off"
+                        />
+                      </label>
+                      <button type="button" className="secondary-action" onClick={() => removePhotoField(index)}>
+                        Pašalinti
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" className="secondary-action" onClick={addPhotoField} disabled={formState.photoUrls.length >= photoFieldMetadata.maxItems}>
+                    Pridėti URL
+                  </button>
+                </details>
               </fieldset>
               <fieldset>
                 <legend>Kokiu atstumu vykstate į darbus? *</legend>
@@ -1539,7 +1564,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
         </section>
         <footer className="site-footer">
           <a href="/privacy">Privatumo politika</a>
-          <a href="/terms">Naudojimosi salygos</a>
+          <a href="/terms">Naudojimosi sąlygos</a>
           <span>Teisinis tekstas yra juodrastis ir turi buti perziuretas specialisto.</span>
         </footer>
       </main>
