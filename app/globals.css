@@ -213,7 +213,16 @@
 .admin-card-compact dd { margin: 0; text-align: right; }
 .admin-upload-button { display: inline-flex !important; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; border-radius: 9px; background: var(--ink); color: #fff; cursor: pointer; }
 .admin-upload-button input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.admin-photo-row img { width: 84px; height: 64px; object-fit: cover; border-radius: 8px; }
+.admin-photo-row img, .admin-main-photo img, .admin-selected-photos img { width: 84px; height: 64px; max-width: 100%; object-fit: cover; border-radius: 8px; }
+.admin-main-photo { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.admin-main-photo div, .admin-photo-info { display: grid; gap: 4px; min-width: 0; }
+.admin-photo-info strong, .admin-selected-photos span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.admin-selected-photos { display: grid; gap: 8px; margin-block: 10px; }
+.admin-selected-photos > div { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-width: 0; }
+.admin-photo-menu { position: relative; justify-self: end; }
+.admin-photo-menu summary { display: grid; place-items: center; width: 44px; height: 44px; font-size: 1.5rem; list-style: none; cursor: pointer; }
+.admin-photo-menu > div { position: absolute; z-index: 25; right: 0; display: grid; gap: 4px; width: min(220px, calc(100vw - 64px)); padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: white; box-shadow: var(--soft-shadow); }
+.admin-photo-menu button { min-height: 44px; white-space: normal; }
 .admin-advanced { grid-column: 1 / -1; padding: 10px 0; }
 .admin-advanced summary { min-height: 44px; cursor: pointer; display: flex; align-items: center; }
 .admin-context-actions { width: 100%; }
@@ -335,6 +344,12 @@
   padding-top: 14px;
   border-top: 1px solid var(--line);
 }
+.admin-edit > *, .admin-card > *, .admin-edit-section, .admin-edit-section fieldset {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.admin-edit-section fieldset { width: 100%; }
 
 .admin-edit label,
 .admin-login label,
@@ -569,8 +584,9 @@
 .match-actions a { color: var(--spruce); font-weight: 900; }
 
 .admin-photo-row {
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: 84px minmax(0, 1fr) 44px;
   align-items: center;
+  min-width: 0;
   padding: 10px 0;
   border-bottom: 1px solid #d9e2dc;
 }
@@ -608,7 +624,7 @@
 }
 
 @media (max-width: 760px) {
-  .admin-shell { width: 100%; overflow-x: clip; padding: 18px 12px 92px; }
+  .admin-shell { width: 100%; max-width: 100%; padding: 18px 12px 92px; box-sizing: border-box; }
   .admin-tabs { margin-inline: -4px; }
   .admin-tabs button { padding-inline: 6px; font-size: .9rem; }
   .admin-profile-list { display: block; }
@@ -616,12 +632,14 @@
   .admin-card-header > button { width: 100%; min-height: 44px; }
   .admin-context-actions { display: grid; grid-template-columns: 1fr; }
   .admin-context-actions { position: sticky; bottom: 0; z-index: 15; padding: 8px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--soft-shadow); }
-  .admin-photo-row { display: grid; grid-template-columns: 84px 1fr 44px 44px; align-items: center; }
+  .admin-photo-row { display: grid; grid-template-columns: 72px minmax(0, 1fr) 44px; align-items: center; }
+  .admin-photo-row img { width: 72px; height: 58px; }
   .admin-photo-row button { min-width: 44px; min-height: 44px; }
+  .admin-selected-photos > div { grid-template-columns: 72px minmax(0, 1fr); }
+  .admin-selected-photos button { grid-column: 1 / -1; }
   .admin-toolbar,
   .admin-summary,
   .admin-edit,
-  .admin-photo-row,
   .admin-audit-list li {
     grid-template-columns: 1fr;
   }
@@ -629,10 +647,6 @@
   .admin-heading,
   .admin-card-header {
     display: grid;
-  }
-
-  .admin-shell {
-    padding: 18px 12px;
   }
 
   .admin-actions {
