@@ -42,7 +42,8 @@ describe("registration validation", () => {
   });
 
   it("requires three services and an 80-character description", () => {
-    expect(registrationSchema.safeParse({ ...validRegistration, subcategorySlugs: ["dazymas", "glaistymas"] }).success).toBe(false);
+    expect(registrationSchema.safeParse({ ...validRegistration, subcategorySlugs: ["dazymas"] }).success).toBe(false);
+    expect(registrationSchema.safeParse({ ...validRegistration, subcategorySlugs: ["dazymas", "glaistymas"] }).success).toBe(true);
     expect(registrationSchema.safeParse({ ...validRegistration, description: "Per trumpas aprašymas" }).success).toBe(false);
   });
 

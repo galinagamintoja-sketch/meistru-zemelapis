@@ -219,6 +219,10 @@
 .admin-photo-info strong, .admin-selected-photos span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
 .admin-selected-photos { display: grid; gap: 8px; margin-block: 10px; }
 .admin-selected-photos > div { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-width: 0; }
+.registration-selected-photos { display: grid; gap: 8px; margin-block: 10px; min-width: 0; }
+.registration-selected-photos > div { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-width: 0; }
+.registration-selected-photos img { width: 84px; height: 64px; max-width: 100%; object-fit: cover; border-radius: 8px; }
+.registration-selected-photos span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
 .admin-photo-menu { position: relative; justify-self: end; }
 .admin-photo-menu summary { display: grid; place-items: center; width: 44px; height: 44px; overflow: hidden; color: var(--ink); font-size: 1.5rem; line-height: 1; list-style: none; cursor: pointer; }
 .admin-photo-menu summary::marker,
@@ -639,6 +643,8 @@
   .admin-photo-row button { min-width: 44px; min-height: 44px; }
   .admin-selected-photos > div { grid-template-columns: 72px minmax(0, 1fr); }
   .admin-selected-photos button { grid-column: 1 / -1; }
+  .registration-selected-photos > div { grid-template-columns: 72px minmax(0, 1fr); }
+  .registration-selected-photos button { grid-column: 1 / -1; }
   .admin-toolbar,
   .admin-summary,
   .admin-edit,
