@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- signed private previews cannot use the image optimizer */
 
 import { useState } from "react";
 import { REGISTRATION_PHOTO_MAX_ITEMS, mergeRegistrationPhotoSelections, uploadRegistrationPhotos, type RegistrationPhotoSelection } from "../lib/registration-photos";

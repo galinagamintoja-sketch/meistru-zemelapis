@@ -4,6 +4,7 @@ test("logged-out mobile visitor is redirected from protected dashboard", async (
   await page.goto("/meistras/profilis");
   await expect(page).toHaveURL(/\/login\?next=%2Fmeistras%2Fprofilis/);
   await expect(page.getByRole("link", { name: "Tęsti su Google" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Prisijungti el. paštu" })).toBeVisible();
   await expect(page.viewportSize()).toEqual({ width: 390, height: 844 });
 });
 
@@ -21,10 +22,9 @@ test("authenticated profile editing, ownership, claim and photo moderation", asy
   await expect(page.getByRole("heading", { name: "Užklausos" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Naujos/ })).toBeVisible();
   await page.getByRole("link", { name: "Profilis" }).first().click();
-  await page.getByLabel("Vardas arba veiklos pavadinimas").fill("E2E laikinas meistras");
+  await page.getByLabel("Vardas ir pavardė").fill("E2E laikinas meistras");
   await page.getByRole("button", { name: "Išsaugoti profilį" }).click();
   await expect(page.getByRole("status")).toContainText("išsaugotas");
   await page.goto("/meistras/nuotraukos");
-  await expect(page.getByText("Reikalingas patvirtinimas")).toBeVisible();
-  await expect(page.getByLabel("Pridėti darbų nuotrauką")).toBeVisible();
+  await expect(page.getByLabel("Pasirinkti nuotraukas")).toBeVisible();
 });

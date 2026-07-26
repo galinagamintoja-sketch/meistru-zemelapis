@@ -116,6 +116,14 @@
 .service-accordions details { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .service-accordions summary { display: flex; justify-content: space-between; padding: 12px; font-weight: 800; cursor: pointer; }
 .service-accordions .portal-checks { padding: 0 12px 12px; }
+.login-divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: .75rem; }
+.login-divider::before, .login-divider::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+.text-button { border: 0; background: transparent; color: var(--spruce); text-decoration: underline; cursor: pointer; }
+.danger-button { padding: 10px 12px; border: 1px solid #a7483f; border-radius: 8px; background: #fff5f3; color: #8f2f29; cursor: pointer; }
+.account-summary { display: grid; gap: 8px; }
+.account-summary div { display: grid; grid-template-columns: minmax(130px, .7fr) 1fr; gap: 10px; }
+.account-summary dt { color: var(--muted); }
+.account-summary dd { margin: 0; font-weight: 700; }
 .unlinked-account { max-width: 720px; display: grid; gap: 15px; }
 .tradesperson-bottom-nav { display: none; }
 

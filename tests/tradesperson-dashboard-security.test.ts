@@ -64,4 +64,27 @@ describe("tradesperson dashboard security", () => {
     expect(detail).toContain("job.tradesperson_profile_id !== profile.id && !evaluation");
     expect(detail).not.toContain("source_address");
   });
+
+  it("supports Supabase email auth without linking by public email", () => {
+    const emailRoute = read("app/api/auth/email/route.ts");
+    expect(emailRoute).toContain("signInWithPassword");
+    expect(emailRoute).toContain("signUp");
+    expect(emailRoute).toContain("resetPasswordForEmail");
+    expect(emailRoute).toContain("updateUser({ password })");
+    expect(emailRoute).not.toContain("tradesperson_profiles");
+    expect(read("app/auth/callback/route.ts")).toContain("exchangeCodeForSession");
+  });
+
+  it("keeps privacy requests server-managed and internal IDs out of account UI", () => {
+    const page = read("app/meistras/paskyra/page.tsx");
+    expect(page).not.toContain("{user.id}");
+    expect(page).not.toContain("{profile.id}");
+    expect(read("supabase/migrations/016_tradesperson_privacy_requests.sql")).toContain("enable row level security");
+    expect(read("app/api/meistras/account-requests/route.ts")).toContain("requireOwnedProfile");
+  });
+
+  it("contains all requested broad service categories", () => {
+    const taxonomy = read("supabase/migrations/015_localpro_service_taxonomy.sql");
+    for (const category of ["Vidaus apdaila", "Santechnika", "Elektra ir apsaugos sistemos", "Šildymas, vėdinimas ir kondicionavimas", "Stogai ir skardinimas", "Fasadai ir šiltinimas", "Statyba ir konstrukcijos", "Langai, durys ir laiptai", "Medžio darbai ir baldai", "Lauko ir sklypo darbai", "Griovimas ir atliekų išvežimas", "Meistras į namus", "Projektavimas ir darbų priežiūra"]) expect(taxonomy).toContain(category);
+  });
 });

@@ -10,5 +10,7 @@ export async function GET(request: Request) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) return NextResponse.redirect(new URL("/login?error=oauth_callback", url.origin));
 
-  return NextResponse.redirect(new URL("/meistras", url.origin));
+  const requested = url.searchParams.get("next") ?? "/meistras";
+  const next = requested.startsWith("/") && !requested.startsWith("//") ? requested : "/meistras";
+  return NextResponse.redirect(new URL(next, url.origin));
 }

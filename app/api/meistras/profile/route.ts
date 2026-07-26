@@ -27,6 +27,9 @@ export async function PATCH(request: Request) {
   const { error } = await supabase.from("tradesperson_profiles").update(values).eq("id", profile.id).eq("user_id", await localUserId(user.id, supabase));
   if (error) return NextResponse.json({ error: "Profilio išsaugoti nepavyko." }, { status: 500 });
   await supabase.from("admin_actions").insert({ tradesperson_profile_id: profile.id, action: "tradesperson_profile_updated", notes: "Public profile fields updated by owner", created_by_role: "tradesperson" });
+  if (profile.phone !== parsed.data.phone || (profile.whatsapp_number ?? "") !== parsed.data.whatsappNumber || profile.email !== parsed.data.publicEmail) {
+    await supabase.from("admin_actions").insert({ tradesperson_profile_id: profile.id, action: "tradesperson_public_contacts_updated", notes: "Public contact fields updated by owner", created_by_role: "tradesperson" });
+  }
   if (Boolean(profile.public_contact_consent_at) !== parsed.data.publicContactConsent) {
     await supabase.from("consent_logs").insert({
       tradesperson_profile_id: profile.id,

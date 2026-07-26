@@ -25,5 +25,11 @@ export async function PUT(request: Request) {
   const { error } = await supabase.from("operating_areas").insert({ tradesperson_profile_id: profile.id, city: parsed.data.baseCity, radius_km: parsed.data.radiusKm });
   if (error) return NextResponse.json({ error: "Darbo zonos išsaugoti nepavyko." }, { status: 500 });
   await supabase.from("admin_actions").insert({ tradesperson_profile_id: profile.id, action: "tradesperson_areas_updated", notes: `Global radius ${parsed.data.radiusKm} km`, created_by_role: "tradesperson" });
+  if (profile.base_city !== parsed.data.baseCity || profile.registered_address !== parsed.data.registeredAddress) {
+    await supabase.from("admin_actions").insert({ tradesperson_profile_id: profile.id, action: "tradesperson_base_location_updated", notes: "Private working base updated", created_by_role: "tradesperson" });
+  }
+  if (profile.radius_km !== parsed.data.radiusKm) {
+    await supabase.from("admin_actions").insert({ tradesperson_profile_id: profile.id, action: "tradesperson_radius_updated", notes: `${parsed.data.radiusKm} km`, created_by_role: "tradesperson" });
+  }
   return NextResponse.json({ ok: true });
 }
