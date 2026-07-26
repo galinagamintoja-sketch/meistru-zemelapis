@@ -105,6 +105,17 @@
 .photo-placeholder { display: grid; place-items: center; background: var(--soft); color: var(--muted); }
 .tradesperson-photo-grid figcaption { display: grid; gap: 7px; padding: 9px; }
 .tradesperson-photo-grid figcaption > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.photo-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.photo-actions button, .selected-service-tags button { padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--spruce); cursor: pointer; }
+.photo-preview-queue { display: grid; gap: 8px; }
+.photo-preview-queue article { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.photo-preview-queue img { width: 64px; height: 52px; object-fit: cover; border-radius: 6px; }
+.services-editor section { display: grid; gap: 12px; }
+.selected-service-tags { display: flex; flex-wrap: wrap; gap: 7px; }
+.service-accordions { display: grid; gap: 8px; }
+.service-accordions details { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.service-accordions summary { display: flex; justify-content: space-between; padding: 12px; font-weight: 800; cursor: pointer; }
+.service-accordions .portal-checks { padding: 0 12px 12px; }
 .unlinked-account { max-width: 720px; display: grid; gap: 15px; }
 .tradesperson-bottom-nav { display: none; }
 
@@ -122,6 +133,8 @@
   .portal-form-row, .portal-checks { grid-template-columns: 1fr; }
   .profile-status-banner { display: grid; }
   .tradesperson-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .photo-preview-queue article { grid-template-columns: 52px minmax(0, 1fr); }
+  .photo-preview-queue .photo-actions { grid-column: 1 / -1; }
   .request-layout { grid-template-columns: 1fr; }
   .request-detail { position: fixed; inset: 0; z-index: 30; overflow-y: auto; border: 0; border-radius: 0; }
   .tradesperson-bottom-nav {

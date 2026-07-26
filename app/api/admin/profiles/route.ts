@@ -391,15 +391,16 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Invalid photo moderation request" }, { status: 400 });
     }
 
-    const photoPatch = {
-      moderation_status: moderationStatus,
-      removed_from_profile_at: moderationStatus === "rejected" ? new Date().toISOString() : null
-    };
-    const { error } = await supabase
-      .from("profile_photos")
-      .update(photoPatch)
-      .eq("id", photoId)
-      .eq("tradesperson_profile_id", id);
+    const canUseReplacementRpc = typeof (supabase as unknown as { rpc?: unknown }).rpc === "function";
+    const { error } = moderationStatus === "approved"
+      ? canUseReplacementRpc
+        ? await supabase.rpc("approve_profile_photo_replacement", { target_photo_id: photoId })
+        : await supabase.from("profile_photos").update({ moderation_status: "approved", removed_from_profile_at: null }).eq("id", photoId).eq("tradesperson_profile_id", id)
+      : await supabase.from("profile_photos").update({
+          moderation_status: moderationStatus,
+          rejection_reason: moderationStatus === "rejected" ? cleanText(body.rejectionReason || body.notes) || "Nuotrauka neatitiko viešinimo reikalavimų." : null,
+          removed_from_profile_at: null
+        }).eq("id", photoId).eq("tradesperson_profile_id", id);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

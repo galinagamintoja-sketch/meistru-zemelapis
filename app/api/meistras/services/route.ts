@@ -13,6 +13,7 @@ export async function PUT(request: Request) {
 
   const { data: allowed } = await supabase.from("service_subcategories").select("id,service_category_id").in("id", parsed.data.subcategoryIds).eq("is_active", true);
   if ((allowed?.length ?? 0) !== parsed.data.subcategoryIds.length) return NextResponse.json({ error: "Pasirinkta neaktyvi paslauga." }, { status: 400 });
+  if (new Set((allowed ?? []).map((item) => item.service_category_id)).size > 3) return NextResponse.json({ error: "Galima pasirinkti daugiausia 3 kategorijas." }, { status: 400 });
   const { error: deleteError } = await supabase.from("profile_services").delete().eq("tradesperson_profile_id", profile.id);
   if (deleteError) return NextResponse.json({ error: "Paslaugų išsaugoti nepavyko." }, { status: 500 });
   if (allowed?.length) {

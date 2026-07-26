@@ -10,17 +10,20 @@ export async function PUT(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Patikrinkite darbo zoną." }, { status: 400 });
   const supabase = createServerSupabase();
   if (!supabase) return NextResponse.json({ error: "Duomenų bazė nepasiekiama." }, { status: 503 });
-  const cities = [...new Set(parsed.data.cities.map((city) => city.trim()))];
   const { error: profileError } = await supabase.from("tradesperson_profiles").update({
     base_city: parsed.data.baseCity,
     radius_km: parsed.data.radiusKm,
-    service_area_label: cities.join(", "),
+    registered_address: parsed.data.registeredAddress,
+    google_place_id: parsed.data.googlePlaceId || null,
+    latitude: parsed.data.latitude,
+    longitude: parsed.data.longitude,
+    service_area_label: parsed.data.radiusKm === 150 ? "Visa Lietuva" : `${parsed.data.baseCity} + ${parsed.data.radiusKm} km`,
     updated_at: new Date().toISOString()
   }).eq("id", profile.id);
   if (profileError) return NextResponse.json({ error: "Darbo zonos išsaugoti nepavyko." }, { status: 500 });
   await supabase.from("operating_areas").delete().eq("tradesperson_profile_id", profile.id);
-  const { error } = await supabase.from("operating_areas").insert(cities.map((city) => ({ tradesperson_profile_id: profile.id, city, radius_km: parsed.data.radiusKm })));
+  const { error } = await supabase.from("operating_areas").insert({ tradesperson_profile_id: profile.id, city: parsed.data.baseCity, radius_km: parsed.data.radiusKm });
   if (error) return NextResponse.json({ error: "Darbo zonos išsaugoti nepavyko." }, { status: 500 });
-  await supabase.from("admin_actions").insert({ tradesperson_profile_id: profile.id, action: "tradesperson_areas_updated", notes: `${cities.length} operating areas`, created_by_role: "tradesperson" });
+  await supabase.from("admin_actions").insert({ tradesperson_profile_id: profile.id, action: "tradesperson_areas_updated", notes: `Global radius ${parsed.data.radiusKm} km`, created_by_role: "tradesperson" });
   return NextResponse.json({ ok: true });
 }

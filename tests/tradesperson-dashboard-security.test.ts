@@ -37,6 +37,8 @@ describe("tradesperson dashboard security", () => {
     expect(tradespersonProfileUpdateSchema.safeParse({ displayName: "A", companyName: "", phone: "1", whatsappNumber: "", publicEmail: "bad", description: "short" }).success).toBe(false);
     expect(tradespersonAreasUpdateSchema.safeParse({ baseCity: "Vilnius", cities: ["Vilnius"], radiusKm: 30 }).success).toBe(true);
     expect(tradespersonAreasUpdateSchema.safeParse({ baseCity: "Vilnius", cities: ["Vilnius"], radiusKm: 999 }).success).toBe(false);
+    expect(tradespersonAreasUpdateSchema.safeParse({ baseCity: "Vilnius", registeredAddress: "Gedimino pr. 1, Vilnius", googlePlaceId: "place", latitude: 54.6872, longitude: 25.2797, radiusKm: 75 }).success).toBe(true);
+    expect(tradespersonAreasUpdateSchema.safeParse({ baseCity: "Vilnius", registeredAddress: "Gedimino pr. 1, Vilnius", latitude: 54.6872, longitude: 25.2797, radiusKm: 25 }).success).toBe(false);
   });
 
   it("requires moderation only for gallery photos", () => {
