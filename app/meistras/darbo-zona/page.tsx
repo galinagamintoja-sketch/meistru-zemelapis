@@ -1,0 +1,2 @@
+import { PortalCard } from "../../../components/tradesperson-shell";
+export default function Page() { return <div className="portal-page"><div className="portal-heading"><h1>Darbo zona</h1><p>Nurodykite miestus ir aptarnavimo atstumą.</p></div><PortalCard title="Aptarnaujama teritorija"><p>Tik miestas ir vieša aptarnavimo zona bus rodoma klientams. Tikslus adresas ir koordinatės išliks privatūs.</p></PortalCard></div>; }

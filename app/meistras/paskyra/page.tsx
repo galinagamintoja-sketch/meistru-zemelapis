@@ -1,0 +1,2 @@
+import { PortalCard } from "../../../components/tradesperson-shell";
+export default function Page() { return <div className="portal-page"><div className="portal-heading"><h1>Paskyra</h1><p>Prisijungimas, privatumas ir sutikimai.</p></div><PortalCard title="Google paskyra"><form action="/auth/logout" method="post"><button className="portal-secondary" type="submit">Atsijungti</button></form></PortalCard></div>; }

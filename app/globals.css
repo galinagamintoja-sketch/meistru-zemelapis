@@ -9,6 +9,71 @@
   line-height: 1.35;
 }
 
+.google-primary-button,
+.portal-primary,
+.portal-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 1px solid #d8e0dc;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+.google-primary-button,
+.portal-primary { background: #163d32; color: #fff; border-color: #163d32; }
+.portal-secondary { background: #fff; color: #163d32; }
+.login-privacy { color: #66756f; font-size: .875rem; line-height: 1.5; }
+.tradesperson-shell { min-height: 100vh; background: #f5f7f6; color: #17352c; }
+.tradesperson-sidebar {
+  position: fixed; inset: 0 auto 0 0; z-index: 10; width: 250px; padding: 22px 16px;
+  display: flex; flex-direction: column; border-right: 1px solid #dfe6e2; background: #fff;
+}
+.tradesperson-sidebar nav { display: grid; gap: 5px; margin-top: 30px; }
+.tradesperson-sidebar nav a { display: flex; gap: 12px; padding: 11px 12px; border-radius: 9px; color: #345048; text-decoration: none; }
+.tradesperson-sidebar nav a:hover { background: #edf5f1; color: #123d31; }
+.tradesperson-account { display: grid; gap: 7px; margin-top: auto; padding: 14px; border-radius: 12px; background: #f4f7f5; }
+.tradesperson-account button { border: 0; padding: 0; background: transparent; color: #755; cursor: pointer; }
+.tradesperson-main { min-height: 100vh; margin-left: 250px; }
+.tradesperson-main > header { height: 64px; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #dfe6e2; background: #fff; }
+.tradesperson-main > main { max-width: 1120px; margin: 0 auto; padding: 32px 28px 60px; }
+.portal-page, .portal-heading, .portal-links { display: grid; gap: 12px; }
+.portal-heading { margin-bottom: 8px; }
+.portal-heading h1, .unlinked-account h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.35rem); }
+.portal-heading p, .portal-card p { margin: 0; color: #65766f; line-height: 1.55; }
+.portal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.portal-card { padding: 22px; border: 1px solid #dde5e1; border-radius: 14px; background: #fff; box-shadow: 0 2px 10px rgb(22 61 50 / 4%); }
+.portal-card h2 { margin: 0 0 14px; font-size: 1.05rem; }
+.status-badge { display: inline-flex; width: fit-content; padding: 5px 9px; border-radius: 999px; font-size: .78rem; font-weight: 800; }
+.status-success { background: #def5e8; color: #17623e; }
+.status-warning { background: #fff0c7; color: #7a5410; }
+.portal-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.portal-links a { color: #176d50; font-weight: 700; }
+.unlinked-account { max-width: 720px; display: grid; gap: 15px; }
+.tradesperson-bottom-nav { display: none; }
+
+@media (max-width: 720px) {
+  .tradesperson-sidebar { display: none; }
+  .tradesperson-main { margin-left: 0; }
+  .tradesperson-main > header { height: 56px; padding: 0 16px; }
+  .tradesperson-main > header span { display: none; }
+  .tradesperson-main > main { padding: 22px 16px 92px; }
+  .portal-grid { grid-template-columns: 1fr; }
+  .portal-card { padding: 18px; }
+  .portal-actions { display: grid; }
+  .tradesperson-bottom-nav {
+    position: fixed; inset: auto 0 0; z-index: 20; display: grid; grid-template-columns: repeat(5, 1fr);
+    min-height: 68px; padding: 7px max(6px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
+    border-top: 1px solid #dce5e0; background: rgb(255 255 255 / 96%); backdrop-filter: blur(12px);
+  }
+  .tradesperson-bottom-nav a { display: grid; justify-items: center; align-content: center; gap: 3px; color: #476158; text-decoration: none; }
+  .tradesperson-bottom-nav small { font-size: .62rem; white-space: nowrap; }
+}
+
 .status-message {
   margin: 8px 0 0;
   color: var(--muted);
