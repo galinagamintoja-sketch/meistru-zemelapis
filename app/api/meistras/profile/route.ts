@@ -1,0 +1,32 @@
+import { NextResponse } from "next/server";
+import { requireOwnedProfile } from "../../../../lib/tradesperson-account";
+import { tradespersonProfileUpdateSchema } from "../../../../lib/tradesperson-profile-schema";
+import { createServerSupabase } from "../../../../lib/supabase";
+
+export async function PATCH(request: Request) {
+  const { user, profile } = await requireOwnedProfile();
+  if (!profile) return NextResponse.json({ error: "Profilis nesusietas." }, { status: 403 });
+  const parsed = tradespersonProfileUpdateSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Patikrinkite įvestus duomenis.", details: parsed.error.flatten() }, { status: 400 });
+
+  const supabase = createServerSupabase();
+  if (!supabase) return NextResponse.json({ error: "Duomenų bazė nepasiekiama." }, { status: 503 });
+  const values = {
+    display_name: parsed.data.displayName,
+    company_name: parsed.data.companyName || null,
+    phone: parsed.data.phone,
+    whatsapp_number: parsed.data.whatsappNumber || null,
+    email: parsed.data.publicEmail,
+    description: parsed.data.description,
+    updated_at: new Date().toISOString()
+  };
+  const { error } = await supabase.from("tradesperson_profiles").update(values).eq("id", profile.id).eq("user_id", await localUserId(user.id, supabase));
+  if (error) return NextResponse.json({ error: "Profilio išsaugoti nepavyko." }, { status: 500 });
+  await supabase.from("admin_actions").insert({ tradesperson_profile_id: profile.id, action: "tradesperson_profile_updated", notes: "Public profile fields updated by owner", created_by_role: "tradesperson" });
+  return NextResponse.json({ ok: true });
+}
+
+async function localUserId(authUserId: string, supabase: NonNullable<ReturnType<typeof createServerSupabase>>) {
+  const { data } = await supabase.from("users").select("id").eq("auth_user_id", authUserId).single();
+  return data?.id ?? "00000000-0000-0000-0000-000000000000";
+}

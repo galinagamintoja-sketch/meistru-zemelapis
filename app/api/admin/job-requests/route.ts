@@ -3,7 +3,7 @@ import { requireAdminSession } from "../../../../lib/auth-session";
 import { createServerSupabase } from "../../../../lib/supabase";
 
 export async function GET(request: Request) {
-  if (!requireAdminSession(request)) return NextResponse.json({ error: "Neautorizuota" }, { status: 401 });
+  if (!await requireAdminSession(request)) return NextResponse.json({ error: "Neautorizuota" }, { status: 401 });
   const supabase = createServerSupabase();
   if (!supabase) return NextResponse.json({ requests: [], mode: "seed" });
 

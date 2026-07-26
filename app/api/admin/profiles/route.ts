@@ -29,7 +29,7 @@ const validSources = new Set(["self-registration", "whatsapp-onboarding", "admin
 const validConsentChannels = new Set(["website", "whatsapp", "telephone", "written_form"]);
 
 export async function GET(request: Request) {
-  if (!requireAdminSession(request)) {
+  if (!await requireAdminSession(request)) {
     return NextResponse.json({ error: "Admin Google login required" }, { status: 401 });
   }
 
@@ -124,7 +124,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const adminSession = requireAdminSession(request);
+  const adminSession = await requireAdminSession(request);
 
   if (!adminSession) {
     return NextResponse.json({ error: "Admin Google login required" }, { status: 401 });
@@ -243,7 +243,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const adminSession = requireAdminSession(request);
+  const adminSession = await requireAdminSession(request);
 
   if (!adminSession) {
     return NextResponse.json({ error: "Admin Google login required" }, { status: 401 });

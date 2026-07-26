@@ -26,3 +26,9 @@ export async function getLinkedTradespersonProfile(authUserId: string) {
     .maybeSingle();
   return data;
 }
+
+export async function requireOwnedProfile() {
+  const user = await requireTradespersonUser();
+  const profile = await getLinkedTradespersonProfile(user.id);
+  return { user, profile };
+}

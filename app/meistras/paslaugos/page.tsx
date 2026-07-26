@@ -1,2 +1,15 @@
 import { PortalCard } from "../../../components/tradesperson-shell";
-export default function Page() { return <div className="portal-page"><div className="portal-heading"><h1>Paslaugos</h1><p>Pasirinkite atliekamus darbus.</p></div><PortalCard title="Mano paslaugos"><p>Paslaugų pasirinkimas bus išsaugomas per savininką tikrinantį serverio maršrutą.</p></PortalCard></div>; }
+import { ServicesForm } from "../../../components/tradesperson-forms";
+import { UnlinkedAccount } from "../../../components/unlinked-account";
+import { createServerSupabase } from "../../../lib/supabase";
+import { requireOwnedProfile } from "../../../lib/tradesperson-account";
+export default async function Page() {
+  const { profile } = await requireOwnedProfile(); if (!profile) return <UnlinkedAccount />;
+  const supabase = createServerSupabase();
+  const [{ data: categories }, { data: current }] = supabase ? await Promise.all([
+    supabase.from("service_categories").select("id,name,service_subcategories(id,name)").eq("is_active", true).eq("service_subcategories.is_active", true).order("sort_order"),
+    supabase.from("profile_services").select("service_subcategory_id").eq("tradesperson_profile_id", profile.id)
+  ]) : [{ data: [] }, { data: [] }];
+  const groups = (categories ?? []).map((category) => ({ name: category.name, items: category.service_subcategories ?? [] }));
+  return <div className="portal-page"><div className="portal-heading"><h1>Paslaugos</h1><p>Pasirinkite atliekamus darbus.</p></div><PortalCard title="Mano paslaugos"><ServicesForm groups={groups} selected={(current ?? []).map((item) => item.service_subcategory_id).filter(Boolean)} /></PortalCard></div>;
+}
