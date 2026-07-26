@@ -17,7 +17,9 @@ test("authenticated profile editing, ownership, claim and photo moderation", asy
   test.skip(!process.env.E2E_STORAGE_STATE, "Requires disposable Supabase test user and claim invitation.");
   await page.context().addCookies(JSON.parse(process.env.E2E_STORAGE_STATE!));
   await page.goto("/meistras");
-  await expect(page.locator(".portal-map")).toBeVisible();
+  await expect(page).toHaveURL(/\/meistras\/uzklausos/);
+  await expect(page.getByRole("heading", { name: "Užklausos" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Naujos/ })).toBeVisible();
   await page.getByRole("link", { name: "Profilis" }).first().click();
   await page.getByLabel("Vardas arba veiklos pavadinimas").fill("E2E laikinas meistras");
   await page.getByRole("button", { name: "Išsaugoti profilį" }).click();

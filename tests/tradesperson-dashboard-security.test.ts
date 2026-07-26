@@ -46,4 +46,20 @@ describe("tradesperson dashboard security", () => {
     expect(read("app/api/meistras/services/route.ts")).not.toContain("moderation_status");
     expect(read("app/api/meistras/areas/route.ts")).not.toContain("moderation_status");
   });
+
+  it("uses only the five approved dashboard sections", () => {
+    const shell = read("components/tradesperson-shell.tsx");
+    for (const label of ["Užklausos", "Mano profilis", "Nuotraukos", "Paslaugos", "Paskyra"]) expect(shell).toContain(label);
+    expect(shell).not.toContain("Apžvalga");
+    expect(shell).not.toContain("Darbo zona");
+    expect(read("app/meistras/page.tsx")).toContain('redirect("/meistras/uzklausos")');
+  });
+
+  it("keeps enquiry status per specialist and gates arbitrary request access", () => {
+    const migration = read("supabase/migrations/013_tradesperson_request_inbox_and_profile_fields.sql");
+    expect(migration).toContain("unique (enquiry_id, tradesperson_profile_id)");
+    const detail = read("app/api/meistras/requests/[id]/route.ts");
+    expect(detail).toContain("job.tradesperson_profile_id !== profile.id && !evaluation");
+    expect(detail).not.toContain("source_address");
+  });
 });

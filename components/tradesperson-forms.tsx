@@ -2,25 +2,28 @@
 
 import { useState } from "react";
 
-type ProfileValues = { displayName: string; companyName: string; phone: string; whatsappNumber: string; publicEmail: string; description: string };
+type ProfileValues = { displayName: string; companyName: string; primaryCategoryId: string; experienceYears: number; phone: string; whatsappNumber: string; publicEmail: string; description: string; languages: string[]; publicContactConsent: boolean };
 
-export function ProfileForm({ initial }: { initial: ProfileValues }) {
+export function ProfileForm({ initial, categories }: { initial: ProfileValues; categories: Array<{ id: string; name: string }> }) {
   const [message, setMessage] = useState("");
   async function submit(formData: FormData) {
     setMessage("Saugoma...");
     const response = await fetch("/api/meistras/profile", {
       method: "PATCH", headers: { "content-type": "application/json" },
-      body: JSON.stringify(Object.fromEntries(formData))
+      body: JSON.stringify({ ...Object.fromEntries(formData), languages: String(formData.get("languages") ?? "").split(",").map((value) => value.trim()).filter(Boolean), publicContactConsent: formData.get("publicContactConsent") === "on" })
     });
     const data = await response.json();
     setMessage(response.ok ? "Profilis išsaugotas." : data.error ?? "Išsaugoti nepavyko.");
   }
   return <form className="portal-form" action={submit}>
     <label>Vardas arba veiklos pavadinimas<input name="displayName" defaultValue={initial.displayName} required /></label>
-    <label>Įmonė<input name="companyName" defaultValue={initial.companyName} /></label>
+    <label>Įmonės arba veiklos pavadinimas<input name="companyName" defaultValue={initial.companyName} /></label>
+    <div className="portal-form-row"><label>Pagrindinė specialybė<select name="primaryCategoryId" defaultValue={initial.primaryCategoryId} required>{categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label><label>Patirties metai<input name="experienceYears" type="number" min="0" max="80" defaultValue={initial.experienceYears} required /></label></div>
     <div className="portal-form-row"><label>Telefonas<input name="phone" defaultValue={initial.phone} required /></label><label>WhatsApp<input name="whatsappNumber" defaultValue={initial.whatsappNumber} /></label></div>
     <label>Viešas kontaktinis el. paštas<input type="email" name="publicEmail" defaultValue={initial.publicEmail} required /><small>Tai nėra „Google“ prisijungimo el. paštas.</small></label>
     <label>Aprašymas<textarea name="description" defaultValue={initial.description} minLength={40} rows={7} required /></label>
+    <label>Kalbos (nebūtina)<input name="languages" defaultValue={initial.languages.join(", ")} placeholder="Lietuvių, anglų, lenkų" /><small>Atskirkite kableliais.</small></label>
+    <label className="portal-consent"><input type="checkbox" name="publicContactConsent" defaultChecked={initial.publicContactConsent} /><span>Sutinku, kad viešame profilyje būtų rodomi mano pasirinkti kontaktiniai duomenys.</span></label>
     <button className="portal-primary" type="submit">Išsaugoti profilį</button><p role="status">{message}</p>
   </form>;
 }

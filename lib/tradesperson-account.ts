@@ -21,7 +21,7 @@ export async function getLinkedTradespersonProfile(authUserId: string) {
 
   const { data } = await supabase
     .from("tradesperson_profiles")
-    .select("id,display_name,company_name,phone,whatsapp_number,email,base_city,radius_km,description,service_area_label,public_status,approval_status")
+    .select("id,display_name,company_name,phone,whatsapp_number,email,base_city,radius_km,description,service_area_label,public_status,approval_status,service_category_id,experience_years,languages,public_contact_consent_at")
     .eq("user_id", localUser.id)
     .maybeSingle();
   return data;

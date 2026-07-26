@@ -14,15 +14,28 @@ export async function PATCH(request: Request) {
   const values = {
     display_name: parsed.data.displayName,
     company_name: parsed.data.companyName || null,
+    service_category_id: parsed.data.primaryCategoryId,
+    experience_years: parsed.data.experienceYears,
     phone: parsed.data.phone,
     whatsapp_number: parsed.data.whatsappNumber || null,
     email: parsed.data.publicEmail,
     description: parsed.data.description,
+    languages: parsed.data.languages,
+    public_contact_consent_at: parsed.data.publicContactConsent ? (profile.public_contact_consent_at ?? new Date().toISOString()) : null,
     updated_at: new Date().toISOString()
   };
   const { error } = await supabase.from("tradesperson_profiles").update(values).eq("id", profile.id).eq("user_id", await localUserId(user.id, supabase));
   if (error) return NextResponse.json({ error: "Profilio išsaugoti nepavyko." }, { status: 500 });
   await supabase.from("admin_actions").insert({ tradesperson_profile_id: profile.id, action: "tradesperson_profile_updated", notes: "Public profile fields updated by owner", created_by_role: "tradesperson" });
+  if (Boolean(profile.public_contact_consent_at) !== parsed.data.publicContactConsent) {
+    await supabase.from("consent_logs").insert({
+      tradesperson_profile_id: profile.id,
+      consent_type: "public_contact",
+      consent_text: parsed.data.publicContactConsent ? "Sutinku viešai rodyti kontaktinius duomenis." : "Atšaukiu sutikimą viešai rodyti kontaktinius duomenis.",
+      captured_channel: "tradesperson-dashboard",
+      captured_at: new Date().toISOString()
+    });
+  }
   return NextResponse.json({ ok: true });
 }
 
