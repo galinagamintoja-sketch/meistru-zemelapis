@@ -44,7 +44,13 @@ export async function POST(request: Request) {
   const replacePhotoId = String(body.replacePhotoId ?? "") || null;
   if (replacePhotoId && !(await ownedApprovedPhoto(supabase, profile.id, replacePhotoId))) { await supabase.storage.from(bucket).remove([claims.storagePath]); return NextResponse.json({ error: "Keičiama nuotrauka nerasta." }, { status: 404 }); }
   const { count } = await supabase.from("profile_photos").select("id", { count: "exact", head: true }).eq("tradesperson_profile_id", profile.id).is("removed_from_profile_at", null);
-  const { error } = await supabase.from("profile_photos").insert({ tradesperson_profile_id: profile.id, storage_path: claims.storagePath, url: null, label: claims.name, moderation_status: "pending", sort_order: count ?? 0, replaces_photo_id: replacePhotoId });
+  const { error } = await supabase.rpc("submit_pending_profile_photo", {
+    target_profile_id: profile.id,
+    target_storage_path: claims.storagePath,
+    target_label: claims.name,
+    target_sort_order: count ?? 0,
+    target_replaces_photo_id: replacePhotoId
+  });
   if (error) { await supabase.storage.from(bucket).remove([claims.storagePath]); return NextResponse.json({ error: "Nuotraukos įrašyti nepavyko." }, { status: 500 }); }
   await supabase.from("admin_actions").insert({ tradesperson_profile_id: profile.id, action: "tradesperson_photo_submitted", notes: replacePhotoId ? `Replacement for ${replacePhotoId}` : "Gallery photo submitted", created_by_role: "tradesperson" });
   return NextResponse.json({ ok: true, moderationStatus: "pending" });

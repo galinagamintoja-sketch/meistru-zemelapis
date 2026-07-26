@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAuthClient } from "../../../lib/supabase-ssr";
 
-function safeOrigin(request: Request) {
-  const configured = process.env.NEXT_PUBLIC_SITE_URL;
-  if (configured) return new URL(configured).origin;
-  return new URL(request.url).origin;
-}
-
 export async function GET(request: Request) {
+  const requestUrl = new URL(request.url);
+  const requested = requestUrl.searchParams.get("next") ?? "/meistras";
+  const next = requested.startsWith("/") && !requested.startsWith("//") ? requested : "/meistras";
   const supabase = await createSupabaseAuthClient();
-  const callback = new URL("/auth/callback", safeOrigin(request));
+  const callback = new URL("/auth/callback", requestUrl.origin);
+  callback.searchParams.set("next", next);
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {

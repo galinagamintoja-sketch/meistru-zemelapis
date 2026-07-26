@@ -43,10 +43,22 @@ describe("tradesperson dashboard security", () => {
 
   it("requires moderation only for gallery photos", () => {
     const photos = read("app/api/meistras/photos/route.ts");
-    expect(photos).toContain('moderation_status: "pending"');
+    expect(photos).toContain('rpc("submit_pending_profile_photo"');
+    expect(read("supabase/migrations/017_dashboard_acceptance_hardening.sql")).toContain("'pending'");
     expect(read("app/api/meistras/profile/route.ts")).not.toContain("moderation_status");
     expect(read("app/api/meistras/services/route.ts")).not.toContain("moderation_status");
     expect(read("app/api/meistras/areas/route.ts")).not.toContain("moderation_status");
+  });
+
+  it("locks down and atomically handles dashboard replacement writes", () => {
+    const migration = read("supabase/migrations/017_dashboard_acceptance_hardening.sql");
+    expect(migration).toContain("revoke all on function approve_profile_photo_replacement(uuid) from public, anon, authenticated");
+    expect(migration).toContain("grant execute on function approve_profile_photo_replacement(uuid) to service_role");
+    expect(migration).toContain("profile_photos_one_pending_replacement");
+    expect(migration).toContain("pg_advisory_xact_lock");
+    expect(migration).toContain("is_primary = replaced.is_primary");
+    expect(read("app/api/meistras/services/route.ts")).toContain('rpc("replace_tradesperson_services"');
+    expect(read("app/api/meistras/areas/route.ts")).toContain('rpc("replace_tradesperson_location"');
   });
 
   it("uses only the five approved dashboard sections", () => {

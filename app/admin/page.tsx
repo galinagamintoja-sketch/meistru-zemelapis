@@ -681,7 +681,7 @@ export default function AdminPage() {
           <p className="eyebrow">LocalPro admin</p>
           <h1>Administratoriaus prisijungimas</h1>
           <p>Prisijunkite su Google paskyra, kuri yra administratorių sąraše.</p>
-          <a className="primary-action" href="/login">Prisijungti su Google</a>
+          <a className="primary-action" href="/login?next=%2Fadmin">Prisijungti su Google</a>
           <p className="admin-message">{message}</p>
         </section>
       </main>

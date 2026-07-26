@@ -1,11 +1,11 @@
 "use client";
 import { useState } from "react";
 
-export function EmailAuthForm({ mode = "login" }: { mode?: "login" | "password" }) {
+export function EmailAuthForm({ mode = "login", next = "/meistras" }: { mode?: "login" | "password"; next?: string }) {
   const [message, setMessage] = useState("");
   async function send(action: string, formData: FormData) {
     setMessage("Prašymas siunčiamas...");
-    const response = await fetch("/api/auth/email", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, email: formData.get("email"), password: formData.get("password") }) });
+    const response = await fetch("/api/auth/email", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, email: formData.get("email"), password: formData.get("password"), next }) });
     const data = await response.json();
     if (response.ok && data.redirectTo) window.location.assign(data.redirectTo);
     else setMessage(response.ok ? data.message : data.error ?? "Veiksmas nepavyko.");
