@@ -27,6 +27,29 @@ describe("tradesperson dashboard security", () => {
     expect(migration).not.toMatch(/\btoken\s+text/);
   });
 
+  it("replaces profile claiming with authenticated one-profile onboarding", () => {
+    const migration = read("supabase/migrations/018_authenticated_self_registration.sql");
+    expect(migration).toContain("tradesperson_profiles_one_per_user");
+    expect(migration).toContain("revoke all on function claim_tradesperson_profile(text) from public, anon, authenticated");
+    const registration = read("app/api/tradesperson/register/route.ts");
+    expect(registration).toContain("auth.auth.getUser()");
+    expect(registration).toContain("user_id: localUser.id");
+    expect(registration).toContain('public_status: "public"');
+    expect(registration).toContain('approval_status: "approved"');
+    expect(registration).toContain('approvalStatus: "approved"');
+    expect(read("components/unlinked-account.tsx")).not.toContain("/meistras/susieti");
+  });
+
+  it("returns new authenticated users to registration after Google callback", () => {
+    const callback = read("app/auth/callback/route.ts");
+    expect(callback).toContain("getLinkedTradespersonProfile(user.id)");
+    expect(callback).toContain('new URL("/?register=1#register", url.origin)');
+    const home = read("components/LocalProApp.tsx");
+    expect(home).toContain("registrationAuthenticated");
+    expect(home).toContain("Tęsti su Google");
+    expect(home).toContain('window.location.assign(registration.data.dashboardUrl ?? "/meistras/uzklausos")');
+  });
+
   it("keeps admin runtime authentication on Supabase Auth", () => {
     const auth = read("lib/auth-session.ts");
     expect(auth).toContain("supabase.auth.getUser()");

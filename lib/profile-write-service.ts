@@ -16,6 +16,7 @@ type ServiceSubcategoryRow = {
 };
 
 type ProfileInsert = {
+  user_id?: string;
   display_name: string;
   phone: string;
   whatsapp_number: string;
@@ -32,8 +33,8 @@ type ProfileInsert = {
   longitude: number | null;
   description: string;
   service_category_id: string;
-  public_status: "private";
-  approval_status: "pending";
+  public_status: "private" | "public";
+  approval_status: "pending" | "approved";
   source: "self-registration";
   consent_at: string;
   terms_accepted_at: string;

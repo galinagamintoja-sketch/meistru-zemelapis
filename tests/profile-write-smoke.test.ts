@@ -11,6 +11,25 @@ function installGeoMock() {
   }));
 }
 
+function installAuthenticatedRegistrationUser() {
+  vi.doMock("../lib/supabase-ssr", () => ({
+    createSupabaseAuthClient: vi.fn(async () => ({
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: {
+            user: {
+              id: "auth-registration-user",
+              email: "login@example.lt",
+              email_confirmed_at: "2026-07-27T07:00:00.000Z"
+            }
+          },
+          error: null
+        }))
+      }
+    }))
+  }));
+}
+
 function installProfileWriteTables(operations: Array<Record<string, unknown>>, extraTables: Record<string, Record<string, unknown>[]> = {}) {
   installSupabaseMock(
     {
@@ -27,6 +46,7 @@ function installProfileWriteTables(operations: Array<Record<string, unknown>>, e
       profile_photos: [],
       consent_logs: [],
       admin_actions: [],
+      users: [],
       ...extraTables
     },
     operations
@@ -40,6 +60,7 @@ describe("profile write regression smoke", () => {
     vi.doUnmock("../lib/supabase");
     vi.doUnmock("../lib/geo");
     installGeoMock();
+    installAuthenticatedRegistrationUser();
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role";
     process.env.AUTH_SESSION_SECRET = "test-secret";
@@ -69,6 +90,20 @@ describe("profile write regression smoke", () => {
     expect(normalResponse.status).toBe(200);
     expect(manualResponse.status).toBe(200);
     expect(operations).toContainEqual(expect.objectContaining({ table: "tradesperson_profiles", type: "insert" }));
+    expect(operations).toContainEqual(expect.objectContaining({
+      table: "users",
+      type: "upsert",
+      values: expect.objectContaining({ auth_user_id: "auth-registration-user", email: "login@example.lt" })
+    }));
+    expect(operations).toContainEqual(expect.objectContaining({
+      table: "tradesperson_profiles",
+      type: "insert",
+      values: expect.objectContaining({
+        user_id: "profile-id",
+        public_status: "public",
+        approval_status: "approved"
+      })
+    }));
     expect(operations).toContainEqual(expect.objectContaining({ table: "operating_areas", type: "insert" }));
     expect(operations).toContainEqual(expect.objectContaining({ table: "consent_logs", type: "insert" }));
   });
