@@ -1575,11 +1575,11 @@ export default function LocalProApp({ initialSpecialists, categories, registrati
                       setRegistrationErrors((current) => ({ ...current, publicContactConsent: undefined }));
                     }}
                   />
-                  Sutinku, kad po profilio patvirtinimo viešai būtų rodomi mano pasirinkti kontaktai.
+                  Sutinku, kad aktyviame profilyje viešai būtų rodomi mano pasirinkti kontaktai.
                 </span>
                 {registrationErrors.publicContactConsent ? <span className="field-error">{registrationErrors.publicContactConsent}</span> : null}
               </label>
-              <button type="submit" disabled={isSubmittingRegistration}>{isSubmittingRegistration ? "Siunčiama..." : "Siųsti registraciją"}</button>
+              <button type="submit" disabled={isSubmittingRegistration}>{isSubmittingRegistration ? "Registruojama..." : "Užbaigti registraciją"}</button>
               {submitMessage ? <p className={`status-message ${submitTone}`}>{submitMessage}</p> : null}
             </form>
             )}
@@ -1638,14 +1638,14 @@ export default function LocalProApp({ initialSpecialists, categories, registrati
           <div className="workflow-grid">
             <div><strong>Registracija</strong><p>Specialistas užpildo formą, pasirenka darbo sritis, miestą ir kontaktus.</p></div>
             <div><strong>Aktyvus profilis</strong><p>Užpildžius privalomus laukus profilis susiejamas su paskyra ir tampa viešas.</p></div>
-            <div><strong>Admin patikra</strong><p>Publikuojame tik po patvirtinimo. Jei trūksta informacijos, profilį galima pataisyti administravime.</p></div>
+            <div><strong>Nuotraukų patikra</strong><p>Profilis tampa aktyvus užbaigus registraciją. Nuotraukas viešai rodome tik po administratoriaus patvirtinimo.</p></div>
             <div><strong>Kontaktas</strong><p>Klientas mato darbo zoną ir pats susisiekia telefonu arba per WhatsApp.</p></div>
           </div>
         </section>
         <footer className="site-footer">
           <a href="/privacy">Privatumo politika</a>
           <a href="/terms">Naudojimosi sąlygos</a>
-          <span>Teisinis tekstas yra juodrastis ir turi buti perziuretas specialisto.</span>
+          <span>Teisinis tekstas yra juodraštis ir turi būti peržiūrėtas teisės specialisto.</span>
         </footer>
       </main>
     </div>

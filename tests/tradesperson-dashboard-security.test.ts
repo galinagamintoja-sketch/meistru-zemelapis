@@ -122,4 +122,11 @@ describe("tradesperson dashboard security", () => {
     const taxonomy = read("supabase/migrations/015_localpro_service_taxonomy.sql");
     for (const category of ["Vidaus apdaila", "Santechnika", "Elektra ir apsaugos sistemos", "Šildymas, vėdinimas ir kondicionavimas", "Stogai ir skardinimas", "Fasadai ir šiltinimas", "Statyba ir konstrukcijos", "Langai, durys ir laiptai", "Medžio darbai ir baldai", "Lauko ir sklypo darbai", "Griovimas ir atliekų išvežimas", "Meistras į namus", "Projektavimas ir darbų priežiūra"]) expect(taxonomy).toContain(category);
   });
+
+  it("keeps legacy category rows but removes them from active public selectors", () => {
+    const migration = read("supabase/migrations/019_deactivate_legacy_service_categories.sql");
+    expect(migration).toContain("set is_active = false");
+    expect(migration.match(/'[^']+'/g)).toHaveLength(13);
+    expect(migration).not.toContain("delete from service_categories");
+  });
 });
