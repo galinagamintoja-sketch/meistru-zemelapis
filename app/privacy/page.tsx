@@ -3,10 +3,10 @@ export default function PrivacyPage() {
     <main className="legal-page">
       <h1>Privatumo politika</h1>
       <p>
-        Sis tekstas yra laikinas juodrastis ir nera galutine teisine konsultacija. Pries viesai naudojant LocalPro, privatumo politika turi perziureti teises specialistas.
+        Šis tekstas yra laikinas juodraštis ir nėra galutinė teisinė konsultacija. Prieš viešai naudojant LocalPro, privatumo politiką turi peržiūrėti teisės specialistas.
       </p>
       <p>
-        Registracijos metu renkame specialisto kontaktus, darbo sriti, pagrindine darbo vieta, darbo zonos informacija ir pateiktas nuotraukas tam, kad administratorius galetu perziureti profili ir, gavus sutikima, ji publikuoti.
+        Registracijos metu renkame specialisto kontaktus, darbo sritis, pagrindinę darbo vietą, darbo zonos informaciją ir pateiktas nuotraukas. Užbaigtas profilis tampa aktyvus, o nuotraukos viešai rodomos tik po administratoriaus patvirtinimo.
       </p>
     </main>
   );
