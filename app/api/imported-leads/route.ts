@@ -3,7 +3,7 @@ import { requireAdminSession } from "../../../lib/auth-session";
 import { createServerSupabase } from "../../../lib/supabase";
 
 export async function GET(request: Request) {
-  if (!requireAdminSession(request)) {
+  if (!await requireAdminSession(request)) {
     return NextResponse.json({ error: "Admin Google login required" }, { status: 401 });
   }
 
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!requireAdminSession(request)) {
+  if (!await requireAdminSession(request)) {
     return NextResponse.json({ error: "Admin Google login required" }, { status: 401 });
   }
 

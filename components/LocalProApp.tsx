@@ -17,6 +17,7 @@ import {
 type Props = {
   initialSpecialists: Specialist[];
   categories: Category[];
+  registrationAuthenticated?: boolean;
 };
 
 export type RegistrationDraft = {
@@ -355,7 +356,7 @@ export function validateRegistrationDraftClient(draft: RegistrationDraft): Regis
   return errors;
 }
 
-export default function LocalProApp({ initialSpecialists, categories }: Props) {
+export default function LocalProApp({ initialSpecialists, categories, registrationAuthenticated = false }: Props) {
   const [trade, setTrade] = useState("all");
   const [city, setCity] = useState("all");
   const [verification, setVerification] = useState("all");
@@ -905,10 +906,11 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
       }
 
       setSubmitTone("success");
+      window.location.assign(registration.data.dashboardUrl ?? "/meistras/uzklausos");
       setSubmitMessage(
         addressResolution.usedManualFallback
-          ? "Registracija gauta. Profilį patikrinsime per 1-2 darbo dienas, o adresą prireikus peržiūrėsime rankiniu būdu."
-          : "Registracija gauta. Profilį patikrinsime per 1-2 darbo dienas."
+          ? "Profilis aktyvus. Adresą prireikus peržiūrėsime rankiniu būdu, o nuotraukos bus rodomos po patvirtinimo."
+          : "Profilis aktyvus. Nuotraukos bus rodomos po administratoriaus patvirtinimo."
       );
     } catch {
       setSubmitTone("error");
@@ -1334,15 +1336,22 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           <div className="section-heading">
             <p className="eyebrow">Specialistams</p>
             <h2>Registruokitės nemokamai ir atsiraskite LocalPro žemėlapyje.</h2>
-            <p>Registracijai paskyros nereikia. Prisijungimą galėsite susikurti vėliau, kad redaguotumėte profilį.</p>
+            <p>Patvirtinkite paskyrą su Google, užpildykite privalomus laukus ir iškart pradėkite naudotis specialisto profiliu.</p>
           </div>
 
           <div className="register-grid">
-            {submitTone === "success" ? (
+            {!registrationAuthenticated ? (
+              <article className="registration-form">
+                <p className="eyebrow">1 žingsnis</p>
+                <h3>Patvirtinkite savo paskyrą</h3>
+                <p>Pirmiausia saugiai prisijunkite su Google. Tada grįšite čia užpildyti registraciją, o naujas profilis bus iškart susietas su jūsų paskyra.</p>
+                <a className="google-primary-button" href="/auth/google?next=%2F%3Fregister%3D1%23register">Tęsti su Google</a>
+              </article>
+            ) : submitTone === "success" ? (
               <article className="registration-form success-panel" aria-live="polite">
                 <p className="eyebrow">Registracija gauta</p>
-                <h3>Profilį patikrinsime per 1-2 darbo dienas.</h3>
-                <p>Patvirtinimą arba klausimus išsiųsime telefonu arba el. paštu. Jei reikės pataisyti informaciją, susisieksime prieš publikuodami profilį žemėlapyje.</p>
+                <h3>Profilis aktyvus.</h3>
+                <p>Profilis iškart matomas viešai. Įkeltos nuotraukos bus rodomos tik po administratoriaus patvirtinimo.</p>
                 {submittedManualAddressReview ? <p>Adresas gautas kaip įrašytas ranka. Prieš publikavimą jį peržiūrėsime ir prireikus patikslinsime.</p> : null}
                 {submittedProfileId ? <p className="field-note">Registracijos numeris: {submittedProfileId}</p> : null}
                 <a className="primary-action" href="/">Grįžti į žemėlapį</a>
@@ -1587,7 +1596,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
                   }) : null}
                   <span className="tag">{formState.town || formState.address || "Pagrindinė darbo vieta"}</span>
                   <span className="tag">{formatTravelRange(formState.radiusKm)}</span>
-                  <span className="tag">Laukia patikros</span>
+                  <span className="tag">Aktyvus užbaigus registraciją</span>
                 </div>
                 <p>{formState.description || "Trumpas darbų aprašymas bus rodomas čia."}</p>
                 {formState.photoUploads[0]?.previewUrl || formState.photoUrls.find(Boolean) ? (
@@ -1613,9 +1622,9 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
               </div>
               <div className="approval-flow" aria-label="Publikavimo eiga">
                 <span>1. Užpildote formą</span>
-                <span>2. Saugome kaip laukiantį</span>
-                <span>3. Admin patikrina profilį</span>
-                <span>4. Rodome žemėlapyje</span>
+                <span>2. Susiejame su paskyra</span>
+                <span>3. Profilis tampa aktyvus</span>
+                <span>4. Admin patvirtina tik nuotraukas</span>
               </div>
             </aside>
           </div>
@@ -1628,7 +1637,7 @@ export default function LocalProApp({ initialSpecialists, categories }: Props) {
           </div>
           <div className="workflow-grid">
             <div><strong>Registracija</strong><p>Specialistas užpildo formą, pasirenka darbo sritis, miestą ir kontaktus.</p></div>
-            <div><strong>Laukia patikros</strong><p>Profilis saugomas kaip laukiantis su sutikimu ir aptarnaujamomis vietomis.</p></div>
+            <div><strong>Aktyvus profilis</strong><p>Užpildžius privalomus laukus profilis susiejamas su paskyra ir tampa viešas.</p></div>
             <div><strong>Admin patikra</strong><p>Publikuojame tik po patvirtinimo. Jei trūksta informacijos, profilį galima pataisyti administravime.</p></div>
             <div><strong>Kontaktas</strong><p>Klientas mato darbo zoną ir pats susisiekia telefonu arba per WhatsApp.</p></div>
           </div>

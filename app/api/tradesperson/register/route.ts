@@ -13,6 +13,7 @@ import {
 import { createServerSupabase, hasSupabaseConfig } from "../../../../lib/supabase";
 import { resolveLithuanianCoordinates, resolveRegisteredAddressCoordinates } from "../../../../lib/geo";
 import { createRegistrationPhotoUploadToken } from "../../../../lib/registration-photo-upload-token";
+import { createSupabaseAuthClient } from "../../../../lib/supabase-ssr";
 
 const PROFILE_PHOTOS_BUCKET = "profile-photos";
 let profilePhotosBucketReady = false;
@@ -28,16 +29,39 @@ export async function POST(request: Request) {
   const supabase = createServerSupabase();
 
   if (!supabase) {
-    return NextResponse.json({
-      ok: true,
-      mode: "seed",
-      message: "Registracija priimta demonstraciniu režimu. Prijungus Supabase, profilis bus saugomas duomenų bazėje.",
-      profile: {
-        id: `pending-${Date.now()}`,
-        approvalStatus: "pending",
-        source: "self-registration"
-      }
-    });
+    return NextResponse.json({ error: "Registration is not configured." }, { status: 503 });
+  }
+
+  const auth = await createSupabaseAuthClient();
+  const { data: { user }, error: authError } = await auth.auth.getUser();
+  if (authError || !user?.email) {
+    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+
+  const { data: existingLocalUser } = await supabase
+    .from("users")
+    .select("id")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  const { data: existingProfile } = existingLocalUser
+    ? await supabase.from("tradesperson_profiles").select("id").eq("user_id", existingLocalUser.id).maybeSingle()
+    : { data: null };
+  if (existingProfile) {
+    return NextResponse.json({ error: "Account already has a specialist profile.", profile: existingProfile }, { status: 409 });
+  }
+
+  const { data: localUser, error: localUserError } = await supabase
+    .from("users")
+    .upsert({
+      auth_user_id: user.id,
+      email: user.email.toLowerCase(),
+      email_verified: Boolean(user.email_confirmed_at),
+      role: "tradesperson"
+    }, { onConflict: "auth_user_id" })
+    .select("id")
+    .single();
+  if (localUserError || !localUser) {
+    return NextResponse.json({ error: localUserError?.message ?? "Account linking failed." }, { status: 500 });
   }
 
   const categorySlugs = uniqueList(payload.categorySlugs);
@@ -90,6 +114,7 @@ export async function POST(request: Request) {
 
   const { data: profile, error } = await insertSelfRegistrationProfile(
     {
+      user_id: localUser.id,
       display_name: payload.name,
       phone: normalizedPhone,
       whatsapp_number: normalizedWhatsapp,
@@ -106,8 +131,8 @@ export async function POST(request: Request) {
       longitude: coordinates?.lng ?? null,
       description: payload.description,
       service_category_id: categoryResult.primaryCategory.id,
-      public_status: "private",
-      approval_status: "pending",
+      public_status: "public",
+      approval_status: "approved",
       source: "self-registration",
       consent_at: now,
       terms_accepted_at: now,
@@ -194,7 +219,7 @@ export async function POST(request: Request) {
   const { error: actionError } = await supabase.from("admin_actions").insert({
     tradesperson_profile_id: profile.id,
     action: "profile_submitted",
-    notes: "New self-registration awaits admin approval.",
+    notes: "Authenticated self-registration activated after required-field validation. Photos remain moderated separately.",
     created_by_role: "system"
   });
 
@@ -239,9 +264,10 @@ export async function POST(request: Request) {
     mode: hasSupabaseConfig() ? "database" : "seed",
     profile: {
       id: profile.id,
-      approvalStatus: "pending",
+      approvalStatus: "approved",
       source: "self-registration"
     },
+    dashboardUrl: "/meistras/uzklausos",
     photoUploads: uploadPlans
   });
 }

@@ -65,7 +65,7 @@ describe("profile API routes", () => {
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   });
 
-  it("creates a pending profile in explicit local seed mode", async () => {
+  it("does not create an unowned profile in explicit local seed mode", async () => {
     const { POST } = await import("../app/api/tradesperson/register/route");
     const response = await POST(
       new Request("http://localhost/api/tradesperson/register", {
@@ -75,8 +75,8 @@ describe("profile API routes", () => {
     );
     const data = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(data.profile.approvalStatus).toBe("pending");
+    expect(response.status).toBe(503);
+    expect(data.error).toBeTruthy();
   });
 
   it("rejects invalid profile creation payloads", async () => {

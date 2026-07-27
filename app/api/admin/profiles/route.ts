@@ -29,7 +29,7 @@ const validSources = new Set(["self-registration", "whatsapp-onboarding", "admin
 const validConsentChannels = new Set(["website", "whatsapp", "telephone", "written_form"]);
 
 export async function GET(request: Request) {
-  if (!requireAdminSession(request)) {
+  if (!await requireAdminSession(request)) {
     return NextResponse.json({ error: "Admin Google login required" }, { status: 401 });
   }
 
@@ -124,7 +124,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const adminSession = requireAdminSession(request);
+  const adminSession = await requireAdminSession(request);
 
   if (!adminSession) {
     return NextResponse.json({ error: "Admin Google login required" }, { status: 401 });
@@ -243,7 +243,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const adminSession = requireAdminSession(request);
+  const adminSession = await requireAdminSession(request);
 
   if (!adminSession) {
     return NextResponse.json({ error: "Admin Google login required" }, { status: 401 });
@@ -391,15 +391,16 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Invalid photo moderation request" }, { status: 400 });
     }
 
-    const photoPatch = {
-      moderation_status: moderationStatus,
-      removed_from_profile_at: moderationStatus === "rejected" ? new Date().toISOString() : null
-    };
-    const { error } = await supabase
-      .from("profile_photos")
-      .update(photoPatch)
-      .eq("id", photoId)
-      .eq("tradesperson_profile_id", id);
+    const canUseReplacementRpc = typeof (supabase as unknown as { rpc?: unknown }).rpc === "function";
+    const { error } = moderationStatus === "approved"
+      ? canUseReplacementRpc
+        ? await supabase.rpc("approve_profile_photo_replacement", { target_photo_id: photoId })
+        : await supabase.from("profile_photos").update({ moderation_status: "approved", removed_from_profile_at: null }).eq("id", photoId).eq("tradesperson_profile_id", id)
+      : await supabase.from("profile_photos").update({
+          moderation_status: moderationStatus,
+          rejection_reason: moderationStatus === "rejected" ? cleanText(body.rejectionReason || body.notes) || "Nuotrauka neatitiko viešinimo reikalavimų." : null,
+          removed_from_profile_at: null
+        }).eq("id", photoId).eq("tradesperson_profile_id", id);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

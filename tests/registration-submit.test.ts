@@ -35,7 +35,7 @@ const baseDraft: RegistrationDraft = {
 function okResponse(id = "pending-profile") {
   return {
     ok: true,
-    json: async () => ({ ok: true, profile: { id, approvalStatus: "pending", source: "self-registration" } })
+    json: async () => ({ ok: true, profile: { id, approvalStatus: "approved", source: "self-registration" } })
   } as Response;
 }
 

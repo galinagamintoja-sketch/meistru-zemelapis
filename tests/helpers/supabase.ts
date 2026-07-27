@@ -46,6 +46,12 @@ export class QueryBuilder {
     return this;
   }
 
+  upsert(values: unknown) {
+    this.operations.push({ table: this.table, type: "upsert", values });
+    this.inserted = values;
+    return this;
+  }
+
   delete() {
     this.operations.push({ table: this.table, type: "delete" });
     return this;
@@ -59,6 +65,11 @@ export class QueryBuilder {
 
     const data = this.filteredRows()[0] ?? null;
     return Promise.resolve({ data, error: data ? null : { message: "No rows" } });
+  }
+
+  maybeSingle() {
+    const data = this.filteredRows()[0] ?? null;
+    return Promise.resolve({ data, error: null });
   }
 
   then(resolve: (value: { data: Record<string, unknown>[]; error: null }) => unknown) {
