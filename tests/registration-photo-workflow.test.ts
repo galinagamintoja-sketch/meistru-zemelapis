@@ -165,4 +165,22 @@ describe("registration direct upload behavior", () => {
     expect(result.complete).toBe(false);
     expect(result.failures[0].message).toContain("Įrašo klaida");
   });
+
+  it("successfully retries a previously failed photo from the Nuotraukos workflow", async () => {
+    const failedPhoto = [photos[1]];
+    const failedPlan = [plans[1]];
+    const finalize = vi.fn(async () => undefined);
+    const abort = vi.fn(async () => undefined);
+    const retry = await uploadRegistrationPhotos(failedPhoto, failedPlan, {
+      directUpload: async () => undefined,
+      finalize,
+      abort
+    });
+
+    expect(retry.complete).toBe(true);
+    expect(retry.successes.map((photo) => photo.name)).toEqual(["two.jpg"]);
+    expect(retry.failures).toEqual([]);
+    expect(finalize).toHaveBeenCalledWith(failedPlan[0]);
+    expect(abort).not.toHaveBeenCalled();
+  });
 });
