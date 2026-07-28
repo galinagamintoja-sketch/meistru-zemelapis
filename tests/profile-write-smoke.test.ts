@@ -108,6 +108,28 @@ describe("profile write regression smoke", () => {
     expect(operations).toContainEqual(expect.objectContaining({ table: "consent_logs", type: "insert" }));
   });
 
+  it("returns safe Lithuanian help for a legacy email collision without linking or creating rows", async () => {
+    const operations: Array<Record<string, unknown>> = [];
+    installProfileWriteTables(operations, {
+      users: [{
+        id: "legacy-local-user",
+        auth_user_id: null,
+        email: "login@example.lt",
+        role: "tradesperson"
+      }]
+    });
+
+    const { POST } = await import("../app/api/tradesperson/register/route");
+    const response = await POST(registrationPostRequest(validRegistration));
+    const data = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(data.error).toContain("Šis el. paštas jau naudojamas");
+    expect(data.error).not.toContain("duplicate key");
+    expect(operations).not.toContainEqual(expect.objectContaining({ table: "users", type: "upsert" }));
+    expect(operations).not.toContainEqual(expect.objectContaining({ table: "tradesperson_profiles", type: "insert" }));
+  });
+
   it("creates admin profiles as pending/private", async () => {
     const operations: Array<Record<string, unknown>> = [];
     installProfileWriteTables(operations);

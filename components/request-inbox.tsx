@@ -18,7 +18,7 @@ const filters = [
   ["interested", "Domina"], ["rejected", "Atmestos"], ["archived", "Archyvas"]
 ] as const;
 
-export function RequestInbox() {
+export function RequestInbox({ completion, services }: { completion: number; services: string[] }) {
   const [filter, setFilter] = useState("new");
   const [requests, setRequests] = useState<RequestSummary[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -55,11 +55,16 @@ export function RequestInbox() {
   }
 
   return <div className="request-inbox">
-    <p className="request-new-count"><strong>{counts.new ?? 0}</strong> naujų užklausų</p>
+    <section className="request-stat-grid" aria-label="Užklausų statistika">
+      <Stat icon="document" value={counts.new ?? 0} label="naujos" note="Laukia peržiūros" />
+      <Stat icon="eye" value={counts.viewed ?? 0} label="peržiūrėtos" note="Per pastarąsias 30 d." />
+      <Stat icon="message" value={counts.contacted ?? 0} label="susisiekta" note="Per pastarąsias 30 d." />
+      <div className="request-stat completion-stat"><span className="completion-ring" style={{ "--completion": `${completion * 3.6}deg` } as React.CSSProperties}>{completion}%</span><div><strong>Profilio užpildymas</strong><small>{completion >= 90 ? "Puiku!" : "Užbaikite profilį"}</small></div></div>
+    </section>
     <div className="request-filters" role="tablist" aria-label="Užklausų filtrai">
       {filters.map(([value, label]) => <button type="button" role="tab" key={value} aria-selected={filter === value} onClick={() => { setFilter(value); setDetail(null); }}>{label}<span>{counts[value] ?? 0}</span></button>)}
     </div>
-    <div className="request-layout">
+    <div className="request-dashboard-layout"><div className="request-layout">
       <section className="request-list" aria-label="Užklausų sąrašas">
         {loading ? <div className="portal-card request-state" role="status">Kraunamos užklausos…</div> : error ? <div className="portal-card request-state" role="alert"><p>{error}</p><button className="portal-secondary" type="button" onClick={() => void load(filter)}>Bandyti dar kartą</button></div> : requests.length ? requests.map((item) => <button type="button" className="request-card" key={item.id} onClick={() => void open(item.id)}>
           <div className="request-card-head"><div><small>{formatDate(item.createdAt)}</small><h2>{item.service || item.category}</h2></div><span className={`status-badge ${item.status === "new" ? "status-warning" : "status-info"}`}>{statusLabel(item.status)}</span></div>
@@ -87,8 +92,17 @@ export function RequestInbox() {
         </div>
         <p role="status">{message}</p>
       </aside> : null}
-    </div>
+    </div><aside className="request-service-summary"><div><h2>Paslaugos</h2><a href="/meistras/paslaugos">Tvarkyti</a></div><p>Pasirinktos paslaugos</p><div>{services.slice(0, 8).map((service) => <span key={service}>{service}</span>)}</div>{services.length ? null : <p>Paslaugų dar nepasirinkta.</p>}<a className="portal-secondary" href="/meistras/paslaugos">Rodyti visas paslaugas</a></aside></div>
   </div>;
+}
+
+function Stat({ icon, value, label, note }: { icon: "document" | "eye" | "message"; value: number; label: string; note: string }) {
+  const path = icon === "document"
+    ? <><path d="M7 3.5h7l4 4V20H7z" /><path d="M14 3.5v4h4M10 12h5M10 15h5" /></>
+    : icon === "eye"
+      ? <><path d="M3 12s3.4-5 9-5 9 5 9 5-3.4 5-9 5-9-5-9-5Z" /><circle cx="12" cy="12" r="2.5" /></>
+      : <path d="M5 5.5h14v10H9l-4 3z" />;
+  return <div className="request-stat"><span className={`request-stat-icon is-${icon}`}><svg viewBox="0 0 24 24" aria-hidden="true">{path}</svg></span><div><strong>{value} <small>{label}</small></strong><span>{note}</span></div></div>;
 }
 
 function statusLabel(value: string) { return ({ new: "Nauja", viewed: "Peržiūrėta", interested: "Domina", contacted: "Susisiekta", accepted: "Priimta", rejected: "Atmesta", archived: "Archyvas" } as Record<string, string>)[value] ?? value; }

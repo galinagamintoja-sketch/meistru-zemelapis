@@ -25,7 +25,7 @@ export function TradespersonNavigation({ mobile = false }: { mobile?: boolean })
   </nav>;
 }
 
-function DashboardIcon({ name }: { name: IconName }) {
+export function DashboardIcon({ name }: { name: IconName }) {
   const paths: Record<IconName, React.ReactNode> = {
     requests: <><path d="M6 3.75h8l4 4V20.25H6z" /><path d="M14 3.75v4h4M9 12h6M9 15.5h4" /></>,
     profile: <><circle cx="12" cy="8" r="3.25" /><path d="M5.5 20c.55-4.15 2.72-6.25 6.5-6.25S17.95 15.85 18.5 20" /></>,

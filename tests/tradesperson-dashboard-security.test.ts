@@ -54,6 +54,9 @@ describe("tradesperson dashboard security", () => {
     const auth = read("lib/auth-session.ts");
     expect(auth).toContain("supabase.auth.getUser()");
     expect(auth).toContain('process.env.NODE_ENV === "test"');
+    const account = read("app/meistras/paskyra/page.tsx");
+    expect(account).toContain("requireAdminSession()");
+    expect(account).toContain("admin ? <PortalCard");
   });
 
   it("validates editable public fields and safe operating areas", () => {

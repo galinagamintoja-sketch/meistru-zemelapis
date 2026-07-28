@@ -50,18 +50,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Account already has a specialist profile.", profile: existingProfile }, { status: 409 });
   }
 
+  const loginEmail = user.email.trim().toLowerCase();
+  const { data: emailOwner, error: emailLookupError } = await supabase
+    .from("users")
+    .select("id,auth_user_id")
+    .eq("email", loginEmail)
+    .maybeSingle();
+  if (emailLookupError) {
+    return NextResponse.json({ error: "Nepavyko saugiai patikrinti paskyros. Bandykite dar kartą." }, { status: 500 });
+  }
+  if (emailOwner && emailOwner.auth_user_id !== user.id) {
+    return NextResponse.json({
+      error: "Šis el. paštas jau naudojamas ankstesnėje LocalPro paskyroje. Nauja paskyra nebuvo sukurta. Susisiekite su LocalPro pagalba dėl saugaus paskyrų susiejimo."
+    }, { status: 409 });
+  }
+
   const { data: localUser, error: localUserError } = await supabase
     .from("users")
     .upsert({
       auth_user_id: user.id,
-      email: user.email.toLowerCase(),
+      email: loginEmail,
       email_verified: Boolean(user.email_confirmed_at),
       role: "tradesperson"
     }, { onConflict: "auth_user_id" })
     .select("id")
     .single();
   if (localUserError || !localUser) {
-    return NextResponse.json({ error: localUserError?.message ?? "Account linking failed." }, { status: 500 });
+    const emailCollision = localUserError?.code === "23505" || /users_email_key|duplicate key/i.test(localUserError?.message ?? "");
+    return NextResponse.json({
+      error: emailCollision
+        ? "Šis el. paštas jau naudojamas ankstesnėje LocalPro paskyroje. Nauja paskyra nebuvo sukurta. Susisiekite su LocalPro pagalba dėl saugaus paskyrų susiejimo."
+        : "Nepavyko sukurti LocalPro paskyros. Bandykite dar kartą."
+    }, { status: emailCollision ? 409 : 500 });
   }
 
   const categorySlugs = uniqueList(payload.categorySlugs);

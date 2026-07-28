@@ -16,17 +16,34 @@ export function ProfileForm({ initial, categories }: { initial: ProfileValues; c
     const data = await response.json();
     setMessage(response.ok ? "Profilis išsaugotas." : data.error ?? "Išsaugoti nepavyko.");
   }
-  return <form className="portal-form" action={submit}>
-    <label>Vardas ir pavardė<input name="displayName" defaultValue={initial.displayName} required /></label>
-    <label>Įmonės arba veiklos pavadinimas<input name="companyName" defaultValue={initial.companyName} /></label>
-    <div className="portal-form-row"><label>Pagrindinė specialybė<select name="primaryCategoryId" defaultValue={initial.primaryCategoryId} required>{categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label><label>Patirties metai<input name="experienceYears" type="number" min="0" max="80" defaultValue={initial.experienceYears} required /></label></div>
-    <div className="portal-form-row"><label>Viešas telefono numeris<input name="phone" defaultValue={initial.phone} required /></label><label>WhatsApp numeris<input name="whatsappNumber" defaultValue={initial.whatsappNumber} /></label></div>
-    <label>Viešas kontaktinis el. paštas<input type="email" name="publicEmail" defaultValue={initial.publicEmail} required /><small>Tai nėra „Google“ prisijungimo el. paštas.</small></label>
-    <label>Trumpas aprašymas<textarea name="description" defaultValue={initial.description} minLength={40} rows={7} required /></label>
-    <label>Kalbos (nebūtina)<input name="languages" defaultValue={initial.languages.join(", ")} placeholder="Lietuvių, anglų, lenkų" /><small>Atskirkite kableliais.</small></label>
-    <label className="portal-consent"><input type="checkbox" name="publicContactConsent" defaultChecked={initial.publicContactConsent} /><span>Sutinku, kad viešame profilyje būtų rodomi mano pasirinkti kontaktiniai duomenys.</span></label>
-    <button className="portal-primary" type="submit">Išsaugoti profilį</button><p role="status">{message}</p>
+  return <form className="portal-form profile-editor" action={submit}>
+    <div className="profile-editor-grid">
+      <section><h3><SectionIcon path="M6 20v-2a6 6 0 0 1 12 0v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />Pagrindinė informacija</h3>
+        <label>Vardas ir pavardė<input name="displayName" defaultValue={initial.displayName} required /></label>
+        <label>Įmonės arba veiklos pavadinimas<input name="companyName" defaultValue={initial.companyName} /></label>
+        <label>Pagrindinė specialybė<select name="primaryCategoryId" defaultValue={initial.primaryCategoryId} required>{categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label>
+        <label>Patirties metai<input name="experienceYears" type="number" min="0" max="80" defaultValue={initial.experienceYears} required /></label>
+        <label>Trumpas aprašymas<textarea name="description" defaultValue={initial.description} minLength={40} rows={7} required /></label>
+      </section>
+      <section><h3><SectionIcon path="M8 4H5a2 2 0 0 0-2 2c0 8.3 6.7 15 15 15a2 2 0 0 0 2-2v-3l-4-1-1.5 2a13 13 0 0 1-7.5-7.5L9 8z" />Kontaktai</h3>
+        <label>Viešas telefono numeris<input name="phone" defaultValue={initial.phone} required /></label>
+        <label>WhatsApp numeris<input name="whatsappNumber" defaultValue={initial.whatsappNumber} /></label>
+        <label>Viešas kontaktinis el. paštas<input type="email" name="publicEmail" defaultValue={initial.publicEmail} required /><small>Tai nėra „Google“ prisijungimo el. paštas.</small></label>
+        <label>Kalbos (nebūtina)<input name="languages" defaultValue={initial.languages.join(", ")} placeholder="Lietuvių, anglų, lenkų" /><small>Atskirkite kableliais.</small></label>
+        <label className="portal-consent"><input type="checkbox" name="publicContactConsent" defaultChecked={initial.publicContactConsent} /><span>Sutinku, kad viešame profilyje būtų rodomi mano pasirinkti kontaktiniai duomenys.</span></label>
+      </section>
+      <section className="profile-preview-panel"><h3><SectionIcon path="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 0c2.2 2.5 3.3 5.5 3.3 9S14.2 18.5 12 21M3 12h18" />Viešas profilis</h3>
+        <div className="profile-preview-avatar">{initial.displayName.trim().charAt(0).toLocaleUpperCase("lt-LT")}</div>
+        <strong>{initial.displayName}</strong><p>{categories.find((category) => category.id === initial.primaryCategoryId)?.name}</p>
+        <p>{initial.experienceYears}+ m. patirtis</p>
+      </section>
+    </div>
+    <div className="profile-editor-actions"><button className="portal-primary" type="submit">Išsaugoti pakeitimus</button><p role="status">{message}</p></div>
   </form>;
+}
+
+function SectionIcon({ path }: { path: string }) {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={path} /></svg>;
 }
 
 type ServiceGroup = { id: string; name: string; items: Array<{ id: string; name: string }> };
