@@ -113,6 +113,7 @@ describe("tradesperson dashboard security", () => {
 
   it("includes reference-style completion and moderation summaries", () => {
     expect(read("app/meistras/profilis/page.tsx")).toContain("Profilio užpildymas");
+    expect(read("app/globals.css")).toContain(".profile-status-banner { grid-template-columns: minmax(0, 1fr); }");
     const photos = read("components/photo-uploader.tsx");
     expect(photos).toContain('aria-label="Nuotraukų filtrai"');
     for (const label of ["Visos", "Patvirtintos", "Laukia", "Atmestos"]) expect(photos).toContain(label);

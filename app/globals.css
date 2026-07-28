@@ -165,7 +165,7 @@
   .portal-card { padding: 18px; }
   .portal-actions { display: grid; }
   .portal-form-row, .portal-checks { grid-template-columns: 1fr; }
-  .profile-status-banner { display: grid; }
+  .profile-status-banner { grid-template-columns: minmax(0, 1fr); }
   .profile-completion { min-width: 0; }
   .profile-checklist { grid-template-columns: 1fr 1fr; }
   .profile-status-banner .portal-secondary { width: 100%; }
