@@ -211,6 +211,9 @@ export async function POST(request: Request) {
     .single();
 
   if (error) {
+    if (isContactNumberConflict(error)) {
+      return NextResponse.json({ error: PROFILE_PHONE_CONFLICT, conflictingProfileId: conflictingProfileId(error) }, { status: 409 });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
