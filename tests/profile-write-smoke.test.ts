@@ -130,6 +130,63 @@ describe("profile write regression smoke", () => {
     expect(operations).not.toContainEqual(expect.objectContaining({ table: "tradesperson_profiles", type: "insert" }));
   });
 
+  it("returns safe success when the authenticated user already owns a profile", async () => {
+    const operations: Array<Record<string, unknown>> = [];
+    installProfileWriteTables(operations, {
+      users: [{ id: "existing-user", auth_user_id: "auth-registration-user", email: "login@example.lt", role: "tradesperson" }],
+      tradesperson_profiles: [{ id: "existing-profile", user_id: "existing-user" }]
+    });
+
+    const { POST } = await import("../app/api/tradesperson/register/route");
+    const response = await POST(registrationPostRequest(validRegistration));
+    const retryResponse = await POST(registrationPostRequest({}));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(retryResponse.status).toBe(200);
+    expect(data).toMatchObject({
+      ok: true,
+      existingProfile: true,
+      dashboardUrl: "/meistras/uzklausos",
+      profile: { id: "existing-profile" }
+    });
+    expect(JSON.stringify(data)).not.toContain("Account already has");
+    expect(operations).not.toContainEqual(expect.objectContaining({ table: "users", type: "upsert" }));
+    expect(operations).not.toContainEqual(expect.objectContaining({ table: "tradesperson_profiles", type: "insert" }));
+  });
+
+  it("keeps a newly active profile successful when optional photo preparation fails", async () => {
+    const operations: Array<Record<string, unknown>> = [];
+    installSupabaseMock(
+      {
+        service_categories: [{ id: "cat-apdaila", slug: "apdaila", name: "Apdaila" }],
+        service_subcategories: [
+          { id: "sub-dazymas", slug: "dazymas", service_category_id: "cat-apdaila" },
+          { id: "sub-glaistymas", slug: "glaistymas", service_category_id: "cat-apdaila" },
+          { id: "sub-grindys", slug: "grindys", service_category_id: "cat-apdaila" }
+        ],
+        tradesperson_profiles: [], profile_services: [], operating_areas: [], profile_photos: [],
+        consent_logs: [], admin_actions: [], users: []
+      },
+      operations,
+      {
+        getBucket: async () => ({ data: null, error: { statusCode: 500, message: "storage unavailable" } })
+      }
+    );
+
+    const { POST } = await import("../app/api/tradesperson/register/route");
+    const response = await POST(registrationPostRequest({
+      ...validRegistration,
+      photoUploads: [{ name: "one.jpg", type: "image/jpeg", size: 1024, lastModified: 1 }]
+    }));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data).toMatchObject({ ok: true, dashboardUrl: "/meistras/uzklausos", photoUploads: [null] });
+    expect(operations).toContainEqual(expect.objectContaining({ table: "tradesperson_profiles", type: "insert" }));
+    expect(operations).not.toContainEqual(expect.objectContaining({ table: "tradesperson_profiles", type: "delete" }));
+  });
+
   it("creates admin profiles as pending/private", async () => {
     const operations: Array<Record<string, unknown>> = [];
     installProfileWriteTables(operations);

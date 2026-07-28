@@ -13,11 +13,12 @@ import {
   type RegistrationPhotoUploadPlan,
   uploadRegistrationPhotos
 } from "../lib/registration-photos";
+import type { HomepageAccountState } from "../lib/homepage-account-state";
 
 type Props = {
   initialSpecialists: Specialist[];
   categories: Category[];
-  registrationAuthenticated?: boolean;
+  accountState?: HomepageAccountState;
 };
 
 export type RegistrationDraft = {
@@ -356,7 +357,24 @@ export function validateRegistrationDraftClient(draft: RegistrationDraft): Regis
   return errors;
 }
 
-export default function LocalProApp({ initialSpecialists, categories, registrationAuthenticated = false }: Props) {
+export function registrationCompletionDestination(
+  dashboardUrl: string | undefined,
+  failures: Array<{ photo: { name: string } }>
+) {
+  const destination = dashboardUrl ?? "/meistras/uzklausos";
+  if (!failures.length) return destination;
+  const params = new URLSearchParams({
+    registracija: "nuotrauku-klaida",
+    nepavyko: failures.map((failure) => failure.photo.name).join(",")
+  });
+  return `${destination}?${params.toString()}`;
+}
+
+export default function LocalProApp({
+  initialSpecialists,
+  categories,
+  accountState = { authenticated: false, hasProfile: false, isAdmin: false }
+}: Props) {
   const [trade, setTrade] = useState("all");
   const [city, setCity] = useState("all");
   const [verification, setVerification] = useState("all");
@@ -868,7 +886,7 @@ export default function LocalProApp({ initialSpecialists, categories, registrati
       setSubmittedProfileId(registration.data.profile?.id ?? "");
       setSubmittedManualAddressReview(addressResolution.usedManualFallback);
       const uploadPlans = Array.isArray(registration.data.photoUploads)
-        ? registration.data.photoUploads as RegistrationPhotoUploadPlan[]
+        ? registration.data.photoUploads as Array<RegistrationPhotoUploadPlan | null>
         : [];
       const uploadResult = await uploadRegistrationPhotos(addressResolution.draft.photoUploads, uploadPlans, {
         directUpload: async (plan, photo, onProgress) => {
@@ -898,10 +916,7 @@ export default function LocalProApp({ initialSpecialists, categories, registrati
 
       if (!uploadResult.complete) {
         setRegistrationPhotoFailures(Object.fromEntries(uploadResult.failures.map((failure) => [failure.photo.id, failure.message])));
-        setSubmitTone("error");
-        setSubmitMessage(
-          `Registracija gauta, tačiau ${uploadResult.failures.length} iš ${addressResolution.draft.photoUploads.length} nuotraukų įkelti nepavyko. Profilis lieka privatus ir laukia patikros.`
-        );
+        window.location.assign(registrationCompletionDestination(registration.data.dashboardUrl, uploadResult.failures));
         return;
       }
 
@@ -1057,9 +1072,11 @@ export default function LocalProApp({ initialSpecialists, categories, registrati
         <nav className="stage-nav" aria-label="Puslapio skyriai">
           <a href="#search">Rasti specialistą</a>
           <a href="/request">Pateikti darbų užklausą</a>
-          <a href="#register">Registruotis</a>
           <a href="#how">Kaip veikia</a>
-          <a href="/login">Meistro paskyra</a>
+          {!accountState.authenticated ? <><a href="#register">Registruotis</a><a href="/login">Prisijungti</a></> : null}
+          {accountState.authenticated && !accountState.hasProfile ? <a href="#register">Užbaigti registraciją</a> : null}
+          {accountState.hasProfile ? <a href="/meistras/uzklausos">Meistro paskyra</a> : null}
+          {accountState.isAdmin ? <a href="/admin">Administravimas</a> : null}
         </nav>
       </header>
 
@@ -1340,7 +1357,14 @@ export default function LocalProApp({ initialSpecialists, categories, registrati
           </div>
 
           <div className="register-grid">
-            {!registrationAuthenticated ? (
+            {accountState.hasProfile ? (
+              <article className="registration-form success-panel">
+                <p className="eyebrow">Meistro paskyra</p>
+                <h3>Jūsų LocalPro profilis aktyvus</h3>
+                <p>Profilio duomenis, paslaugas ir nuotraukas galite tvarkyti meistro paskyroje.</p>
+                <a className="primary-action" href="/meistras/uzklausos">Atidaryti meistro paskyrą</a>
+              </article>
+            ) : !accountState.authenticated ? (
               <article className="registration-form">
                 <p className="eyebrow">1 žingsnis</p>
                 <h3>Patvirtinkite savo paskyrą</h3>

@@ -2,8 +2,10 @@ import { RequestInbox } from "../../../components/request-inbox";
 import { UnlinkedAccount } from "../../../components/unlinked-account";
 import { requireOwnedProfile } from "../../../lib/tradesperson-account";
 import { createServerSupabase } from "../../../lib/supabase";
+import Link from "next/link";
+import { PARTIAL_REGISTRATION_PHOTO_NOTICE } from "../../../lib/registration-photos";
 
-export default async function RequestsPage() {
+export default async function RequestsPage({ searchParams }: { searchParams: Promise<{ registracija?: string; nepavyko?: string }> }) {
   const { profile } = await requireOwnedProfile();
   if (!profile) return <UnlinkedAccount />;
   const supabase = createServerSupabase();
@@ -24,5 +26,15 @@ export default async function RequestsPage() {
     serviceNames.length > 0
   ];
   const completion = Math.round(completionFields.filter(Boolean).length / completionFields.length * 100);
-  return <div className="portal-page"><div className="portal-heading request-page-heading"><div><h1>Užklausos</h1><p>{profile.base_city} · {profile.radius_km} km spindulys</p></div><a className="portal-secondary" href={`/specialist/${profile.id}`} target="_blank">Peržiūrėti viešą profilį</a></div><RequestInbox completion={completion} services={serviceNames} /></div>;
+  const query = await searchParams;
+  const failedPhotos = query.nepavyko?.split(",").map((name) => name.trim()).filter(Boolean) ?? [];
+  return <div className="portal-page">
+    {query.registracija === "nuotrauku-klaida" ? <div className="portal-card registration-photo-notice" role="status">
+      <strong>{PARTIAL_REGISTRATION_PHOTO_NOTICE}</strong>
+      {failedPhotos.length ? <p>Nepavyko įkelti: {failedPhotos.join(", ")}.</p> : null}
+      <Link className="portal-primary" href="/meistras/nuotraukos">Atidaryti Nuotraukas ir bandyti dar kartą</Link>
+    </div> : null}
+    <div className="portal-heading request-page-heading"><div><h1>Užklausos</h1><p>{profile.base_city} · {profile.radius_km} km spindulys</p></div><a className="portal-secondary" href={`/specialist/${profile.id}`} target="_blank">Peržiūrėti viešą profilį</a></div>
+    <RequestInbox completion={completion} services={serviceNames} />
+  </div>;
 }

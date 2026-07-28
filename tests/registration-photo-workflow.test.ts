@@ -8,6 +8,8 @@ import {
   type RegistrationPhotoUploadPlan,
   uploadRegistrationPhotos
 } from "../lib/registration-photos";
+import { PARTIAL_REGISTRATION_PHOTO_NOTICE } from "../lib/registration-photos";
+import { registrationCompletionDestination } from "../components/LocalProApp";
 
 function file(name: string, options: Partial<RegistrationPhotoFileLike> = {}): RegistrationPhotoFileLike {
   return {
@@ -144,6 +146,12 @@ describe("registration direct upload behavior", () => {
     expect(result.complete).toBe(false);
     expect(finalize).toHaveBeenCalledTimes(1);
     expect(abort).toHaveBeenCalledWith(plans[1]);
+    expect(registrationCompletionDestination("/meistras/uzklausos", result.failures)).toBe(
+      "/meistras/uzklausos?registracija=nuotrauku-klaida&nepavyko=two.jpg"
+    );
+    expect(PARTIAL_REGISTRATION_PHOTO_NOTICE).toBe(
+      "Profilis sukurtas ir aktyvus, tačiau dalies nuotraukų įkelti nepavyko. Jas galite įkelti dar kartą skiltyje „Nuotraukos“."
+    );
   });
 
   it("never reports complete success when a required finalize operation fails", async () => {

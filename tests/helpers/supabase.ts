@@ -81,10 +81,23 @@ export class QueryBuilder {
   }
 }
 
-export function installSupabaseMock(tables: Record<string, Record<string, unknown>[]>, operations: Array<Record<string, unknown>> = []) {
+export function installSupabaseMock(
+  tables: Record<string, Record<string, unknown>[]>,
+  operations: Array<Record<string, unknown>> = [],
+  storage: Record<string, unknown> = {}
+) {
   vi.doMock("../../lib/supabase", () => ({
     createServerSupabase: () => ({
-      from: (table: string) => new QueryBuilder(table, tables[table] ?? [], operations)
+      from: (table: string) => new QueryBuilder(table, tables[table] ?? [], operations),
+      storage: {
+        getBucket: async () => ({ data: { id: "profile-photos" }, error: null }),
+        createBucket: async () => ({ data: null, error: null }),
+        from: () => ({
+          createSignedUploadUrl: async () => ({ data: { signedUrl: "https://storage.example/upload" }, error: null }),
+          remove: async () => ({ data: null, error: null })
+        }),
+        ...storage
+      }
     }),
     hasSupabaseConfig: () => true
   }));

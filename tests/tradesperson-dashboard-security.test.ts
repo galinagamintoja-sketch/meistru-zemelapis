@@ -45,9 +45,9 @@ describe("tradesperson dashboard security", () => {
     expect(callback).toContain("getLinkedTradespersonProfile(user.id)");
     expect(callback).toContain('new URL("/?register=1#register", url.origin)');
     const home = read("components/LocalProApp.tsx");
-    expect(home).toContain("registrationAuthenticated");
+    expect(home).toContain("accountState");
     expect(home).toContain("Tęsti su Google");
-    expect(home).toContain('window.location.assign(registration.data.dashboardUrl ?? "/meistras/uzklausos")');
+    expect(home).toContain("registrationCompletionDestination");
   });
 
   it("keeps admin runtime authentication on Supabase Auth", () => {

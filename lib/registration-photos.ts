@@ -27,6 +27,9 @@ export type RegistrationPhotoUploadPlan = {
   uploadToken: string;
 };
 
+export const PARTIAL_REGISTRATION_PHOTO_NOTICE =
+  "Profilis sukurtas ir aktyvus, tačiau dalies nuotraukų įkelti nepavyko. Jas galite įkelti dar kartą skiltyje „Nuotraukos“.";
+
 export function countNonEmptyPhotoUrls(photoUrls: string[]) {
   return photoUrls.filter((url) => url.trim().length > 0).length;
 }
@@ -93,7 +96,7 @@ export function mergeRegistrationPhotoSelections(
 
 export async function uploadRegistrationPhotos(
   selections: RegistrationPhotoSelection[],
-  plans: RegistrationPhotoUploadPlan[],
+  plans: Array<RegistrationPhotoUploadPlan | null | undefined>,
   dependencies: {
     directUpload: (plan: RegistrationPhotoUploadPlan, photo: RegistrationPhotoSelection, onProgress: (percent: number) => void) => Promise<void>;
     finalize: (plan: RegistrationPhotoUploadPlan) => Promise<void>;

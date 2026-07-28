@@ -39,3 +39,10 @@ AUTH_SESSION_SECRET=
 ADMIN_EMAIL_ALLOWLIST=galinagamintoja@gmail.com
 LOCALPRO_SEED_MODE=false
 ```
+
+## Deferred homeowner workflow
+
+The existing homeowner request code is an incomplete future-phase workflow. Homeowner accounts,
+recipient selection, request-management tokens, notifications, messaging, marketplace pagination/
+PostGIS optimisation, and homeowner photo-upload replacement are intentionally deferred. Dashboard
+V2 finalisation must not expand or remove that existing code.

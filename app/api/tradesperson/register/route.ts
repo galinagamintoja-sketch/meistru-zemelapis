@@ -19,23 +19,21 @@ const PROFILE_PHOTOS_BUCKET = "profile-photos";
 let profilePhotosBucketReady = false;
 
 export async function POST(request: Request) {
-  const parsed = registrationSchema.safeParse(await request.json());
-
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Patikrinkite registracijos laukus", details: parsed.error.flatten() }, { status: 400 });
-  }
-
-  const payload = parsed.data;
+  const requestBody = await request.json().catch(() => null);
+  const parsed = registrationSchema.safeParse(requestBody);
   const supabase = createServerSupabase();
 
   if (!supabase) {
-    return NextResponse.json({ error: "Registration is not configured." }, { status: 503 });
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Patikrinkite registracijos laukus", details: parsed.error.flatten() }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Registracija šiuo metu nepasiekiama. Bandykite vėliau." }, { status: 503 });
   }
 
   const auth = await createSupabaseAuthClient();
   const { data: { user }, error: authError } = await auth.auth.getUser();
   if (authError || !user?.email) {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    return NextResponse.json({ error: "Norėdami registruotis, pirmiausia prisijunkite." }, { status: 401 });
   }
 
   const { data: existingLocalUser } = await supabase
@@ -47,8 +45,19 @@ export async function POST(request: Request) {
     ? await supabase.from("tradesperson_profiles").select("id").eq("user_id", existingLocalUser.id).maybeSingle()
     : { data: null };
   if (existingProfile) {
-    return NextResponse.json({ error: "Account already has a specialist profile.", profile: existingProfile }, { status: 409 });
+    return NextResponse.json({
+      ok: true,
+      existingProfile: true,
+      profile: existingProfile,
+      dashboardUrl: "/meistras/uzklausos",
+      photoUploads: []
+    });
   }
+
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Patikrinkite registracijos laukus", details: parsed.error.flatten() }, { status: 400 });
+  }
+  const payload = parsed.data;
 
   const loginEmail = user.email.trim().toLowerCase();
   const { data: emailOwner, error: emailLookupError } = await supabase
@@ -166,25 +175,25 @@ export async function POST(request: Request) {
   );
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Specialisto profilio sukurti nepavyko. Bandykite dar kartą." }, { status: 500 });
   }
 
   const serviceError = await insertProfileServices(supabase, profile.id, subcategoryResult.selectedSubcategories);
   if (serviceError) {
     await cleanupProfile(profile.id, supabase);
-    return NextResponse.json({ error: serviceError }, { status: 500 });
+    return NextResponse.json({ error: "Paslaugų išsaugoti nepavyko. Bandykite dar kartą." }, { status: 500 });
   }
 
   const areaError = await insertOperatingAreas(supabase, profile.id, operatingCities, travelRadiusKm);
   if (areaError) {
     await cleanupProfile(profile.id, supabase);
-    return NextResponse.json({ error: areaError }, { status: 500 });
+    return NextResponse.json({ error: "Darbo vietovės išsaugoti nepavyko. Bandykite dar kartą." }, { status: 500 });
   }
 
   const photoError = await insertPhotoRecords(supabase, profile.id, payload.photoUrls, payload.name);
   if (photoError) {
     await cleanupProfile(profile.id, supabase);
-    return NextResponse.json({ error: photoError }, { status: 500 });
+    return NextResponse.json({ error: "Nuotraukų duomenų išsaugoti nepavyko. Bandykite dar kartą." }, { status: 500 });
   }
 
   const consentRows = [
@@ -233,7 +242,7 @@ export async function POST(request: Request) {
 
   if (consentError) {
     await cleanupProfile(profile.id, supabase);
-    return NextResponse.json({ error: consentError.message }, { status: 500 });
+    return NextResponse.json({ error: "Sutikimų išsaugoti nepavyko. Bandykite dar kartą." }, { status: 500 });
   }
 
   const { error: actionError } = await supabase.from("admin_actions").insert({
@@ -245,37 +254,36 @@ export async function POST(request: Request) {
 
   if (actionError) {
     await cleanupProfile(profile.id, supabase);
-    return NextResponse.json({ error: actionError.message }, { status: 500 });
+    return NextResponse.json({ error: "Registracijos užbaigti nepavyko. Bandykite dar kartą." }, { status: 500 });
   }
 
-  const uploadPlans: Array<{ storagePath: string; signedUrl: string; uploadToken: string }> = [];
+  const uploadPlans: Array<{ storagePath: string; signedUrl: string; uploadToken: string } | null> = [];
   if (payload.photoUploads.length) {
     const bucketError = await ensureProfilePhotosBucket(supabase);
     if (bucketError) {
-      await cleanupProfile(profile.id, supabase);
-      return NextResponse.json({ error: bucketError }, { status: 500 });
-    }
-
-    for (const photo of payload.photoUploads) {
-      const extension = photo.type === "image/png" ? "png" : photo.type === "image/webp" ? "webp" : "jpg";
-      const storagePath = `${profile.id}/${crypto.randomUUID()}.${extension}`;
-      const { data: signed, error: signError } = await supabase.storage.from(PROFILE_PHOTOS_BUCKET).createSignedUploadUrl(storagePath);
-      if (signError || !signed) {
-        await cleanupProfile(profile.id, supabase);
-        return NextResponse.json({ error: signError?.message ?? "Nepavyko paruošti nuotraukų įkėlimo." }, { status: 500 });
-      }
-      uploadPlans.push({
-        storagePath,
-        signedUrl: signed.signedUrl,
-        uploadToken: createRegistrationPhotoUploadToken({
-          profileId: profile.id,
+      uploadPlans.push(...payload.photoUploads.map(() => null));
+    } else {
+      for (const photo of payload.photoUploads) {
+        const extension = photo.type === "image/png" ? "png" : photo.type === "image/webp" ? "webp" : "jpg";
+        const storagePath = `${profile.id}/${crypto.randomUUID()}.${extension}`;
+        const { data: signed, error: signError } = await supabase.storage.from(PROFILE_PHOTOS_BUCKET).createSignedUploadUrl(storagePath);
+        if (signError || !signed) {
+          uploadPlans.push(null);
+          continue;
+        }
+        uploadPlans.push({
           storagePath,
-          name: photo.name,
-          type: photo.type,
-          size: photo.size,
-          expiresAt: Date.now() + 15 * 60 * 1000
-        })
-      });
+          signedUrl: signed.signedUrl,
+          uploadToken: createRegistrationPhotoUploadToken({
+            profileId: profile.id,
+            storagePath,
+            name: photo.name,
+            type: photo.type,
+            size: photo.size,
+            expiresAt: Date.now() + 15 * 60 * 1000
+          })
+        });
+      }
     }
   }
 
@@ -325,7 +333,7 @@ async function ensureProfilePhotosBucket(supabase: NonNullable<ReturnType<typeof
   const isMissingBucket = statusCode === "404" || /not found|does not exist/i.test(getError.message);
 
   if (!isMissingBucket) {
-    return `Nuotraukų saugyklos nepavyko patikrinti: ${getError.message}`;
+    return "Nuotraukų saugyklos nepavyko patikrinti. Bandykite dar kartą.";
   }
 
   const { error: createError } = await supabase.storage.createBucket(PROFILE_PHOTOS_BUCKET, {
@@ -335,7 +343,7 @@ async function ensureProfilePhotosBucket(supabase: NonNullable<ReturnType<typeof
   });
 
   if (createError && !/already exists/i.test(createError.message)) {
-    return `Nuotraukų saugyklos nepavyko sukurti: ${createError.message}`;
+    return "Nuotraukų saugyklos nepavyko paruošti. Bandykite dar kartą.";
   }
 
   profilePhotosBucketReady = true;
