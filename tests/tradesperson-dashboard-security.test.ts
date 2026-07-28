@@ -142,6 +142,12 @@ describe("tradesperson dashboard security", () => {
     for (const category of ["Vidaus apdaila", "Santechnika", "Elektra ir apsaugos sistemos", "Šildymas, vėdinimas ir kondicionavimas", "Stogai ir skardinimas", "Fasadai ir šiltinimas", "Statyba ir konstrukcijos", "Langai, durys ir laiptai", "Medžio darbai ir baldai", "Lauko ir sklypo darbai", "Griovimas ir atliekų išvežimas", "Meistras į namus", "Projektavimas ir darbų priežiūra"]) expect(taxonomy).toContain(category);
   });
 
+  it("disambiguates the dashboard taxonomy relationship", () => {
+    expect(read("app/meistras/paslaugos/page.tsx")).toContain(
+      "service_subcategories!service_subcategories_service_category_id_fkey"
+    );
+  });
+
   it("keeps legacy category rows but removes them from active public selectors", () => {
     const migration = read("supabase/migrations/019_deactivate_legacy_service_categories.sql");
     expect(migration).toContain("set is_active = false");

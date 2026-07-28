@@ -7,7 +7,7 @@ export default async function Page() {
   const { profile } = await requireOwnedProfile(); if (!profile) return <UnlinkedAccount />;
   const supabase = createServerSupabase();
   const [{ data: categories }, { data: current }] = supabase ? await Promise.all([
-    supabase.from("service_categories").select("id,name,service_subcategories(id,name)").eq("is_active", true).eq("service_subcategories.is_active", true).order("sort_order"),
+    supabase.from("service_categories").select("id,name,service_subcategories!service_subcategories_service_category_id_fkey(id,name)").eq("is_active", true).eq("service_subcategories.is_active", true).order("sort_order"),
     supabase.from("profile_services").select("service_subcategory_id").eq("tradesperson_profile_id", profile.id)
   ]) : [{ data: [] }, { data: [] }];
   const groups = (categories ?? []).map((category) => ({ id: category.id, name: category.name, items: category.service_subcategories ?? [] }));
