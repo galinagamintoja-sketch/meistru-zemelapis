@@ -84,7 +84,7 @@ export async function requireAdminSession(request?: Request) {
 }
 
 export function getAdminAllowlist() {
-  const configured = process.env.ADMIN_EMAIL_ALLOWLIST ?? "galinagamintoja@gmail.com";
+  const configured = process.env.ADMIN_EMAIL_ALLOWLIST ?? "";
   return configured
     .split(",")
     .map((email) => email.trim().toLowerCase())

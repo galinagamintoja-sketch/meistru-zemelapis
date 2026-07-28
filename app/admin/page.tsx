@@ -77,6 +77,7 @@ const emptyAddDraft: AddDraft = {
 
 export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState(false);
+  const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [status, setStatus] = useState<StatusFilter>("pending");
   const [profiles, setProfiles] = useState<Specialist[]>([]);
@@ -92,6 +93,7 @@ export default function AdminPage() {
   const [addSelectedPhotos, setAddSelectedPhotos] = useState<SelectedPhoto[]>([]);
   const [addSucceeded, setAddSucceeded] = useState(false);
   const [message, setMessage] = useState("");
+  const [conflictingProfileId, setConflictingProfileId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({});
   const [phoneErrors, setPhoneErrors] = useState<Record<string, string>>({});
@@ -120,6 +122,11 @@ export default function AdminPage() {
     setMessage("Atsijungta.");
   }
 
+  async function switchGoogleAccount() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.assign("/auth/google?next=%2Fadmin");
+  }
+
   async function checkSession() {
     setIsLoading(true);
     setMessage("Tikrinama administratoriaus prieiga...");
@@ -127,9 +134,10 @@ export default function AdminPage() {
     try {
       const response = await fetch("/api/auth/session");
       const data = await response.json();
+      setSignedInEmail(data.user?.email ?? null);
       if (!data.isAdmin) {
         setIsAdmin(false);
-        setMessage(data.user ? "Jūsų Google paskyra nėra administratorių sąraše." : "Prisijunkite su administratoriaus Google paskyra.");
+        setMessage(data.user ? "Ši paskyra neturi administratoriaus teisių." : "Prisijunkite su administratoriaus Google paskyra.");
         return;
       }
 
@@ -438,7 +446,11 @@ export default function AdminPage() {
         }
       })
         });
-        if (!response.ok) { setMessage(data.error ?? "Išsaugoti nepavyko."); return; }
+        if (!response.ok) {
+          setConflictingProfileId(typeof data.conflictingProfileId === "string" ? data.conflictingProfileId : null);
+          setMessage(data.error ?? "Išsaugoti nepavyko.");
+          return;
+        }
         nextLoadMessageRef.current = "Profilio pakeitimai išsaugoti.";
         await loadProfiles();
       } catch (error) {
@@ -489,6 +501,7 @@ export default function AdminPage() {
     const data = await response.json();
 
     if (!response.ok) {
+      setConflictingProfileId(typeof data.conflictingProfileId === "string" ? data.conflictingProfileId : null);
       setMessage(data.error ?? "Specialisto pridėti nepavyko.");
       setPendingActions((current) => ({ ...current, add: false }));
       return;
@@ -681,7 +694,10 @@ export default function AdminPage() {
           <p className="eyebrow">LocalPro admin</p>
           <h1>Administratoriaus prisijungimas</h1>
           <p>Prisijunkite su Google paskyra, kuri yra administratorių sąraše.</p>
-          <a className="primary-action" href="/login?next=%2Fadmin">Prisijungti su Google</a>
+          {signedInEmail ? <p>Šiuo metu prisijungta: <strong>{signedInEmail}</strong></p> : null}
+          {signedInEmail
+            ? <button className="primary-action" type="button" onClick={() => void switchGoogleAccount()}>Prisijungti su kita Google paskyra</button>
+            : <a className="primary-action" href="/auth/google?next=%2Fadmin">Prisijungti su Google</a>}
           <p className="admin-message">{message}</p>
         </section>
       </main>
@@ -724,6 +740,11 @@ export default function AdminPage() {
       </div> : null}
 
       <p className="admin-message">{message}</p>
+      {conflictingProfileId ? <button type="button" className="admin-secondary" onClick={() => {
+        setSection("specialists");
+        setStatus("all");
+        setOpenProfileId(conflictingProfileId);
+      }}>Atidaryti esamą profilį</button> : null}
 
       {section === "requests" ? <section className="admin-add-panel">
         <div className="admin-card-header"><div><p className="eyebrow">Namų savininkų užklausos</p><h2>Privačios darbų užklausos</h2><p>Matomos tik prisijungusiam administratoriui.</p></div><button className="admin-secondary" type="button" onClick={loadJobRequests}>Atnaujinti</button></div>

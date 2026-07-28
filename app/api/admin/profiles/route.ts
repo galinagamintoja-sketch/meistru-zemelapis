@@ -22,6 +22,7 @@ import {
 } from "../../../../lib/profile-write-service";
 import { createServerSupabase } from "../../../../lib/supabase";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../../../../lib/validators";
+import { conflictingProfileId, isContactNumberConflict, PROFILE_PHONE_CONFLICT } from "../../../../lib/contact-number-conflict";
 
 const validStatuses = new Set(["pending", "approved", "rejected", "suspended", "all"]);
 const validActions = new Set(["approve", "reject", "suspend", "return_pending", "verify_contact", "verify_whatsapp", "update", "moderate_photo", "record_public_contact_consent", "admin_note", "create_photo_upload", "finalize_photo_upload", "abort_photo_upload", "remove_photo", "reorder_photos"]);
@@ -112,6 +113,9 @@ export async function GET(request: Request) {
   const { data, error } = await query;
 
   if (error) {
+    if (isContactNumberConflict(error)) {
+      return NextResponse.json({ error: PROFILE_PHONE_CONFLICT, conflictingProfileId: conflictingProfileId(error) }, { status: 409 });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -336,6 +340,9 @@ export async function PATCH(request: Request) {
       const { error } = await supabase.from("tradesperson_profiles").update(patch).eq("id", id);
 
       if (error) {
+        if (isContactNumberConflict(error)) {
+          return NextResponse.json({ error: PROFILE_PHONE_CONFLICT, conflictingProfileId: conflictingProfileId(error) }, { status: 409 });
+        }
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
     }

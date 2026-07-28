@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isContactNumberConflict, SELF_REGISTRATION_PHONE_CONFLICT } from "../../../../lib/contact-number-conflict";
 import { registrationSchema, photoFieldMetadata, normalizeLithuanianPhone } from "../../../../lib/validators";
 import {
   deriveAddressParts,
@@ -175,6 +176,9 @@ export async function POST(request: Request) {
   );
 
   if (error) {
+    if (isContactNumberConflict(error)) {
+      return NextResponse.json({ error: SELF_REGISTRATION_PHONE_CONFLICT }, { status: 409 });
+    }
     return NextResponse.json({ error: "Specialisto profilio sukurti nepavyko. Bandykite dar kartą." }, { status: 500 });
   }
 

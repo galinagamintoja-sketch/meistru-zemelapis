@@ -1,18 +1,23 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- signed private previews cannot use the image optimizer */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { REGISTRATION_PHOTO_MAX_ITEMS, mergeRegistrationPhotoSelections, uploadRegistrationPhotos, type RegistrationPhotoSelection } from "../lib/registration-photos";
 
 type Photo = { id: string; name: string; url: string | null; status: string; rejectionReason?: string | null; isPrimary?: boolean };
 
 export function PhotoUploader({ photos }: { photos: Photo[] }) {
+  const router = useRouter();
   const [current, setCurrent] = useState(photos);
   const [filter, setFilter] = useState<"all" | "approved" | "pending" | "rejected">("all");
   const [queue, setQueue] = useState<RegistrationPhotoSelection[]>([]);
   const [replacementId, setReplacementId] = useState<string | null>(null);
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [message, setMessage] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const uploadingRef = useRef(false);
+  useEffect(() => setCurrent(photos), [photos]);
   const visible = filter === "all" ? current : current.filter((photo) => photo.status === filter);
   const approvedCount = current.filter((photo) => photo.status === "approved").length;
   const pendingCount = current.filter((photo) => photo.status === "pending").length;
@@ -40,7 +45,11 @@ export function PhotoUploader({ photos }: { photos: Photo[] }) {
   }
 
   async function upload() {
+    if (uploadingRef.current || !queue.length) return;
+    uploadingRef.current = true;
+    setIsUploading(true);
     setMessage("Įkeliama...");
+    try {
     const plans = await Promise.all(queue.map(async (photo, index) => {
       const response = await fetch("/api/meistras/photos", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create", name: photo.name, type: photo.type, size: photo.size, replacePhotoId: index === 0 ? replacementId : null }) });
       return response.ok ? { ...(await response.json()), replacePhotoId: index === 0 ? replacementId : null } : undefined;
@@ -52,9 +61,15 @@ export function PhotoUploader({ photos }: { photos: Photo[] }) {
       onProgress: (id, value) => setProgress((state) => ({ ...state, [id]: value }))
     });
     const succeeded = new Set(result.successes.map((photo) => photo.id));
+    setCurrent((items) => [...items, ...result.successes.map((photo) => ({ id: `pending-${photo.id}`, name: photo.name, url: photo.previewUrl, status: "pending" }))]);
     setQueue((items) => items.filter((item) => !succeeded.has(item.id)));
     setReplacementId(null);
     setMessage(result.complete ? "Nuotraukos laukia administratoriaus patvirtinimo." : `${result.successes.length} įkelta, ${result.failures.length} nepavyko. Galite bandyti dar kartą.`);
+    router.refresh();
+    } finally {
+      uploadingRef.current = false;
+      setIsUploading(false);
+    }
   }
 
   return <div className="portal-form">
@@ -63,9 +78,9 @@ export function PhotoUploader({ photos }: { photos: Photo[] }) {
       {([["all", "Visos", current.length], ["approved", "Patvirtintos", approvedCount], ["pending", "Laukia", pendingCount], ["rejected", "Atmestos", rejectedCount]] as const).map(([value, label, count]) => <button type="button" role="tab" aria-selected={filter === value} key={value} onClick={() => setFilter(value)}>{label} ({count})</button>)}
     </div>
     <div className="tradesperson-photo-grid">{visible.map((photo) => <figure key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.name} /> : <div className="photo-placeholder">Tikrinama</div>}<figcaption><span>{photo.name}{photo.isPrimary ? " · Pagrindinė" : ""}</span><span className={`status-badge ${photo.status === "approved" ? "status-success" : photo.status === "rejected" ? "status-danger" : "status-warning"}`}>{photo.status === "approved" ? "Patvirtinta" : photo.status === "rejected" ? "Atmesta" : "Laukia patvirtinimo"}</span>{photo.rejectionReason ? <small>Priežastis: {photo.rejectionReason}</small> : null}<div className="photo-actions">{photo.status === "approved" ? <><button type="button" onClick={() => void mutate("primary", photo.id)}>Pagrindinė</button><button type="button" onClick={() => { setReplacementId(photo.id); setMessage("Pasirinkite pakaitinę nuotrauką. Dabartinė liks vieša iki patvirtinimo."); }}>Pakeisti</button></> : <button type="button" onClick={() => void mutate("remove", photo.id)}>Pašalinti</button>}</div></figcaption></figure>)}</div>
-    <label className="portal-secondary">Pasirinkti nuotraukas<input hidden multiple type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { select(event.target.files); event.target.value = ""; }} /></label>
+    <label className="portal-secondary" aria-disabled={isUploading}>Pasirinkti nuotraukas<input hidden multiple type="file" disabled={isUploading} accept="image/jpeg,image/png,image/webp" onChange={(event) => { select(event.target.files); event.target.value = ""; }} /></label>
     <div className="photo-preview-queue">{queue.map((photo, index) => <article key={photo.id}><img src={photo.previewUrl} alt="" /><strong>{photo.name}</strong><progress max="100" value={progress[photo.id] ?? 0} /><div className="photo-actions"><button type="button" onClick={() => move(photo.id, -1)} disabled={!index}>↑</button><button type="button" onClick={() => move(photo.id, 1)} disabled={index === queue.length - 1}>↓</button><button type="button" onClick={() => setQueue((items) => items.filter((item) => item.id !== photo.id))}>Pašalinti</button></div></article>)}</div>
     <small>Iki {REGISTRATION_PHOTO_MAX_ITEMS} nuotraukų. Galite rinktis keliais kartais, peržiūrėti, pašalinti ir keisti eilę.</small>
-    <button className="portal-primary" type="button" disabled={!queue.length} onClick={() => void upload()}>Įkelti {queue.length || ""} nuotr.</button><p role="status">{message}</p>
+    <button className="portal-primary" type="button" disabled={!queue.length || isUploading} onClick={() => void upload()}>{isUploading ? "Įkeliama…" : `Įkelti ${queue.length || ""} nuotr.`}</button><p role="status">{message}</p>
   </div>;
 }
