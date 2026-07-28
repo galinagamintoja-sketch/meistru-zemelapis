@@ -146,6 +146,7 @@ describe("tradesperson dashboard security", () => {
     expect(read("app/meistras/paslaugos/page.tsx")).toContain(
       "service_subcategories!service_subcategories_service_category_id_fkey"
     );
+    expect(read("components/tradesperson-forms.tsx")).toContain("[5,10,20,25,30,50,75,100]");
   });
 
   it("keeps legacy category rows but removes them from active public selectors", () => {

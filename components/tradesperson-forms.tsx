@@ -79,7 +79,7 @@ export function ServicesForm({ groups, selected, location }: {
       <label>Pagrindinis miestas<input name="baseCity" defaultValue={location.baseCity} required /></label>
       <AddressAutocomplete label="Privatus darbo bazės adresas" value={address} onChange={setAddress} required />
       <small>Tikslus adresas ir koordinatės yra privatūs. Klientai mato tik bendrą vietovę ir aptarnavimo zoną.</small>
-      <label>Vienas paslaugų spindulys<select name="radiusKm" defaultValue={location.radiusKm}>{[5,10,20,30,50,75,100].map((radius) => <option key={radius} value={radius}>{radius} km</option>)}<option value="150">Visa Lietuva</option></select></label>
+      <label>Vienas paslaugų spindulys<select name="radiusKm" defaultValue={location.radiusKm}>{[5,10,20,25,30,50,75,100].map((radius) => <option key={radius} value={radius}>{radius} km</option>)}<option value="150">Visa Lietuva</option></select></label>
     </section>
     <button className="portal-primary" type="submit">Išsaugoti paslaugas</button><p role="status">{message}</p>
   </form>;
