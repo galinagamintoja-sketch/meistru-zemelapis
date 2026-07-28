@@ -1,6 +1,7 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- request photos use short-lived signed URLs */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type RequestSummary = {
   id: string; service: string; category: string; location: string; distanceKm: number | null; createdAt: string;
@@ -14,7 +15,7 @@ type RequestDetail = RequestSummary & {
 
 const filters = [
   ["new", "Naujos"], ["viewed", "Peržiūrėtos"], ["contacted", "Susisiekta"],
-  ["accepted", "Priimtos"], ["rejected", "Atmestos"], ["archived", "Archyvas"]
+  ["interested", "Domina"], ["rejected", "Atmestos"], ["archived", "Archyvas"]
 ] as const;
 
 export function RequestInbox() {
@@ -23,18 +24,26 @@ export function RequestInbox() {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [detail, setDetail] = useState<RequestDetail | null>(null);
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  async function load(nextFilter = filter) {
-    const response = await fetch(`/api/meistras/requests?status=${encodeURIComponent(nextFilter)}`);
-    const data = await response.json();
-    setRequests(data.requests ?? []); setCounts(data.counts ?? {});
-  }
-  useEffect(() => { void load(filter); }, [filter]);
+  const load = useCallback(async (nextFilter: string) => {
+    setLoading(true); setError("");
+    try {
+      const response = await fetch(`/api/meistras/requests?status=${encodeURIComponent(nextFilter)}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Užklausų įkelti nepavyko.");
+      setRequests(data.requests ?? []); setCounts(data.counts ?? {});
+    } catch (reason) {
+      setRequests([]); setError(reason instanceof Error ? reason.message : "Užklausų įkelti nepavyko.");
+    } finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void load(filter); }, [filter, load]);
 
   async function open(id: string) {
     const response = await fetch(`/api/meistras/requests/${id}`);
     const data = await response.json();
-    if (response.ok) { setDetail(data.request); void load(); }
+    if (response.ok) { setDetail(data.request); void load(filter); }
   }
   async function act(action: string) {
     if (!detail) return;
@@ -42,17 +51,17 @@ export function RequestInbox() {
     const response = await fetch(`/api/meistras/requests/${detail.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ action }) });
     const data = await response.json();
     setMessage(response.ok ? "Būsena atnaujinta." : data.error ?? "Atnaujinti nepavyko.");
-    if (response.ok) { await open(detail.id); await load(); }
+    if (response.ok) { await open(detail.id); await load(filter); }
   }
 
   return <div className="request-inbox">
     <p className="request-new-count"><strong>{counts.new ?? 0}</strong> naujų užklausų</p>
     <div className="request-filters" role="tablist" aria-label="Užklausų filtrai">
-      {filters.map(([value, label]) => <button type="button" key={value} aria-selected={filter === value} onClick={() => { setFilter(value); setDetail(null); }}>{label}<span>{counts[value] ?? 0}</span></button>)}
+      {filters.map(([value, label]) => <button type="button" role="tab" key={value} aria-selected={filter === value} onClick={() => { setFilter(value); setDetail(null); }}>{label}<span>{counts[value] ?? 0}</span></button>)}
     </div>
     <div className="request-layout">
       <section className="request-list" aria-label="Užklausų sąrašas">
-        {requests.length ? requests.map((item) => <button type="button" className="request-card" key={item.id} onClick={() => void open(item.id)}>
+        {loading ? <div className="portal-card request-state" role="status">Kraunamos užklausos…</div> : error ? <div className="portal-card request-state" role="alert"><p>{error}</p><button className="portal-secondary" type="button" onClick={() => void load(filter)}>Bandyti dar kartą</button></div> : requests.length ? requests.map((item) => <button type="button" className="request-card" key={item.id} onClick={() => void open(item.id)}>
           <div className="request-card-head"><div><small>{formatDate(item.createdAt)}</small><h2>{item.service || item.category}</h2></div><span className={`status-badge ${item.status === "new" ? "status-warning" : "status-info"}`}>{statusLabel(item.status)}</span></div>
           <p>{item.location}{item.distanceKm !== null ? ` · apie ${item.distanceKm} km` : ""}</p>
           <p className="request-description">{item.description}</p>

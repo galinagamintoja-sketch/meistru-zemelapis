@@ -42,11 +42,10 @@ export async function GET(request: Request) {
     status: stateMap.get(job.id) ?? "new",
     matchesServices: evaluation.reason === "matched_category" || evaluation.reason === "matched_category_and_service",
     matchesRadius: evaluation.reason !== "excluded_location_mismatch"
-  })).filter((item) => filter === "all" || item.status === filter || (filter === "viewed" && item.status === "interested"));
+  })).filter((item) => filter === "all" || item.status === filter);
   const counts = evaluations.reduce<Record<string, number>>((result, { job }) => {
     const status = stateMap.get(job.id) ?? "new";
-    const counter = status === "interested" ? "viewed" : status;
-    result[counter] = (result[counter] ?? 0) + 1;
+    result[status] = (result[status] ?? 0) + 1;
     return result;
   }, {});
   return NextResponse.json({ requests, counts });

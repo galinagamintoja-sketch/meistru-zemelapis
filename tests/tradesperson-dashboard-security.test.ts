@@ -85,10 +85,10 @@ describe("tradesperson dashboard security", () => {
   });
 
   it("uses only the five approved dashboard sections", () => {
-    const shell = read("components/tradesperson-shell.tsx");
-    for (const label of ["Užklausos", "Mano profilis", "Nuotraukos", "Paslaugos", "Paskyra"]) expect(shell).toContain(label);
-    expect(shell).not.toContain("Apžvalga");
-    expect(shell).not.toContain("Darbo zona");
+    const navigation = read("components/tradesperson-navigation.tsx");
+    for (const label of ["Užklausos", "Mano profilis", "Nuotraukos", "Paslaugos", "Paskyra"]) expect(navigation).toContain(label);
+    expect(navigation).not.toContain("Apžvalga");
+    expect(navigation).not.toContain("Darbo zona");
     expect(read("app/meistras/page.tsx")).toContain('redirect("/meistras/uzklausos")');
   });
 
@@ -98,6 +98,24 @@ describe("tradesperson dashboard security", () => {
     const detail = read("app/api/meistras/requests/[id]/route.ts");
     expect(detail).toContain("job.tradesperson_profile_id !== profile.id && !evaluation");
     expect(detail).not.toContain("source_address");
+  });
+
+  it("keeps every actionable request state discoverable in the inbox", () => {
+    const inbox = read("components/request-inbox.tsx");
+    const route = read("app/api/meistras/requests/route.ts");
+    for (const state of ["new", "viewed", "interested", "contacted", "rejected", "archived"]) {
+      expect(inbox).toContain(`["${state}"`);
+    }
+    expect(route).not.toContain('status === "interested" ? "viewed"');
+    expect(inbox).toContain('role="alert"');
+    expect(inbox).toContain("Bandyti dar kartą");
+  });
+
+  it("includes reference-style completion and moderation summaries", () => {
+    expect(read("app/meistras/profilis/page.tsx")).toContain("Profilio užpildymas");
+    const photos = read("components/photo-uploader.tsx");
+    expect(photos).toContain('aria-label="Nuotraukų filtrai"');
+    for (const label of ["Visos", "Patvirtintos", "Laukia", "Atmestos"]) expect(photos).toContain(label);
   });
 
   it("supports Supabase email auth without linking by public email", () => {

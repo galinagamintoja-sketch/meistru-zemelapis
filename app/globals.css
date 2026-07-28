@@ -28,21 +28,31 @@
 .portal-primary { background: var(--clay); color: #fff; border-color: var(--clay); }
 .portal-secondary { background: var(--panel); color: var(--spruce); border-color: var(--line); }
 .login-privacy { color: var(--muted); font-size: .875rem; line-height: 1.5; }
-.tradesperson-shell { min-height: 100vh; color: var(--ink); }
+.tradesperson-shell { min-height: 100vh; color: var(--ink); background: #f6f2e9; }
 .tradesperson-sidebar {
-  position: fixed; inset: 0 auto 0 0; z-index: 10; width: 250px; padding: 22px 16px;
-  display: flex; flex-direction: column; border-right: 1px solid var(--line); background: rgba(255, 250, 240, .96);
+  position: fixed; inset: 16px auto 16px 16px; z-index: 10; width: 216px; padding: 18px 14px;
+  display: flex; flex-direction: column; border: 1px solid #e4ded2; border-radius: 14px;
+  background: rgba(255, 252, 246, .96); box-shadow: 0 16px 38px rgba(46, 39, 31, .08);
 }
-.tradesperson-sidebar nav { display: grid; gap: 5px; margin-top: 30px; }
-.tradesperson-sidebar nav a { display: flex; gap: 12px; padding: 11px 12px; border-radius: 8px; color: var(--ink); text-decoration: none; }
-.tradesperson-sidebar nav a:hover { background: var(--soft); color: var(--spruce); }
-.tradesperson-account { display: grid; gap: 7px; margin-top: auto; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--render); }
-.tradesperson-account small { font-family: "IBM Plex Mono", monospace; color: var(--muted); }
-.tradesperson-account button { border: 0; padding: 0; background: transparent; color: #755; cursor: pointer; }
-.tradesperson-main { min-height: 100vh; margin-left: 250px; }
-.tradesperson-main > header { height: 64px; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); background: rgba(239, 233, 220, .92); backdrop-filter: blur(14px); }
+.tradesperson-sidebar .brand small { letter-spacing: .055em; text-transform: uppercase; }
+.tradesperson-summary { display: grid; justify-items: center; gap: 7px; margin-top: 20px; padding: 16px 10px; border: 1px solid #ebe5da; border-radius: 11px; text-align: center; background: #fffdf9; }
+.tradesperson-avatar { position: relative; display: grid; place-items: center; width: 62px; height: 62px; border-radius: 50%; background: #173f2c; color: white; font-size: 1.65rem; font-weight: 800; }
+.tradesperson-avatar i { position: absolute; right: 1px; bottom: 3px; width: 13px; height: 13px; border: 2px solid #fff; border-radius: 50%; background: #59b65d; }
+.tradesperson-summary > strong { font-size: 1.05rem; }
+.tradesperson-summary p { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.4; }
+.profile-state { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 6px 9px; border-radius: 6px; background: #f4eee3; color: #766952; font-size: .72rem; font-weight: 800; }
+.profile-state.is-active { background: #eef5e9; color: #356744; }
+.tradesperson-side-nav { display: grid; gap: 5px; margin-top: 18px; }
+.tradesperson-side-nav a { position: relative; display: flex; align-items: center; gap: 11px; min-height: 44px; padding: 10px 12px; border-radius: 8px; color: var(--ink); text-decoration: none; font-size: .9rem; font-weight: 650; }
+.tradesperson-side-nav a:hover, .tradesperson-side-nav a[aria-current="page"] { background: #f1ece2; color: var(--spruce); }
+.tradesperson-side-nav a[aria-current="page"]::before { content: ""; position: absolute; left: -14px; width: 3px; height: 25px; border-radius: 0 4px 4px 0; background: var(--spruce); }
+.dashboard-icon { width: 21px; height: 21px; flex: 0 0 auto; }
+.tradesperson-logout { margin-top: auto; padding-top: 12px; }
+.tradesperson-logout button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: #665f55; cursor: pointer; }
+.tradesperson-main { min-height: 100vh; margin-left: 248px; padding: 16px 16px 16px 0; }
+.tradesperson-main > header { display: none; }
 .tradesperson-main > header .brand { display: none; }
-.tradesperson-main > main { max-width: 1120px; margin: 0 auto; padding: 32px 28px 60px; }
+.tradesperson-main > main { min-height: calc(100vh - 32px); max-width: 1180px; margin: 0 auto; padding: 30px 34px 60px; border: 1px solid #e4ded2; border-radius: 14px; background: rgba(255, 252, 246, .94); box-shadow: 0 16px 38px rgba(46, 39, 31, .07); }
 .portal-page, .portal-heading, .portal-links { display: grid; gap: 12px; }
 .portal-heading { margin-bottom: 8px; }
 .portal-heading h1, .unlinked-account h1 { margin: 0; font-family: "Space Grotesk", sans-serif; font-size: clamp(1.7rem, 4vw, 2.35rem); }
@@ -67,8 +77,15 @@
 .portal-checks label { display: flex; align-items: center; gap: 8px; font-weight: 500; }
 .portal-checks input, .portal-consent input { width: auto; }
 .portal-consent { grid-template-columns: auto 1fr; align-items: start; }
-.profile-status-banner { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: var(--soft-shadow); }
-.profile-checklist { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; color: var(--lake); font-family: "IBM Plex Mono", monospace; font-size: .75rem; }
+.profile-status-banner { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr) auto; align-items: center; gap: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: var(--soft-shadow); }
+.profile-status-copy { display: grid; gap: 6px; }
+.profile-status-copy p { margin: 0; color: var(--muted); font-size: .85rem; }
+.profile-completion { display: grid; gap: 7px; min-width: 220px; }
+.profile-completion div { display: flex; justify-content: space-between; gap: 12px; font-size: .84rem; }
+.profile-completion progress, .photo-summary progress { width: 100%; accent-color: var(--spruce); }
+.profile-checklist { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: 100%; color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: .75rem; }
+.profile-checklist span { padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.profile-checklist span[data-complete="true"] { color: var(--spruce); }
 .request-inbox { display: grid; gap: 16px; }
 .request-new-count { width: fit-content; margin: 0; padding: 9px 12px; border-left: 4px solid var(--clay); background: var(--panel); font-family: "IBM Plex Mono", monospace; font-size: .8rem; }
 .request-filters { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
@@ -77,6 +94,7 @@
 .request-filters span { font-family: "IBM Plex Mono", monospace; font-size: .72rem; }
 .request-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, .8fr); gap: 16px; align-items: start; }
 .request-list { display: grid; gap: 10px; }
+.request-state { display: grid; gap: 12px; justify-items: start; }
 .request-card { width: 100%; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); text-align: left; box-shadow: 0 6px 18px rgba(33,29,24,.06); cursor: pointer; }
 .request-card:hover { border-color: var(--clay); }
 .request-card-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
@@ -100,6 +118,12 @@
 .request-actions button { min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: pointer; }
 .request-actions button:first-child, .request-actions button:nth-child(2) { background: var(--clay); border-color: var(--clay); color: white; }
 .tradesperson-photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.photo-summary { display: grid; grid-template-columns: minmax(180px, 280px) minmax(160px, 1fr); align-items: center; gap: 20px; padding: 16px; border: 1px solid #d7e4d8; border-radius: 10px; background: #f8fbf6; }
+.photo-summary div { display: grid; gap: 3px; }
+.photo-summary span { color: var(--muted); font-size: .84rem; }
+.photo-filters { display: flex; gap: 8px; overflow-x: auto; }
+.photo-filters button { min-height: 38px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: pointer; white-space: nowrap; }
+.photo-filters button[aria-selected="true"] { border-color: var(--spruce); background: var(--spruce); color: white; }
 .tradesperson-photo-grid figure { margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: white; }
 .tradesperson-photo-grid img, .photo-placeholder { width: 100%; aspect-ratio: 4/3; object-fit: cover; }
 .photo-placeholder { display: grid; place-items: center; background: var(--soft); color: var(--muted); }
@@ -129,17 +153,23 @@
 
 @media (max-width: 720px) {
   .tradesperson-sidebar { display: none; }
-  .tradesperson-main { margin-left: 0; }
-  .tradesperson-main > header { height: 56px; padding: 0 16px; }
-  .tradesperson-main > header > span { display: none; }
+  .tradesperson-main { margin-left: 0; padding: 0; }
+  .tradesperson-main > header { position: sticky; top: 0; z-index: 12; height: 56px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); background: rgba(255, 252, 246, .96); backdrop-filter: blur(12px); }
+  .tradesperson-main > header > strong { font-size: .9rem; }
+  .mobile-header-action { color: var(--spruce); font-size: 1.25rem; }
   .tradesperson-main > header .brand { display: inline-flex; }
   .tradesperson-main > header .brand-mark { width: 34px; height: 34px; }
-  .tradesperson-main > main { padding: 22px 16px 92px; }
+  .tradesperson-main > header .brand > strong { display: none; }
+  .tradesperson-main > main { min-height: auto; padding: 18px 12px 92px; border: 0; border-radius: 0; box-shadow: none; }
   .portal-grid { grid-template-columns: 1fr; }
   .portal-card { padding: 18px; }
   .portal-actions { display: grid; }
   .portal-form-row, .portal-checks { grid-template-columns: 1fr; }
   .profile-status-banner { display: grid; }
+  .profile-completion { min-width: 0; }
+  .profile-checklist { grid-template-columns: 1fr 1fr; }
+  .profile-status-banner .portal-secondary { width: 100%; }
+  .photo-summary { grid-template-columns: 1fr; }
   .tradesperson-photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .photo-preview-queue article { grid-template-columns: 52px minmax(0, 1fr); }
   .photo-preview-queue .photo-actions { grid-column: 1 / -1; }
@@ -147,11 +177,14 @@
   .request-detail { position: fixed; inset: 0; z-index: 30; overflow-y: auto; border: 0; border-radius: 0; }
   .tradesperson-bottom-nav {
     position: fixed; inset: auto 0 0; z-index: 20; display: grid; grid-template-columns: repeat(5, 1fr);
-    min-height: 68px; padding: 7px max(6px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));
-    border-top: 1px solid var(--line); background: rgba(255, 250, 240, .97); backdrop-filter: blur(12px);
+    min-height: 66px; padding: 6px max(5px, env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left));
+    border-top: 1px solid var(--line); background: rgba(255, 252, 246, .98); backdrop-filter: blur(12px);
   }
-  .tradesperson-bottom-nav a { display: grid; justify-items: center; align-content: center; gap: 3px; color: var(--spruce); text-decoration: none; }
-  .tradesperson-bottom-nav small { font-size: .59rem; white-space: nowrap; }
+  .tradesperson-bottom-nav a { position: relative; display: grid; justify-items: center; align-content: center; gap: 3px; color: #6e6a62; text-decoration: none; }
+  .tradesperson-bottom-nav a[aria-current="page"] { color: var(--spruce); }
+  .tradesperson-bottom-nav a[aria-current="page"]::before { content: ""; position: absolute; top: -6px; width: 28px; height: 2px; border-radius: 0 0 3px 3px; background: var(--spruce); }
+  .tradesperson-bottom-nav span { font-size: .57rem; white-space: nowrap; }
+  .tradesperson-bottom-nav .dashboard-icon { width: 20px; height: 20px; }
 }
 
 .status-message {

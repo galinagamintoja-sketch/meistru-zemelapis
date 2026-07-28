@@ -8,10 +8,15 @@ type Photo = { id: string; name: string; url: string | null; status: string; rej
 
 export function PhotoUploader({ photos }: { photos: Photo[] }) {
   const [current, setCurrent] = useState(photos);
+  const [filter, setFilter] = useState<"all" | "approved" | "pending" | "rejected">("all");
   const [queue, setQueue] = useState<RegistrationPhotoSelection[]>([]);
   const [replacementId, setReplacementId] = useState<string | null>(null);
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [message, setMessage] = useState("");
+  const visible = filter === "all" ? current : current.filter((photo) => photo.status === filter);
+  const approvedCount = current.filter((photo) => photo.status === "approved").length;
+  const pendingCount = current.filter((photo) => photo.status === "pending").length;
+  const rejectedCount = current.filter((photo) => photo.status === "rejected").length;
 
   function select(files: FileList | null) {
     if (!files) return;
@@ -53,7 +58,11 @@ export function PhotoUploader({ photos }: { photos: Photo[] }) {
   }
 
   return <div className="portal-form">
-    <div className="tradesperson-photo-grid">{current.map((photo) => <figure key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.name} /> : <div className="photo-placeholder">Tikrinama</div>}<figcaption><span>{photo.name}{photo.isPrimary ? " · Pagrindinė" : ""}</span><span className={`status-badge ${photo.status === "approved" ? "status-success" : photo.status === "rejected" ? "status-danger" : "status-warning"}`}>{photo.status === "approved" ? "Patvirtinta" : photo.status === "rejected" ? "Atmesta" : "Laukia patvirtinimo"}</span>{photo.rejectionReason ? <small>Priežastis: {photo.rejectionReason}</small> : null}<div className="photo-actions">{photo.status === "approved" ? <><button type="button" onClick={() => void mutate("primary", photo.id)}>Pagrindinė</button><button type="button" onClick={() => { setReplacementId(photo.id); setMessage("Pasirinkite pakaitinę nuotrauką. Dabartinė liks vieša iki patvirtinimo."); }}>Pakeisti</button></> : <button type="button" onClick={() => void mutate("remove", photo.id)}>Pašalinti</button>}</div></figcaption></figure>)}</div>
+    <section className="photo-summary"><div><strong>{current.length} iš {REGISTRATION_PHOTO_MAX_ITEMS} nuotraukų</strong><span>Jūsų darbų galerija</span></div><progress max={REGISTRATION_PHOTO_MAX_ITEMS} value={current.length} /></section>
+    <div className="photo-filters" role="tablist" aria-label="Nuotraukų filtrai">
+      {([["all", "Visos", current.length], ["approved", "Patvirtintos", approvedCount], ["pending", "Laukia", pendingCount], ["rejected", "Atmestos", rejectedCount]] as const).map(([value, label, count]) => <button type="button" role="tab" aria-selected={filter === value} key={value} onClick={() => setFilter(value)}>{label} ({count})</button>)}
+    </div>
+    <div className="tradesperson-photo-grid">{visible.map((photo) => <figure key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.name} /> : <div className="photo-placeholder">Tikrinama</div>}<figcaption><span>{photo.name}{photo.isPrimary ? " · Pagrindinė" : ""}</span><span className={`status-badge ${photo.status === "approved" ? "status-success" : photo.status === "rejected" ? "status-danger" : "status-warning"}`}>{photo.status === "approved" ? "Patvirtinta" : photo.status === "rejected" ? "Atmesta" : "Laukia patvirtinimo"}</span>{photo.rejectionReason ? <small>Priežastis: {photo.rejectionReason}</small> : null}<div className="photo-actions">{photo.status === "approved" ? <><button type="button" onClick={() => void mutate("primary", photo.id)}>Pagrindinė</button><button type="button" onClick={() => { setReplacementId(photo.id); setMessage("Pasirinkite pakaitinę nuotrauką. Dabartinė liks vieša iki patvirtinimo."); }}>Pakeisti</button></> : <button type="button" onClick={() => void mutate("remove", photo.id)}>Pašalinti</button>}</div></figcaption></figure>)}</div>
     <label className="portal-secondary">Pasirinkti nuotraukas<input hidden multiple type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { select(event.target.files); event.target.value = ""; }} /></label>
     <div className="photo-preview-queue">{queue.map((photo, index) => <article key={photo.id}><img src={photo.previewUrl} alt="" /><strong>{photo.name}</strong><progress max="100" value={progress[photo.id] ?? 0} /><div className="photo-actions"><button type="button" onClick={() => move(photo.id, -1)} disabled={!index}>↑</button><button type="button" onClick={() => move(photo.id, 1)} disabled={index === queue.length - 1}>↓</button><button type="button" onClick={() => setQueue((items) => items.filter((item) => item.id !== photo.id))}>Pašalinti</button></div></article>)}</div>
     <small>Iki {REGISTRATION_PHOTO_MAX_ITEMS} nuotraukų. Galite rinktis keliais kartais, peržiūrėti, pašalinti ir keisti eilę.</small>
