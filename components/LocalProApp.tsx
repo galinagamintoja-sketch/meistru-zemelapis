@@ -1087,7 +1087,7 @@ export default function LocalProApp({
   return (
     <div className={`app-shell ${registrationOnly ? "registration-only" : ""}`}>
       <header className="topbar">
-        <a className="brand" href={registrationOnly ? "/" : "#search"} aria-label="LocalPro.lt">
+        <a className="brand" href="/" aria-label="LocalPro.lt">
           <span className="brand-mark" aria-hidden="true">LP</span>
           <span>
             <strong>LocalPro.lt</strong>
@@ -1095,14 +1095,14 @@ export default function LocalProApp({
           </span>
         </a>
         <nav className="stage-nav" aria-label="Puslapio skyriai">
-          {!registrationOnly ? <><a href="#search">Rasti specialistą</a><a href="/request">Pateikti darbų užklausą</a><a href="#how">Kaip veikia</a></> : <a href="/">Grįžti į pagrindinį puslapį</a>}
+          {!registrationOnly ? <a href="/request">Pateikti darbų užklausą</a> : <a href="/">Grįžti į pagrindinį puslapį</a>}
           {!accountState.authenticated ? <><a href="/meistro-registracija">Meistro registracija</a><a href="/login">Prisijungti</a></> : null}
         </nav>
         {!accountState.authenticated ? (
           <details className="mobile-header-menu">
             <summary>Meniu</summary>
             <nav aria-label="Mobiliojo puslapio skyriai">
-              {!registrationOnly ? <><a href="#search">Rasti specialistą</a><a href="/request">Pateikti darbų užklausą</a><a href="#how">Kaip veikia</a></> : <a href="/">Grįžti į pagrindinį puslapį</a>}
+              {!registrationOnly ? <a href="/request">Pateikti darbų užklausą</a> : <a href="/">Grįžti į pagrindinį puslapį</a>}
               <a href="/meistro-registracija">Meistro registracija</a>
               <a href="/login">Prisijungti</a>
             </nav>
@@ -1110,18 +1110,26 @@ export default function LocalProApp({
         ) : null}
         {accountState.authenticated ? (
           <div className="homepage-account" aria-label="Prisijungusio naudotojo paskyra">
-            {accountState.avatarUrl ? (
-              <SafeProfileImage src={accountState.avatarUrl} alt="" specialistName={accountLabel} trade="" />
-            ) : <span className="account-initials" aria-hidden="true">{accountInitials}</span>}
-            <span><small>Prisijungta kaip</small><strong>{accountLabel}</strong></span>
+            <div className="desktop-account-identity">
+              {accountState.avatarUrl ? (
+                <SafeProfileImage src={accountState.avatarUrl} alt="" specialistName={accountLabel} trade="" />
+              ) : <span className="account-initials" aria-hidden="true">{accountInitials}</span>}
+              <span><small>Prisijungta kaip</small><strong>{accountLabel}</strong></span>
+            </div>
             <div className="desktop-account-actions">
               {accountState.hasProfile ? <a className="secondary-action" href="/meistras/uzklausos">Meistro paskyra</a> : <a className="secondary-action" href="/meistro-registracija">Tęsti registraciją</a>}
               {accountState.isAdmin ? <a className="secondary-action" href="/admin">Administravimas</a> : null}
               <button className="secondary-action" type="button" onClick={logoutToHomepage}>Atsijungti</button>
             </div>
             <details className="mobile-account-menu">
-              <summary>Paskyra</summary>
-              <div>
+              <summary aria-label="Atidaryti paskyros meniu">
+                {accountState.avatarUrl ? (
+                  <SafeProfileImage src={accountState.avatarUrl} alt="" specialistName={accountLabel} trade="" />
+                ) : <span className="account-initials" aria-hidden="true">{accountInitials}</span>}
+                <span className="mobile-account-summary-copy"><small>Prisijungta kaip</small><strong>{accountLabel}</strong></span>
+                <span className="account-chevron" aria-hidden="true" />
+              </summary>
+              <div className="mobile-account-dropdown">
                 {accountState.hasProfile ? <a href="/meistras/uzklausos">Meistro paskyra</a> : <a href="/meistro-registracija">Tęsti registraciją</a>}
                 {accountState.isAdmin ? <a href="/admin">Administravimas</a> : null}
                 <button type="button" onClick={logoutToHomepage}>Atsijungti</button>

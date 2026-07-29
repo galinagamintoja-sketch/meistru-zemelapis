@@ -12,9 +12,11 @@ const renderState = (accountState: HomepageAccountState, registrationOnly = fals
 describe("homepage account behaviour", () => {
   it("renders the exact logged-out navigation without a registration form", () => {
     const html = renderState({ authenticated: false, hasProfile: false, isAdmin: false });
-    for (const label of ["Rasti specialistą", "Pateikti darbų užklausą", "Kaip veikia", "Meistro registracija", "Prisijungti"]) {
+    for (const label of ["Pateikti darbų užklausą", "Meistro registracija", "Prisijungti"]) {
       expect(html).toContain(label);
     }
+    expect(html).not.toContain('<a href="#search">Rasti specialistą</a>');
+    expect(html).not.toContain('<a href="#how">Kaip veikia</a>');
     expect(html).not.toContain("LocalPro specialisto registracijos forma");
     expect(html).not.toContain("#register");
     expect(html).not.toContain("Profilio peržiūra");
@@ -31,6 +33,8 @@ describe("homepage account behaviour", () => {
     expect(html).toContain("Prisijungta kaip");
     expect(html).toContain("Meistro paskyra");
     expect(html).toContain("Atsijungti");
+    expect(html).toContain('aria-label="Atidaryti paskyros meniu"');
+    expect(html).toContain('class="mobile-account-summary-copy"');
     expect(html).not.toContain("Meistro registracija");
     expect(html).not.toContain("Tęsti registraciją");
   });

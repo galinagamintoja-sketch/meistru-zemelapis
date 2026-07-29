@@ -16,7 +16,7 @@ function requiredEnvironment(name: string) {
 const supabaseUrl = requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL");
 const anonKey = requiredEnvironment("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 const serviceRoleKey = requiredEnvironment("SUPABASE_SERVICE_ROLE_KEY");
-const adminEmail = requiredEnvironment("QA_ADMIN_EMAIL");
+const adminEmail = process.env.QA_ADMIN_EMAIL ?? "";
 const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
 async function sessionForEmail(email: string) {
@@ -45,7 +45,7 @@ async function useSession(page: Page, session: Session) {
     domain: previewUrl.hostname,
     path: "/",
     httpOnly: false,
-    secure: true,
+    secure: previewUrl.protocol === "https:",
     sameSite: "Lax" as const
   })));
 }
@@ -98,7 +98,7 @@ test.describe.serial("real Preview homepage authentication states", () => {
   test("authenticated user without a profile sees the form", async ({ page }) => {
     await useSession(page, await sessionForEmail(noProfileEmail));
     await page.goto("/");
-    await expect(page.getByText("Prisijungta kaip")).toBeVisible();
+    await expect(page.getByLabel("Atidaryti paskyros meniu").getByText("Prisijungta kaip")).toBeVisible();
     await expect(page.getByText("Tęsti registraciją").first()).toBeAttached();
     await page.screenshot({ path: `${screenshotDir}/02-no-profile-homepage.png`, fullPage: true });
     await page.goto("/meistro-registracija");
@@ -113,17 +113,22 @@ test.describe.serial("real Preview homepage authentication states", () => {
     await page.goto("/");
     await expect(page.getByText("Meistro paskyra").first()).toBeAttached();
     await expect(page.getByText("Meistro registracija")).toHaveCount(0);
+    await expect(page.getByLabel("Atidaryti paskyros meniu")).toBeVisible();
+    await expect(page.getByLabel("Atidaryti paskyros meniu")).toHaveCSS("min-height", "44px");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await page.screenshot({ path: `${screenshotDir}/03-specialist-homepage.png`, fullPage: true });
     await page.goto("/meistro-registracija");
     await expect(page).toHaveURL(/\/meistras\/uzklausos$/);
     await page.goto("/");
-    await page.locator("summary", { hasText: "Paskyra" }).click();
+    await page.getByLabel("Atidaryti paskyros meniu").click();
+    await page.screenshot({ path: `${screenshotDir}/03b-specialist-account-menu.png` });
     await page.getByRole("button", { name: "Atsijungti" }).click();
     await expect(page).toHaveURL(/\/$/);
     await expect(page.locator("summary", { hasText: "Meniu" })).toBeVisible();
   });
 
   test("administrator state is server verified and registration is deliberate", async ({ page }) => {
+    test.skip(!adminEmail, "QA_ADMIN_EMAIL is not configured.");
     await useSession(page, await sessionForEmail(adminEmail));
     await page.goto("/");
     await expect(page.getByText("Administravimas").first()).toBeAttached();
