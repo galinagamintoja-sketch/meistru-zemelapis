@@ -476,18 +476,6 @@ export default function LocalProApp({
     }));
   }, [activeSpecialist]);
   const activePhotoUrl = activeSpecialist?.photoUrls?.find(Boolean) ?? "";
-  const filterSummary = useMemo(
-    () => [
-      trade !== "all" ? serviceLabel(categories, trade) : "Visos sritys",
-      city !== "all" ? city : "Visa Lietuva",
-      `${customerRadiusKm} km`,
-      verification !== "all" ? verificationOptions.find((item) => item.value === verification)?.label ?? verification : null,
-      verifiedOnly ? "Tik patikrinti" : null,
-      availableSoonOnly ? "Gali greitai pradėti" : null,
-      Number(minRating) > 0 ? `${minRating}+` : null
-    ].filter(Boolean),
-    [availableSoonOnly, categories, city, customerRadiusKm, minRating, trade, verification, verifiedOnly]
-  );
   const hasActiveFilters =
     trade !== "all" ||
     city !== "all" ||
@@ -1237,30 +1225,24 @@ export default function LocalProApp({
               {!accountState.hasProfile ? <a className="secondary-action" href="/meistro-registracija">Meistro registracija</a> : null}
               {hasActiveFilters ? <button className="secondary-action action-button" type="button" onClick={clearDiscoveryFilters}>Išvalyti filtrus</button> : null}
             </div>
-            <div className="active-filter-row" aria-label="Aktyvūs filtrai">
-              {filterSummary.map((item) => <span key={String(item)}>{item}</span>)}
-            </div>
           </form>
         </section>
 
         <section className={`map-layout view-${viewMode}`} id="mapSection" aria-label="LocalPro specialistų žemėlapis ir rezultatai">
           <div className="mobile-results-bar">
-            <span>{specialists.length ? formatSpecialistCount(specialists.length) : "Nėra atitikmenų"}</span>
             <div className="segmented-control" aria-label="Rezultatų vaizdas">
               <button className={viewMode === "map" ? "active" : ""} type="button" onClick={() => setViewMode("map")}>Žemėlapis</button>
               <button className={viewMode === "list" ? "active" : ""} type="button" onClick={() => setViewMode("list")}>Sąrašas</button>
             </div>
           </div>
           <aside className={`results-column ${viewMode === "list" ? "mobile-active" : ""}`}>
-            <div className="section-heading compact">
+            {!specialists.length ? <div className="section-heading compact">
               <p className="eyebrow">Specialistai žemėlapyje</p>
-              <h2>{specialists.length ? <span>{formatSpecialistCount(specialists.length)}</span> : "Būkite pirmasis specialistas šioje vietoje"}</h2>
-              <p>{specialists.length
-                ? "Pasirinkite specialistą sąraše arba žemėlapyje ir peržiūrėkite darbo zoną."
-                : accountState.hasProfile
+              <h2>Būkite pirmasis specialistas šioje vietoje</h2>
+              <p>{accountState.hasProfile
                   ? "Šio filtro rezultatai dar tušti. Pakeiskite miestą, darbo sritį arba paieškos spindulį."
                   : "Šio filtro rezultatai dar tušti. Užregistruokite meistro profilį ir jis čia atsiras pirmas."}</p>
-            </div>
+            </div> : null}
             <div className="results-list" aria-live="polite">
               {specialists.length ? specialists.map((specialist) => (
                 <button
@@ -1671,18 +1653,6 @@ export default function LocalProApp({
           </div>
         </section> : null}
 
-        <section className="how-section" id="how">
-          <div className="section-heading">
-            <p className="eyebrow">Kaip veikia</p>
-            <h2>Mažai rašymo, aiškus profilis, klientas susisiekia tiesiogiai.</h2>
-          </div>
-          <div className="workflow-grid">
-            <div><strong>Registracija</strong><p>Specialistas užpildo formą, pasirenka darbo sritis, miestą ir kontaktus.</p></div>
-            <div><strong>Aktyvus profilis</strong><p>Užpildžius privalomus laukus profilis susiejamas su paskyra ir tampa viešas.</p></div>
-            <div><strong>Nuotraukų patikra</strong><p>Profilis tampa aktyvus užbaigus registraciją. Nuotraukas viešai rodome tik po administratoriaus patvirtinimo.</p></div>
-            <div><strong>Kontaktas</strong><p>Klientas mato darbo zoną ir pats susisiekia telefonu arba per WhatsApp.</p></div>
-          </div>
-        </section>
         <footer className="site-footer">
           <a href="/privacy">Privatumo politika</a>
           <a href="/terms">Naudojimosi sąlygos</a>
@@ -1843,21 +1813,6 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-function serviceLabel(categories: Category[], slug: string) {
-  for (const category of categories) {
-    if (category.slug === slug) {
-      return category.name;
-    }
-
-    const subcategory = category.subcategories.find((item) => item.slug === slug);
-    if (subcategory) {
-      return subcategory.name;
-    }
-  }
-
-  return slug;
 }
 
 async function loadGooglePlacesLibrary() {

@@ -20,6 +20,9 @@ describe("homepage account behaviour", () => {
     expect(html).not.toContain("LocalPro specialisto registracijos forma");
     expect(html).not.toContain("#register");
     expect(html).not.toContain("Profilio peržiūra");
+    expect(html).not.toContain('class="how-section"');
+    expect(html).not.toContain('class="active-filter-row"');
+    expect(html).not.toMatch(/class="mobile-results-bar"><span>/);
   });
 
   it("renders one unambiguous specialist account state", () => {

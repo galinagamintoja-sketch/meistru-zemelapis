@@ -311,6 +311,7 @@ textarea {
 .review-head,
 .verification-list {
   display: flex;
+  min-width: 0;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
@@ -330,6 +331,10 @@ textarea {
   font-family: "IBM Plex Mono", monospace;
   font-size: 12px;
   font-weight: 700;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .rating {
@@ -363,7 +368,7 @@ textarea {
   display: flex;
   grid-column: 1 / -1;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
   margin-bottom: 2px;
   font-weight: 900;
@@ -914,8 +919,7 @@ textarea {
 
 .profile-section,
 .solutions-section,
-.register-section,
-.how-section {
+.register-section {
   padding: 18px clamp(18px, 4vw, 56px) 68px;
 }
 
@@ -974,6 +978,13 @@ textarea {
   padding: clamp(18px, 3vw, 28px);
 }
 
+.profile-card > *,
+.profile-summary,
+.profile-summary > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .profile-summary h2 {
   margin: 8px 0;
   font-family: "Space Grotesk", sans-serif;
@@ -984,6 +995,8 @@ textarea {
 .profile-summary p {
   color: var(--muted);
   line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .profile-detail-grid {
@@ -991,6 +1004,7 @@ textarea {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin: 16px 0;
+  align-items: stretch;
 }
 
 .profile-detail-grid div {
@@ -1000,6 +1014,10 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fffdf7;
+  min-width: 0;
+  height: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .profile-detail-grid strong {
@@ -1021,6 +1039,9 @@ textarea {
 
 .contact-list a {
   display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
   padding: 12px;
@@ -1029,6 +1050,20 @@ textarea {
   color: inherit;
   text-decoration: none;
   background: #fffdf7;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.contact-list a > * {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.contact-list a strong {
+  flex: 1 1 180px;
+  text-align: right;
 }
 
 .photo-grid {
@@ -1286,34 +1321,11 @@ fieldset label {
   gap: 8px;
 }
 
-.workflow-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.workflow-grid > div {
-  display: grid;
-  gap: 8px;
-  padding: 18px;
-}
-
-.workflow-grid strong {
-  font-size: 18px;
-}
-
-.workflow-grid p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.45;
-}
-
 @media (max-width: 1040px) {
   .hero,
   .solutions-grid,
   .profile-card,
-  .register-grid,
-  .workflow-grid {
+  .register-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1322,7 +1334,7 @@ fieldset label {
   }
 
   .mobile-results-bar {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
 
   .results-column,
