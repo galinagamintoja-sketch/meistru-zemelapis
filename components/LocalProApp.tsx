@@ -372,6 +372,15 @@ export function registrationCompletionDestination(
   return `${destination}?${params.toString()}`;
 }
 
+export async function performHomepageLogout(
+  fetcher: typeof fetch = fetch,
+  navigate: (destination: string) => void = (destination) => window.location.assign(destination)
+) {
+  const response = await fetcher("/api/auth/logout", { method: "POST" });
+  if (response.ok) navigate("/");
+  return response.ok;
+}
+
 export default function LocalProApp({
   initialSpecialists,
   categories,
@@ -1064,8 +1073,7 @@ export default function LocalProApp({
   }
 
   async function logoutToHomepage() {
-    const response = await fetch("/api/auth/logout", { method: "POST" });
-    if (response.ok) window.location.assign("/");
+    await performHomepageLogout();
   }
 
   const accountLabel = accountState.displayName || accountState.email || "LocalPro naudotojas";
@@ -1090,15 +1098,35 @@ export default function LocalProApp({
           {!registrationOnly ? <><a href="#search">Rasti specialistą</a><a href="/request">Pateikti darbų užklausą</a><a href="#how">Kaip veikia</a></> : <a href="/">Grįžti į pagrindinį puslapį</a>}
           {!accountState.authenticated ? <><a href="/meistro-registracija">Meistro registracija</a><a href="/login">Prisijungti</a></> : null}
         </nav>
+        {!accountState.authenticated ? (
+          <details className="mobile-header-menu">
+            <summary>Meniu</summary>
+            <nav aria-label="Mobiliojo puslapio skyriai">
+              {!registrationOnly ? <><a href="#search">Rasti specialistą</a><a href="/request">Pateikti darbų užklausą</a><a href="#how">Kaip veikia</a></> : <a href="/">Grįžti į pagrindinį puslapį</a>}
+              <a href="/meistro-registracija">Meistro registracija</a>
+              <a href="/login">Prisijungti</a>
+            </nav>
+          </details>
+        ) : null}
         {accountState.authenticated ? (
           <div className="homepage-account" aria-label="Prisijungusio naudotojo paskyra">
             {accountState.avatarUrl ? (
               <SafeProfileImage src={accountState.avatarUrl} alt="" specialistName={accountLabel} trade="" />
             ) : <span className="account-initials" aria-hidden="true">{accountInitials}</span>}
             <span><small>Prisijungta kaip</small><strong>{accountLabel}</strong></span>
-            {accountState.hasProfile ? <a className="secondary-action" href="/meistras/uzklausos">Meistro paskyra</a> : <a className="secondary-action" href="/meistro-registracija">Tęsti registraciją</a>}
-            {accountState.isAdmin ? <a className="secondary-action" href="/admin">Administravimas</a> : null}
-            <button className="secondary-action" type="button" onClick={logoutToHomepage}>Atsijungti</button>
+            <div className="desktop-account-actions">
+              {accountState.hasProfile ? <a className="secondary-action" href="/meistras/uzklausos">Meistro paskyra</a> : <a className="secondary-action" href="/meistro-registracija">Tęsti registraciją</a>}
+              {accountState.isAdmin ? <a className="secondary-action" href="/admin">Administravimas</a> : null}
+              <button className="secondary-action" type="button" onClick={logoutToHomepage}>Atsijungti</button>
+            </div>
+            <details className="mobile-account-menu">
+              <summary>Paskyra</summary>
+              <div>
+                {accountState.hasProfile ? <a href="/meistras/uzklausos">Meistro paskyra</a> : <a href="/meistro-registracija">Tęsti registraciją</a>}
+                {accountState.isAdmin ? <a href="/admin">Administravimas</a> : null}
+                <button type="button" onClick={logoutToHomepage}>Atsijungti</button>
+              </div>
+            </details>
           </div>
         ) : null}
       </header>
@@ -1195,7 +1223,7 @@ export default function LocalProApp({
             </noscript>
             <div className="hero-actions" aria-label="Pagrindiniai veiksmai">
               <a className="primary-action" href="#mapSection">Ieškoti žemėlapyje</a>
-              <a className="secondary-action" href="/meistro-registracija">Meistro registracija</a>
+              {!accountState.hasProfile ? <a className="secondary-action" href="/meistro-registracija">Meistro registracija</a> : null}
               {hasActiveFilters ? <button className="secondary-action action-button" type="button" onClick={clearDiscoveryFilters}>Išvalyti filtrus</button> : null}
             </div>
             <div className="active-filter-row" aria-label="Aktyvūs filtrai">
@@ -1216,7 +1244,11 @@ export default function LocalProApp({
             <div className="section-heading compact">
               <p className="eyebrow">Specialistai žemėlapyje</p>
               <h2>{specialists.length ? <span>{formatSpecialistCount(specialists.length)}</span> : "Būkite pirmasis specialistas šioje vietoje"}</h2>
-              <p>{specialists.length ? "Pasirinkite specialistą sąraše arba žemėlapyje ir peržiūrėkite darbo zoną." : "Šio filtro rezultatai dar tušti. Užregistruokite meistro profilį ir jis čia atsiras pirmas."}</p>
+              <p>{specialists.length
+                ? "Pasirinkite specialistą sąraše arba žemėlapyje ir peržiūrėkite darbo zoną."
+                : accountState.hasProfile
+                  ? "Šio filtro rezultatai dar tušti. Pakeiskite miestą, darbo sritį arba paieškos spindulį."
+                  : "Šio filtro rezultatai dar tušti. Užregistruokite meistro profilį ir jis čia atsiras pirmas."}</p>
             </div>
             <div className="results-list" aria-live="polite">
               {specialists.length ? specialists.map((specialist) => (
@@ -1251,10 +1283,12 @@ export default function LocalProApp({
               )) : (
                 <div className="empty-state">
                   <strong>Nėra atitikmenų pagal pasirinktus filtrus.</strong>
-                  <span>Keiskite miestą arba darbo sritį, arba registruokite savo paslaugą LocalPro žemėlapyje.</span>
+                  <span>{accountState.hasProfile
+                    ? "Keiskite miestą, darbo sritį arba paieškos spindulį."
+                    : "Keiskite miestą arba darbo sritį, arba registruokite savo paslaugą LocalPro žemėlapyje."}</span>
                   <div className="empty-actions">
                     {hasActiveFilters ? <button className="secondary-action action-button" type="button" onClick={clearDiscoveryFilters}>Išvalyti filtrus</button> : null}
-                    <a className="primary-action" href="/meistro-registracija">Meistro registracija</a>
+                    {!accountState.hasProfile ? <a className="primary-action" href="/meistro-registracija">Meistro registracija</a> : null}
                   </div>
                 </div>
               )}

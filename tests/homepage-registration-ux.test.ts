@@ -39,7 +39,7 @@ describe("homepage and dedicated registration UX", () => {
     expect(app).toContain("Prisijungta kaip");
     expect(app).toContain('href="/meistras/uzklausos">Meistro paskyra');
     expect(app).toContain('href="/admin">Administravimas');
-    expect(app).toContain('fetch("/api/auth/logout", { method: "POST" })');
+    expect(app).toContain('performHomepageLogout');
   });
 
   it("requires an explicit administrator choice and removes the old live preview", () => {
