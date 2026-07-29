@@ -89,7 +89,7 @@ test.describe.serial("real Preview homepage authentication states", () => {
     await page.context().clearCookies();
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Patikimi meistrai jūsų mieste." })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Meniu" })).toBeVisible();
+    await expect(page.locator("summary", { hasText: "Meniu" })).toBeVisible();
     await page.screenshot({ path: `${screenshotDir}/01-logged-out-homepage.png`, fullPage: true });
     await page.getByRole("link", { name: "Meistro registracija" }).first().click();
     await expect(page).toHaveURL(/\/meistro-registracija$/);
@@ -103,6 +103,7 @@ test.describe.serial("real Preview homepage authentication states", () => {
     await page.screenshot({ path: `${screenshotDir}/02-no-profile-homepage.png`, fullPage: true });
     await page.goto("/meistro-registracija");
     await expect(page.getByRole("form", { name: "LocalPro specialisto registracijos forma" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pasirinkite specialistą žemėlapyje arba sąraše." })).toBeHidden();
     await expect(page.getByText("Profilio peržiūra")).toHaveCount(0);
     await page.screenshot({ path: `${screenshotDir}/05-registration-form.png`, fullPage: true });
   });
@@ -116,10 +117,10 @@ test.describe.serial("real Preview homepage authentication states", () => {
     await page.goto("/meistro-registracija");
     await expect(page).toHaveURL(/\/meistras\/uzklausos$/);
     await page.goto("/");
-    await page.getByRole("button", { name: "Paskyra" }).click();
+    await page.locator("summary", { hasText: "Paskyra" }).click();
     await page.getByRole("button", { name: "Atsijungti" }).click();
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("button", { name: "Meniu" })).toBeVisible();
+    await expect(page.locator("summary", { hasText: "Meniu" })).toBeVisible();
   });
 
   test("administrator state is server verified and registration is deliberate", async ({ page }) => {

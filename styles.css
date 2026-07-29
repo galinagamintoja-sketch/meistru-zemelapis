@@ -556,6 +556,7 @@ textarea {
 
 .registration-only .hero,
 .registration-only .map-layout,
+.registration-only .profile-section,
 .registration-only .how-section {
   display: none;
 }

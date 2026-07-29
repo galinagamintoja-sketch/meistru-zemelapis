@@ -14,6 +14,7 @@ for (const viewport of [
       });
 
       await page.goto("/");
+      if (viewport.name === "mobile") await page.locator("summary", { hasText: "Meniu" }).click();
       await expect(page.getByRole("link", { name: "Rasti specialistą" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Pateikti darbų užklausą" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Kaip veikia" })).toBeVisible();
@@ -30,6 +31,7 @@ for (const viewport of [
       await expect(page.getByRole("button", { name: "Prisijungti el. paštu" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Sukurti paskyrą" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Patikimi meistrai jūsų mieste." })).toBeHidden();
+      await expect(page.getByRole("heading", { name: "Pasirinkite specialistą žemėlapyje arba sąraše." })).toBeHidden();
       await expect(page.getByText("Profilio peržiūra")).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
       expect(consoleErrors).toEqual([]);
