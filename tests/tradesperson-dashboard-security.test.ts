@@ -43,7 +43,7 @@ describe("tradesperson dashboard security", () => {
   it("returns new authenticated users to registration after Google callback", () => {
     const callback = read("app/auth/callback/route.ts");
     expect(callback).toContain("getLinkedTradespersonProfile(user.id)");
-    expect(callback).toContain('new URL("/?register=1#register", url.origin)');
+    expect(callback).toContain('new URL("/meistro-registracija", url.origin)');
     const home = read("components/LocalProApp.tsx");
     expect(home).toContain("accountState");
     expect(home).toContain("Tęsti su Google");

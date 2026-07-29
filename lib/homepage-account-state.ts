@@ -2,6 +2,9 @@ export type HomepageAccountState = {
   authenticated: boolean;
   hasProfile: boolean;
   isAdmin: boolean;
+  displayName?: string;
+  email?: string;
+  avatarUrl?: string;
 };
 
 export function getHomepageAccountState(

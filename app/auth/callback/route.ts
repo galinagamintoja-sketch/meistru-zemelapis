@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/admin?error=unauthorised", url.origin));
   }
   if (next.startsWith("/meistras") && user && !(await getLinkedTradespersonProfile(user.id))) {
-    return NextResponse.redirect(new URL("/?register=1#register", url.origin));
+    return NextResponse.redirect(new URL("/meistro-registracija", url.origin));
   }
   return NextResponse.redirect(new URL(next, url.origin));
 }

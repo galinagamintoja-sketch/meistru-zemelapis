@@ -2,13 +2,12 @@ import LocalProApp from "../components/LocalProApp";
 import { getCategories, getSpecialists } from "../lib/specialists";
 import { createSupabaseAuthClient } from "../lib/supabase-ssr";
 import { getLinkedTradespersonProfile } from "../lib/tradesperson-account";
-import { getHomepageAccountState, homepageAccountDestination } from "../lib/homepage-account-state";
+import { getHomepageAccountState } from "../lib/homepage-account-state";
 import { isAdminEmail } from "../lib/auth-session";
-import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ register?: string }> }) {
+export default async function Home() {
   const [specialists, categories, auth] = await Promise.all([
     getSpecialists(),
     getCategories(),
@@ -17,8 +16,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ r
 
   const user = auth.data.user;
   const profile = user ? await getLinkedTradespersonProfile(user.id) : null;
-  const accountState = getHomepageAccountState(user?.id ?? null, Boolean(profile), isAdminEmail(user?.email));
-  const destination = homepageAccountDestination(accountState, (await searchParams).register === "1");
-  if (destination) redirect(destination);
+  const accountState = {
+    ...getHomepageAccountState(user?.id ?? null, Boolean(profile), isAdminEmail(user?.email)),
+    displayName: profile?.display_name ?? profile?.company_name ?? user?.user_metadata?.full_name ?? user?.user_metadata?.name,
+    email: user?.email,
+    avatarUrl: user?.user_metadata?.avatar_url ?? user?.user_metadata?.picture
+  };
   return <LocalProApp initialSpecialists={specialists} categories={categories} accountState={accountState} />;
 }

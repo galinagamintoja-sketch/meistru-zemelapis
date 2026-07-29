@@ -543,6 +543,59 @@ textarea {
   object-fit: cover;
 }
 
+.registration-only .hero,
+.registration-only .map-layout,
+.registration-only .how-section {
+  display: none;
+}
+
+.homepage-account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.homepage-account > img,
+.account-initials {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.account-initials {
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: white;
+  font-weight: 800;
+}
+
+.homepage-account > span:not(.account-initials) {
+  display: grid;
+  max-width: 190px;
+}
+
+.homepage-account small {
+  color: var(--muted);
+}
+
+.homepage-account strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registration-only .register-grid {
+  grid-template-columns: minmax(0, 860px);
+  justify-content: center;
+}
+
+.registration-only .register-section {
+  min-height: calc(100vh - 180px);
+}
+
 .safe-profile-image {
   position: relative;
   display: grid;
@@ -1264,6 +1317,18 @@ fieldset label {
 
   .stage-nav {
     justify-content: flex-start;
+  }
+
+  .homepage-account {
+    width: 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+
+  .homepage-account > span:not(.account-initials) {
+    flex: 1;
+    max-width: none;
+    min-width: 150px;
   }
 }
 

@@ -7,7 +7,7 @@ export function UnlinkedAccount() {
       <h1>Sukurkite savo LocalPro specialisto profilį.</h1>
       <p>Profilis bus saugiai susietas su šia paskyra ir taps aktyvus, kai užpildysite privalomus laukus.</p>
       <div className="portal-actions">
-        <Link className="portal-primary" href="/?register=1#register">Užbaigti registraciją</Link>
+        <Link className="portal-primary" href="/meistro-registracija">Tęsti registraciją</Link>
       </div>
     </section>
   );

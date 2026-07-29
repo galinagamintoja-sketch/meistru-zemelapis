@@ -14,11 +14,13 @@ import {
   uploadRegistrationPhotos
 } from "../lib/registration-photos";
 import type { HomepageAccountState } from "../lib/homepage-account-state";
+import { EmailAuthForm } from "./email-auth-form";
 
 type Props = {
   initialSpecialists: Specialist[];
   categories: Category[];
   accountState?: HomepageAccountState;
+  registrationOnly?: boolean;
 };
 
 export type RegistrationDraft = {
@@ -373,7 +375,8 @@ export function registrationCompletionDestination(
 export default function LocalProApp({
   initialSpecialists,
   categories,
-  accountState = { authenticated: false, hasProfile: false, isAdmin: false }
+  accountState = { authenticated: false, hasProfile: false, isAdmin: false },
+  registrationOnly = false
 }: Props) {
   const [trade, setTrade] = useState("all");
   const [city, setCity] = useState("all");
@@ -429,6 +432,7 @@ export default function LocalProApp({
   const [submittedManualAddressReview, setSubmittedManualAddressReview] = useState(false);
   const [registrationPhotoProgress, setRegistrationPhotoProgress] = useState<Record<string, number>>({});
   const [registrationPhotoFailures, setRegistrationPhotoFailures] = useState<Record<string, string>>({});
+  const [adminRegistrationAllowed, setAdminRegistrationAllowed] = useState(false);
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const profileSectionRef = useRef<HTMLElement | null>(null);
   const registrationFormRef = useRef<HTMLFormElement | null>(null);
@@ -1059,10 +1063,23 @@ export default function LocalProApp({
     return categories.find((category) => category.subcategories.some((item) => item.slug === subcategorySlug))?.slug ?? "";
   }
 
+  async function logoutToHomepage() {
+    const response = await fetch("/api/auth/logout", { method: "POST" });
+    if (response.ok) window.location.assign("/");
+  }
+
+  const accountLabel = accountState.displayName || accountState.email || "LocalPro naudotojas";
+  const accountInitials = accountLabel
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${registrationOnly ? "registration-only" : ""}`}>
       <header className="topbar">
-        <a className="brand" href="#search" aria-label="LocalPro.lt">
+        <a className="brand" href={registrationOnly ? "/" : "#search"} aria-label="LocalPro.lt">
           <span className="brand-mark" aria-hidden="true">LP</span>
           <span>
             <strong>LocalPro.lt</strong>
@@ -1070,14 +1087,20 @@ export default function LocalProApp({
           </span>
         </a>
         <nav className="stage-nav" aria-label="Puslapio skyriai">
-          <a href="#search">Rasti specialistą</a>
-          <a href="/request">Pateikti darbų užklausą</a>
-          <a href="#how">Kaip veikia</a>
-          {!accountState.authenticated ? <><a href="#register">Registruotis</a><a href="/login">Prisijungti</a></> : null}
-          {accountState.authenticated && !accountState.hasProfile ? <a href="#register">Užbaigti registraciją</a> : null}
-          {accountState.hasProfile ? <a href="/meistras/uzklausos">Meistro paskyra</a> : null}
-          {accountState.isAdmin ? <a href="/admin">Administravimas</a> : null}
+          {!registrationOnly ? <><a href="#search">Rasti specialistą</a><a href="/request">Pateikti darbų užklausą</a><a href="#how">Kaip veikia</a></> : <a href="/">Grįžti į pagrindinį puslapį</a>}
+          {!accountState.authenticated ? <><a href="/meistro-registracija">Meistro registracija</a><a href="/login">Prisijungti</a></> : null}
         </nav>
+        {accountState.authenticated ? (
+          <div className="homepage-account" aria-label="Prisijungusio naudotojo paskyra">
+            {accountState.avatarUrl ? (
+              <SafeProfileImage src={accountState.avatarUrl} alt="" specialistName={accountLabel} trade="" />
+            ) : <span className="account-initials" aria-hidden="true">{accountInitials}</span>}
+            <span><small>Prisijungta kaip</small><strong>{accountLabel}</strong></span>
+            {accountState.hasProfile ? <a className="secondary-action" href="/meistras/uzklausos">Meistro paskyra</a> : <a className="secondary-action" href="/meistro-registracija">Tęsti registraciją</a>}
+            {accountState.isAdmin ? <a className="secondary-action" href="/admin">Administravimas</a> : null}
+            <button className="secondary-action" type="button" onClick={logoutToHomepage}>Atsijungti</button>
+          </div>
+        ) : null}
       </header>
 
       <main>
@@ -1172,7 +1195,7 @@ export default function LocalProApp({
             </noscript>
             <div className="hero-actions" aria-label="Pagrindiniai veiksmai">
               <a className="primary-action" href="#mapSection">Ieškoti žemėlapyje</a>
-              <a className="secondary-action" href="#register">Tapti specialistu</a>
+              <a className="secondary-action" href="/meistro-registracija">Meistro registracija</a>
               {hasActiveFilters ? <button className="secondary-action action-button" type="button" onClick={clearDiscoveryFilters}>Išvalyti filtrus</button> : null}
             </div>
             <div className="active-filter-row" aria-label="Aktyvūs filtrai">
@@ -1193,7 +1216,7 @@ export default function LocalProApp({
             <div className="section-heading compact">
               <p className="eyebrow">Specialistai žemėlapyje</p>
               <h2>{specialists.length ? <span>{formatSpecialistCount(specialists.length)}</span> : "Būkite pirmasis specialistas šioje vietoje"}</h2>
-              <p>{specialists.length ? "Pasirinkite specialistą sąraše arba žemėlapyje ir peržiūrėkite darbo zoną." : "Šio filtro rezultatai dar tušti. Registruokitės nemokamai ir jūsų profilis čia atsiras pirmas."}</p>
+              <p>{specialists.length ? "Pasirinkite specialistą sąraše arba žemėlapyje ir peržiūrėkite darbo zoną." : "Šio filtro rezultatai dar tušti. Užregistruokite meistro profilį ir jis čia atsiras pirmas."}</p>
             </div>
             <div className="results-list" aria-live="polite">
               {specialists.length ? specialists.map((specialist) => (
@@ -1231,7 +1254,7 @@ export default function LocalProApp({
                   <span>Keiskite miestą arba darbo sritį, arba registruokite savo paslaugą LocalPro žemėlapyje.</span>
                   <div className="empty-actions">
                     {hasActiveFilters ? <button className="secondary-action action-button" type="button" onClick={clearDiscoveryFilters}>Išvalyti filtrus</button> : null}
-                    <a className="primary-action" href="#register">Registruotis nemokamai</a>
+                    <a className="primary-action" href="/meistro-registracija">Meistro registracija</a>
                   </div>
                 </div>
               )}
@@ -1349,27 +1372,29 @@ export default function LocalProApp({
           )}
         </section>
 
-        <section className="register-section" id="register">
+        {registrationOnly ? <section className="register-section" id="registration">
           <div className="section-heading">
             <p className="eyebrow">Specialistams</p>
-            <h2>Registruokitės nemokamai ir atsiraskite LocalPro žemėlapyje.</h2>
-            <p>Patvirtinkite paskyrą su Google, užpildykite privalomus laukus ir iškart pradėkite naudotis specialisto profiliu.</p>
+            <h1>Meistro registracija</h1>
+            <p>Prisijunkite, užpildykite privalomus profilio laukus ir pradėkite naudotis savo meistro paskyra. Nuotraukas galėsite papildyti ir vėliau.</p>
           </div>
 
           <div className="register-grid">
-            {accountState.hasProfile ? (
-              <article className="registration-form success-panel">
-                <p className="eyebrow">Meistro paskyra</p>
-                <h3>Jūsų LocalPro profilis aktyvus</h3>
-                <p>Profilio duomenis, paslaugas ir nuotraukas galite tvarkyti meistro paskyroje.</p>
-                <a className="primary-action" href="/meistras/uzklausos">Atidaryti meistro paskyrą</a>
-              </article>
-            ) : !accountState.authenticated ? (
+            {!accountState.authenticated ? (
               <article className="registration-form">
-                <p className="eyebrow">1 žingsnis</p>
-                <h3>Patvirtinkite savo paskyrą</h3>
-                <p>Pirmiausia saugiai prisijunkite su Google. Tada grįšite čia užpildyti registraciją, o naujas profilis bus iškart susietas su jūsų paskyra.</p>
-                <a className="google-primary-button" href="/auth/google?next=%2F%3Fregister%3D1%23register">Tęsti su Google</a>
+                <p className="eyebrow">Paskyros patvirtinimas</p>
+                <h3>Prisijunkite arba sukurkite paskyrą</h3>
+                <p>Po prisijungimo grįšite į šį puslapį ir galėsite užpildyti meistro registraciją.</p>
+                <a className="google-primary-button" href="/auth/google?next=%2Fmeistro-registracija">Tęsti su Google</a>
+                <div className="login-divider"><span>arba el. paštu</span></div>
+                <EmailAuthForm next="/meistro-registracija" />
+              </article>
+            ) : accountState.isAdmin && !adminRegistrationAllowed ? (
+              <article className="registration-form success-panel">
+                <p className="eyebrow">Administratoriaus paskyra</p>
+                <h3>Meistro profilis nebus sukurtas automatiškai</h3>
+                <p>Jeigu taip pat teikiate meistro paslaugas, registraciją galite pradėti sąmoningai.</p>
+                <button type="button" onClick={() => setAdminRegistrationAllowed(true)}>Registruotis kaip meistrui</button>
               </article>
             ) : submitTone === "success" ? (
               <article className="registration-form success-panel" aria-live="polite">
@@ -1608,51 +1633,8 @@ export default function LocalProApp({
             </form>
             )}
 
-            <aside className="registration-preview" aria-label="Registracijos peržiūra">
-              <p className="eyebrow">Profilio peržiūra</p>
-              <div className="preview-card">
-                <h3>{formState.name || "Naujas LocalPro specialistas"}</h3>
-                <div className="tag-row">
-                  {selectedCategoryNames.length ? selectedCategoryNames.map((name) => <span className="tag" key={name}>{name}</span>) : <span className="tag">Pasirinkite sritį</span>}
-                  {formState.subcategorySlugs.length ? formState.subcategorySlugs.map((slug) => {
-                    const subcategory = selectedSubcategories.find((item) => item.slug === slug);
-                    return <span className="tag" key={slug}>{subcategory?.name ?? slug}</span>;
-                  }) : null}
-                  <span className="tag">{formState.town || formState.address || "Pagrindinė darbo vieta"}</span>
-                  <span className="tag">{formatTravelRange(formState.radiusKm)}</span>
-                  <span className="tag">Aktyvus užbaigus registraciją</span>
-                </div>
-                <p>{formState.description || "Trumpas darbų aprašymas bus rodomas čia."}</p>
-                {formState.photoUploads[0]?.previewUrl || formState.photoUrls.find(Boolean) ? (
-                  <SafeProfileImage
-                    src={formState.photoUploads[0]?.previewUrl || formState.photoUrls.find(Boolean)}
-                    alt={`${formState.name || "Naujo specialisto"} registracijos nuotrauka`}
-                    specialistName={formState.name}
-                    trade={formState.trade}
-                    className="registration-preview-photo"
-                    fallbackText="Nuotraukos nėra"
-                  />
-                ) : null}
-                {formState.photoUploads.length || formState.photoUrls.filter(Boolean).length ? (
-                  <div className="verification-list">
-                    {formState.photoUploads.map((photo) => <span key={photo.name}>{photo.name}</span>)}
-                    {formState.photoUrls.filter(Boolean).map((url, index) => <span key={`${url}-${index}`}>{formatPhotoUrl(url)}</span>)}
-                  </div>
-                ) : null}
-                <div className="contact-list">
-                  <a href={`tel:${formState.phone.replaceAll(" ", "")}`}><span>Telefonas</span><strong>{formState.phone || "+370..."}</strong></a>
-                  <a href={`mailto:${formState.email}`}><span>El. paštas</span><strong>{formState.email || "vardas@example.lt"}</strong></a>
-                </div>
-              </div>
-              <div className="approval-flow" aria-label="Publikavimo eiga">
-                <span>1. Užpildote formą</span>
-                <span>2. Susiejame su paskyra</span>
-                <span>3. Profilis tampa aktyvus</span>
-                <span>4. Admin patvirtina tik nuotraukas</span>
-              </div>
-            </aside>
           </div>
-        </section>
+        </section> : null}
 
         <section className="how-section" id="how">
           <div className="section-heading">
@@ -1938,16 +1920,6 @@ function formatTravelRange(radiusKm: number) {
 
 function formatAvailability(specialist: Specialist) {
   return specialist.isAvailableSoon ? "Gali greitai pradėti" : "Dėl laiko susitarti";
-}
-
-function formatPhotoUrl(value: string) {
-  try {
-    const url = new URL(value);
-    const path = `${url.hostname}${url.pathname}`.replace(/^www\./, "");
-    return path.length > 32 ? `${path.slice(0, 29)}...` : path;
-  } catch {
-    return value.length > 32 ? `${value.slice(0, 29)}...` : value;
-  }
 }
 
 function directRegistrationPhotoUpload(signedUrl: string, file: File, onProgress: (percent: number) => void) {
