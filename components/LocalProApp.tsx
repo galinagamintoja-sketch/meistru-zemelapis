@@ -1121,12 +1121,15 @@ export default function LocalProApp({
               {accountState.isAdmin ? <a className="secondary-action" href="/admin">Administravimas</a> : null}
               <button className="secondary-action" type="button" onClick={logoutToHomepage}>Atsijungti</button>
             </div>
+            <div className="mobile-account-identity">
+              {accountState.avatarUrl ? (
+                <SafeProfileImage src={accountState.avatarUrl} alt="" specialistName={accountLabel} trade="" />
+              ) : <span className="account-initials" aria-hidden="true">{accountInitials}</span>}
+              <span><small>Prisijungta kaip</small><strong>{accountLabel}</strong></span>
+            </div>
             <details className="mobile-account-menu">
               <summary aria-label="Atidaryti paskyros meniu">
-                {accountState.avatarUrl ? (
-                  <SafeProfileImage src={accountState.avatarUrl} alt="" specialistName={accountLabel} trade="" />
-                ) : <span className="account-initials" aria-hidden="true">{accountInitials}</span>}
-                <span className="mobile-account-summary-copy"><small>Prisijungta kaip</small><strong>{accountLabel}</strong></span>
+                <span className="mobile-account-trigger-label">Paskyra</span>
                 <span className="account-chevron" aria-hidden="true" />
               </summary>
               <div className="mobile-account-dropdown">
@@ -1344,8 +1347,7 @@ export default function LocalProApp({
           </section>
         </section>
 
-        <section className="profile-section" id="profile" ref={profileSectionRef}>
-          {activeSpecialist ? (
+        {activeSpecialist ? <section className="profile-section" id="profile" ref={profileSectionRef}>
             <article className="profile-card" aria-live="polite">
               <div className="profile-summary">
                 <p className="eyebrow">Pasirinktas specialistas</p>
@@ -1403,16 +1405,7 @@ export default function LocalProApp({
                 </div>
               </div>
             </article>
-          ) : (
-            <article className="profile-card empty-profile">
-              <div className="profile-summary">
-                <p className="eyebrow">Specialisto profilis</p>
-                <h2>Pasirinkite specialistą žemėlapyje arba sąraše.</h2>
-                <p>Profilis atsidarys tik pasirinkus konkretų meistrą.</p>
-              </div>
-            </article>
-          )}
-        </section>
+        </section> : null}
 
         {registrationOnly ? <section className="register-section" id="registration">
           <div className="section-heading">

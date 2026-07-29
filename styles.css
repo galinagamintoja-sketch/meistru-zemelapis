@@ -544,7 +544,8 @@ textarea {
 }
 
 .mobile-header-menu,
-.mobile-account-menu {
+.mobile-account-menu,
+.mobile-account-identity {
   display: none;
 }
 
@@ -1437,6 +1438,7 @@ fieldset label {
     flex: 0 1 auto;
     flex-wrap: nowrap;
     justify-content: flex-end;
+    gap: 6px;
     margin-left: 0;
   }
 
@@ -1444,11 +1446,44 @@ fieldset label {
     display: none;
   }
 
+  .mobile-account-identity {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .mobile-account-identity .safe-profile-image,
+  .mobile-account-identity .account-initials {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    border-radius: 0;
+  }
+
+  .mobile-account-identity > span:not(.account-initials) {
+    display: grid;
+    width: 66px;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .mobile-account-identity small {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1.1;
+  }
+
+  .mobile-account-identity strong {
+    font-size: 14px;
+    line-height: 1.2;
+  }
+
   .mobile-account-menu summary {
-    width: min(206px, calc(100vw - 174px));
-    justify-content: flex-start;
-    gap: 10px;
-    padding: 7px 10px;
+    min-width: 88px;
+    justify-content: center;
+    gap: 8px;
+    padding: 7px 11px;
     list-style: none;
   }
 
@@ -1456,34 +1491,9 @@ fieldset label {
     display: none;
   }
 
-  .mobile-account-menu .safe-profile-image,
-  .mobile-account-menu .account-initials {
-    width: 36px;
-    height: 36px;
-    flex: 0 0 36px;
-  }
-
-  .mobile-account-summary-copy {
-    display: grid;
-    min-width: 0;
-    flex: 1;
-    text-align: left;
-  }
-
-  .mobile-account-summary-copy small {
-    color: var(--muted);
-    font-size: 10px;
-    font-weight: 500;
-    line-height: 1.2;
-  }
-
-  .mobile-account-summary-copy strong {
-    display: block;
-    overflow: hidden;
-    font-size: 14px;
-    line-height: 1.25;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .mobile-account-trigger-label {
+    font-size: 15px;
+    font-weight: 900;
   }
 
   .account-chevron {
@@ -1503,19 +1513,22 @@ fieldset label {
   }
 
   .mobile-account-dropdown {
-    padding: 8px 14px;
+    width: min(280px, calc(100vw - 24px));
+    padding: 18px;
+    border-radius: 14px;
   }
 
   .mobile-account-dropdown a,
   .mobile-account-dropdown button {
     width: 100%;
     justify-content: flex-start;
-    padding: 12px 8px;
-    font-size: 13px;
+    padding: 14px 10px;
+    font-size: 18px;
+    line-height: 1.25;
   }
 
   .mobile-account-dropdown > * + * {
-    border-top: 1px solid var(--line);
+    margin-top: 4px;
   }
 
   .brand {

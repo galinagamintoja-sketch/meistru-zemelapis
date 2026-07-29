@@ -34,9 +34,12 @@ describe("homepage account behaviour", () => {
     expect(html).toContain("Meistro paskyra");
     expect(html).toContain("Atsijungti");
     expect(html).toContain('aria-label="Atidaryti paskyros meniu"');
-    expect(html).toContain('class="mobile-account-summary-copy"');
+    expect(html).toContain('class="mobile-account-identity"');
+    expect(html).toContain('<span class="mobile-account-trigger-label">Paskyra</span>');
     expect(html).not.toContain("Meistro registracija");
     expect(html).not.toContain("Tęsti registraciją");
+    expect(html).not.toContain("Specialisto profilis");
+    expect(html).not.toContain("Pasirinkite specialistą žemėlapyje arba sąraše.");
   });
 
   it("renders registration continuation for an authenticated user without a profile", () => {
