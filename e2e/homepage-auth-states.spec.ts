@@ -98,8 +98,10 @@ test.describe.serial("real Preview homepage authentication states", () => {
   test("authenticated user without a profile sees the form", async ({ page }) => {
     await useSession(page, await sessionForEmail(noProfileEmail));
     await page.goto("/");
-    await expect(page.getByLabel("Atidaryti paskyros meniu").getByText("Prisijungta kaip")).toBeVisible();
+    await expect(page.locator(".mobile-account-identity").getByText("Prisijungta kaip")).toBeVisible();
+    await expect(page.getByLabel("Atidaryti paskyros meniu")).toContainText("Paskyra");
     await expect(page.getByText("Tęsti registraciją").first()).toBeAttached();
+    await expect(page.getByText("Pasirinkite specialistą žemėlapyje arba sąraše.")).toHaveCount(0);
     await page.screenshot({ path: `${screenshotDir}/02-no-profile-homepage.png`, fullPage: true });
     await page.goto("/meistro-registracija");
     await expect(page.getByRole("form", { name: "LocalPro specialisto registracijos forma" })).toBeVisible();
@@ -114,7 +116,9 @@ test.describe.serial("real Preview homepage authentication states", () => {
     await expect(page.getByText("Meistro paskyra").first()).toBeAttached();
     await expect(page.getByText("Meistro registracija")).toHaveCount(0);
     await expect(page.getByLabel("Atidaryti paskyros meniu")).toBeVisible();
+    await expect(page.getByLabel("Atidaryti paskyros meniu")).toContainText("Paskyra");
     await expect(page.getByLabel("Atidaryti paskyros meniu")).toHaveCSS("min-height", "44px");
+    await expect(page.getByText("Pasirinkite specialistą žemėlapyje arba sąraše.")).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await page.screenshot({ path: `${screenshotDir}/03-specialist-homepage.png`, fullPage: true });
     await page.goto("/meistro-registracija");
