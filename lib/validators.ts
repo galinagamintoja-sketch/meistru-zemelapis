@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isLithuanianPhone } from "./phone";
 import { REGISTRATION_PHOTO_MAX_BYTES, REGISTRATION_PHOTO_MAX_ITEMS, REGISTRATION_PHOTO_TYPES } from "./registration-photos";
+import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, MIN_PROFILE_SERVICES } from "./service-taxonomy";
 
 export { isLithuanianPhone, normalizeLithuanianPhone } from "./phone";
 
@@ -50,8 +51,8 @@ export const registrationSchema = z.object({
   postcode: z.string().trim().max(12).optional().default(""),
   houseNumber: z.string().trim().max(20).optional().default(""),
   trade: z.string().trim().min(2).max(120).optional().default(""),
-  categorySlugs: z.array(z.string().trim().min(2).max(80)).max(8).optional().default([]),
-  subcategorySlugs: z.array(z.string().trim().min(2).max(80)).min(2, "Pasirinkite bent 2 konkrečias paslaugas.").max(20).optional().default([]),
+  categorySlugs: z.array(z.string().trim().min(2).max(80)).max(MAX_PROFILE_CATEGORIES).refine((slugs) => new Set(slugs).size === slugs.length).optional().default([]),
+  subcategorySlugs: z.array(z.string().trim().min(2).max(80)).min(MIN_PROFILE_SERVICES, `Pasirinkite bent ${MIN_PROFILE_SERVICES} paslaugas.`).max(MAX_PROFILE_SERVICES).refine((slugs) => new Set(slugs).size === slugs.length).optional().default([]),
   description: z.string().trim().min(80, "Aprašymas turi būti bent 80 simbolių.").max(1200),
   radiusKm: z.coerce.number().min(5).max(150).optional().default(25),
   travelRange: travelRangeSchema,

@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, MouseEvent, useEffect, useRef, useState } from 
 import type { Category, Specialist } from "../../lib/types";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../../lib/phone";
 import { compressProfilePhoto, isSupportedPhotoInput, REGISTRATION_PHOTO_ACCEPT, REGISTRATION_PHOTO_INPUT_MAX_BYTES } from "../../lib/registration-photos";
+import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, selectionCounter, uniqueServices } from "../../lib/service-taxonomy";
 
 type StatusFilter = "pending" | "approved" | "rejected" | "suspended" | "all";
 type EditDraft = {
@@ -801,7 +802,7 @@ export default function AdminPage() {
               {phoneErrors["add:phone"] ? <span className="field-error">{phoneErrors["add:phone"]}</span> : null}
             </label>
             <label>
-              Kategorijos *
+              {selectionCounter("Darbo sritys", addDraft.categorySlugs.length, MAX_PROFILE_CATEGORIES)} *
               <select
                 multiple
                 size={Math.min(6, Math.max(3, categories.length))}
@@ -822,7 +823,7 @@ export default function AdminPage() {
               </select>
             </label>
             <label>
-              Subkategorijos
+              {selectionCounter("Paslaugos", addDraft.subcategorySlugs.length, MAX_PROFILE_SERVICES)}
               <select
                 multiple
                 size={Math.min(8, Math.max(3, addAvailableSubcategories.length || 3))}
@@ -953,7 +954,7 @@ export default function AdminPage() {
               </div>
 
               {openProfileId !== profile.id ? <dl className="admin-card-compact">
-                <div><dt>Kategorija</dt><dd>{profile.trade || "-"}</dd></div>
+                <div><dt>Darbo sritis</dt><dd>{profile.trade || "-"}</dd></div>
                 <div><dt>Miestas / zona</dt><dd>{profile.town || profile.operatingCities.join(", ") || "-"}</dd></div>
                 <div><dt>Būsena</dt><dd>{formatApprovalStatus(profile.status)}</dd></div>
                 <div><dt>Nuotraukos</dt><dd>{profile.photoRecords?.filter((photo) => !photo.removedAt).length ?? 0}</dd></div>
@@ -966,7 +967,7 @@ export default function AdminPage() {
                 <div><dt>Įmonė</dt><dd>{profile.companyName || "-"}</dd></div>
                 <div><dt>Telefonas</dt><dd>{profile.phone}</dd></div>
                 <div><dt>El. paštas</dt><dd>{profile.email}</dd></div>
-                <div><dt>Kategorija</dt><dd>{profile.trade}</dd></div>
+                <div><dt>Darbo sritis</dt><dd>{profile.trade}</dd></div>
                 <div><dt>Subkategorija</dt><dd>{formatSubcategories(profile, "-")}</dd></div>
                 <div><dt>Miestas / zona</dt><dd>{profile.town} / {profile.operatingCities.join(", ")}</dd></div>
                 <div><dt>Patikra</dt><dd>{profile.verificationLabel || "Laukiama"}</dd></div>
@@ -1121,7 +1122,7 @@ export default function AdminPage() {
               <details className="admin-edit-section" id={`admin-services-${profile.id}`} name={`admin-profile-${profile.id}`}>
                 <summary>Paslaugos ir darbo zona</summary>
                 <label>
-                  Kategorijos
+                  {selectionCounter("Darbo sritys", draft.categorySlugs.length, MAX_PROFILE_CATEGORIES)}
                   <select
                     multiple
                     size={Math.min(6, Math.max(3, categories.length))}
@@ -1142,7 +1143,7 @@ export default function AdminPage() {
                   </select>
                 </label>
                 <label>
-                  Subkategorijos
+                  {selectionCounter("Paslaugos", draft.subcategorySlugs.length, MAX_PROFILE_SERVICES)}
                   <select
                     multiple
                     size={Math.min(8, Math.max(3, selectedSubcategories(categories, draft.categorySlugs).length || 3))}
@@ -1300,7 +1301,7 @@ function formatDateTime(value: string) {
 }
 
 function selectedSubcategories(categories: Category[], categorySlugs: string[]) {
-  return categories.filter((category) => categorySlugs.includes(category.slug)).flatMap((category) => category.subcategories);
+  return uniqueServices(categories.filter((category) => categorySlugs.includes(category.slug)).flatMap((category) => category.subcategories));
 }
 
 function formatSubcategories(profile: Specialist, fallback = "Be subkategorijos") {

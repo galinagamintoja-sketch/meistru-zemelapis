@@ -77,7 +77,7 @@ export default function JobRequestPage() {
   return <main className="job-request-shell"><form className="job-request-card" onSubmit={submit}>
     <p className="eyebrow">Namų savininkams</p><h1>Aprašykite reikalingą darbą</h1><p>Užklausa ir nuotraukos nebus viešinamos.</p>
     <div className="job-request-grid">
-      <label>Kategorija *<select required value={categorySlug} onChange={(event) => { setCategorySlug(event.target.value); setSubcategorySlug(""); }}><option value="">Pasirinkite</option>{categories.map((item) => <option key={item.id} value={item.slug}>{item.name}</option>)}</select></label>
+      <label>Darbo sritis *<select required value={categorySlug} onChange={(event) => { setCategorySlug(event.target.value); setSubcategorySlug(""); }}><option value="">Pasirinkite</option>{categories.map((item) => <option key={item.id} value={item.slug}>{item.name}</option>)}</select></label>
       <label>Paslauga<select value={subcategorySlug} onChange={(event) => setSubcategorySlug(event.target.value)}><option value="">Nebūtina</option>{category?.subcategories.map((item) => <option key={item.id} value={item.slug}>{item.name}</option>)}</select></label>
       <AddressAutocomplete
         className="job-request-wide"

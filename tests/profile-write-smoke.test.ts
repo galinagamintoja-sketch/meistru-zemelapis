@@ -219,6 +219,53 @@ describe("profile write regression smoke", () => {
     }));
   });
 
+  it("keeps all 25 admin services on create/edit and rejects 26 without truncation", async () => {
+    const operations: Array<Record<string, unknown>> = [];
+    const services = Array.from({ length: 26 }, (_, index) => ({
+      id: `sub-${index}`,
+      slug: `service-${index}`,
+      service_category_id: "cat-apdaila"
+    }));
+    installProfileWriteTables(operations, { service_subcategories: services });
+    const { POST, PATCH } = await import("../app/api/admin/profiles/route");
+    const baseProfileInput = {
+      name: "Admin Limit Test",
+      phone: "+37061234567",
+      categorySlugs: ["apdaila"],
+      city: "Vilnius",
+      operatingCities: ["Vilnius"],
+      radius: 25
+    };
+    const selected25 = services.slice(0, 25).map((service) => service.slug);
+    const create = await POST(new Request("http://localhost/api/admin/profiles", {
+      method: "POST",
+      headers: { cookie: signedCookie("admin@example.lt"), "content-type": "application/json" },
+      body: JSON.stringify({ ...baseProfileInput, subcategorySlugs: selected25 })
+    }));
+    expect(create.status).toBe(200);
+    expect(operations).toContainEqual(expect.objectContaining({
+      table: "profile_services",
+      type: "insert",
+      values: expect.arrayContaining(Array.from({ length: 25 }, () => expect.any(Object)))
+    }));
+
+    const edit = await PATCH(adminPatchRequest({
+      id: "profile-id",
+      action: "update",
+      profile: { categorySlugs: ["apdaila"], subcategorySlugs: selected25 }
+    }));
+    expect(edit.status).toBe(200);
+    const serviceInserts = operations.filter((operation) => operation.table === "profile_services" && operation.type === "insert");
+    expect(serviceInserts.at(-1)?.values).toHaveLength(25);
+
+    const rejected = await POST(new Request("http://localhost/api/admin/profiles", {
+      method: "POST",
+      headers: { cookie: signedCookie("admin@example.lt"), "content-type": "application/json" },
+      body: JSON.stringify({ ...baseProfileInput, subcategorySlugs: services.map((service) => service.slug) })
+    }));
+    expect(rejected.status).toBe(400);
+  });
+
   it("validates approval eligibility before approve", async () => {
     const operations: Array<Record<string, unknown>> = [];
     installProfileWriteTables(operations, {

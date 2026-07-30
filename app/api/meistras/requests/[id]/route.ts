@@ -6,6 +6,8 @@ import { evaluateCandidate, type MatchCandidate } from "../../../../../lib/match
 
 const actionSchema = z.object({ action: z.enum(["viewed", "interested", "contacted", "accepted", "rejected", "archived"]) });
 const contactStatuses = new Set(["interested", "contacted", "accepted"]);
+const LEGACY_CANDIDATE_SELECT = "id,display_name,phone,email,base_city,radius_km,latitude,longitude,public_status,approval_status,is_demo,public_contact_consent_at,verification_labels,service_categories!tradesperson_profiles_service_category_id_fkey(slug),profile_services(service_categories(slug),service_subcategories(slug)),operating_areas(city,radius_km)";
+const CANDIDATE_SELECT = LEGACY_CANDIDATE_SELECT.replace("profile_services(", "profile_category_assignments(service_categories(slug)),profile_services(");
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { profile } = await requireOwnedProfile();
@@ -17,7 +19,11 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const status = state?.status ?? "new";
   const { data: job } = await supabase.from("enquiries").select("id,tradesperson_profile_id,source_service,service_category_slug,service_subcategory_slug,source_city,source_latitude,source_longitude,message,urgency,preferred_contact_method,client_name,client_phone,client_email,created_at,enquiry_photos(id,original_name,storage_path,moderation_status)").eq("id", id).not("privacy_consent_at", "is", null).single();
   if (!job) return NextResponse.json({ error: "Užklausa nerasta." }, { status: 404 });
-  const { data: candidate } = await supabase.from("tradesperson_profiles").select("id,display_name,phone,email,base_city,radius_km,latitude,longitude,public_status,approval_status,is_demo,public_contact_consent_at,verification_labels,service_categories!tradesperson_profiles_service_category_id_fkey(slug),profile_services(service_categories(slug),service_subcategories(slug)),operating_areas(city,radius_km)").eq("id", profile.id).single();
+  const { data: initialCandidate, error: candidateError } = await supabase.from("tradesperson_profiles").select(CANDIDATE_SELECT).eq("id", profile.id).single();
+  let candidate = initialCandidate;
+  if (candidateError && /profile_category_assignments/i.test(candidateError.message)) {
+    ({ data: candidate } = await supabase.from("tradesperson_profiles").select(LEGACY_CANDIDATE_SELECT).eq("id", profile.id).single());
+  }
   const evaluation = candidate ? evaluateCandidate({ categorySlug: job.service_category_slug, subcategorySlug: job.service_subcategory_slug, city: job.source_city, latitude: job.source_latitude, longitude: job.source_longitude }, candidate as unknown as MatchCandidate) : null;
   if (job.tradesperson_profile_id !== profile.id && !evaluation?.matched) return NextResponse.json({ error: "Užklausa nerasta." }, { status: 404 });
   const photos = await Promise.all((job.enquiry_photos ?? []).filter((photo) => photo.moderation_status === "approved").map(async (photo) => {
@@ -45,10 +51,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { id } = await params;
   const supabase = createServerSupabase();
   if (!supabase) return NextResponse.json({ error: "Duomenų bazė nepasiekiama." }, { status: 503 });
-  const [{ data: job }, { data: candidate }] = await Promise.all([
+  const [{ data: job }, candidateResult] = await Promise.all([
     supabase.from("enquiries").select("id,tradesperson_profile_id,service_category_slug,service_subcategory_slug,source_city,source_latitude,source_longitude").eq("id", id).not("privacy_consent_at", "is", null).single(),
-    supabase.from("tradesperson_profiles").select("id,display_name,phone,email,base_city,radius_km,latitude,longitude,public_status,approval_status,is_demo,public_contact_consent_at,verification_labels,service_categories!tradesperson_profiles_service_category_id_fkey(slug),profile_services(service_categories(slug),service_subcategories(slug)),operating_areas(city,radius_km)").eq("id", profile.id).single()
+    supabase.from("tradesperson_profiles").select(CANDIDATE_SELECT).eq("id", profile.id).single()
   ]);
+  let candidate = candidateResult.data;
+  if (candidateResult.error && /profile_category_assignments/i.test(candidateResult.error.message)) {
+    ({ data: candidate } = await supabase.from("tradesperson_profiles").select(LEGACY_CANDIDATE_SELECT).eq("id", profile.id).single());
+  }
   if (!job || !candidate) return NextResponse.json({ error: "Užklausa nerasta." }, { status: 404 });
   const evaluation = evaluateCandidate({ categorySlug: job.service_category_slug, subcategorySlug: job.service_subcategory_slug, city: job.source_city, latitude: job.source_latitude, longitude: job.source_longitude }, candidate as unknown as MatchCandidate);
   if (job.tradesperson_profile_id !== profile.id && !evaluation.matched) return NextResponse.json({ error: "Užklausa nerasta." }, { status: 404 });

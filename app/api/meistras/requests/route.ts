@@ -3,16 +3,21 @@ import { evaluateCandidate, type MatchCandidate } from "../../../../lib/matching
 import { createServerSupabase } from "../../../../lib/supabase";
 import { requireOwnedProfile } from "../../../../lib/tradesperson-account";
 
+const LEGACY_CANDIDATE_SELECT = "id,display_name,phone,email,base_city,radius_km,latitude,longitude,public_status,approval_status,is_demo,public_contact_consent_at,verification_labels,service_categories!tradesperson_profiles_service_category_id_fkey(slug),profile_services(service_categories(slug),service_subcategories(slug)),operating_areas(city,radius_km)";
+const CANDIDATE_SELECT = LEGACY_CANDIDATE_SELECT.replace("profile_services(", "profile_category_assignments(service_categories(slug)),profile_services(");
+
 export async function GET(request: Request) {
   const { profile } = await requireOwnedProfile();
   if (!profile) return NextResponse.json({ error: "Profilis nesusietas." }, { status: 403 });
   const supabase = createServerSupabase();
   if (!supabase) return NextResponse.json({ requests: [], counts: {} });
 
-  const [{ data: candidate }, { data: jobs, error }] = await Promise.all([
-    supabase.from("tradesperson_profiles").select("id,display_name,phone,email,base_city,radius_km,latitude,longitude,public_status,approval_status,is_demo,public_contact_consent_at,verification_labels,service_categories!tradesperson_profiles_service_category_id_fkey(slug),profile_services(service_categories(slug),service_subcategories(slug)),operating_areas(city,radius_km)").eq("id", profile.id).single(),
-    supabase.from("enquiries").select("id,tradesperson_profile_id,source_service,service_category_slug,service_subcategory_slug,source_city,source_latitude,source_longitude,message,urgency,preferred_contact_method,created_at,enquiry_photos(id)").not("privacy_consent_at", "is", null).order("created_at", { ascending: false }).limit(100)
-  ]);
+  const { data: initialCandidate, error: candidateError } = await supabase.from("tradesperson_profiles").select(CANDIDATE_SELECT).eq("id", profile.id).single();
+  let candidate = initialCandidate;
+  if (candidateError && /profile_category_assignments/i.test(candidateError.message)) {
+    ({ data: candidate } = await supabase.from("tradesperson_profiles").select(LEGACY_CANDIDATE_SELECT).eq("id", profile.id).single());
+  }
+  const { data: jobs, error } = await supabase.from("enquiries").select("id,tradesperson_profile_id,source_service,service_category_slug,service_subcategory_slug,source_city,source_latitude,source_longitude,message,urgency,preferred_contact_method,created_at,enquiry_photos(id)").not("privacy_consent_at", "is", null).order("created_at", { ascending: false }).limit(100);
   if (error || !candidate) return NextResponse.json({ error: "Užklausų gauti nepavyko." }, { status: 500 });
   const evaluations = (jobs ?? []).map((job) => ({
     job,

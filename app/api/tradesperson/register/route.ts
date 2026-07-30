@@ -5,6 +5,7 @@ import {
   deriveAddressParts,
   insertOperatingAreas,
   insertPhotoRecords,
+  insertProfileCategories,
   insertProfileServices,
   insertSelfRegistrationProfile,
   resolveSelectedCategories,
@@ -182,6 +183,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Specialisto profilio sukurti nepavyko. Bandykite dar kartą." }, { status: 500 });
   }
 
+  const categoryError = await insertProfileCategories(supabase, profile.id, categoryResult.categories);
+  if (categoryError) {
+    await cleanupProfile(profile.id, supabase);
+    return NextResponse.json({ error: "Darbo sričių išsaugoti nepavyko. Bandykite dar kartą." }, { status: 500 });
+  }
   const serviceError = await insertProfileServices(supabase, profile.id, subcategoryResult.selectedSubcategories);
   if (serviceError) {
     await cleanupProfile(profile.id, supabase);

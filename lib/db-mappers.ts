@@ -1,6 +1,7 @@
 import type { Specialist } from "./types";
 import { formatVerificationSummary } from "./display";
 import { approximatePublicCoordinates, profileCoordinates } from "./geo";
+import { canonicalServiceSlug } from "./service-taxonomy";
 
 export type ProfileRow = {
   id: string;
@@ -26,6 +27,9 @@ export type ProfileRow = {
   source: "self-registration" | "whatsapp-onboarding" | "admin-created" | "imported-lead";
   service_area_label: string | null;
   service_categories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
+  profile_category_assignments?: Array<{
+    service_categories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
+  }> | null;
   profile_services?: Array<{
     service_categories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
     service_subcategories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
@@ -52,10 +56,14 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
       )
       .filter((serviceCategory): serviceCategory is { name: string; slug: string } => Boolean(serviceCategory)) ?? [];
   const categoryMap = new Map<string, { name: string; slug: string }>();
-  if (category) {
+  const explicitCategories = (row.profile_category_assignments ?? []).flatMap((assignment) => {
+    const value = assignment.service_categories;
+    return Array.isArray(value) ? value.slice(0, 1) : value ? [value] : [];
+  });
+  if (!explicitCategories.length && category) {
     categoryMap.set(category.slug, category);
   }
-  serviceCategories.forEach((serviceCategory) => categoryMap.set(serviceCategory.slug, serviceCategory));
+  (explicitCategories.length ? explicitCategories : serviceCategories).forEach((serviceCategory) => categoryMap.set(serviceCategory.slug, serviceCategory));
   const categories = Array.from(categoryMap.values());
   const subcategories =
     row.profile_services
@@ -65,6 +73,7 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
           : service.service_subcategories
       )
       .filter((subcategory): subcategory is { name: string; slug: string } => Boolean(subcategory)) ?? [];
+  const categorySlugs = Array.from(new Set(categories.map((item) => item.slug)));
   const visiblePhotoRows = (row.profile_photos ?? [])
     .filter((photo) => options.includeRemovedPhotos || !photo.removed_from_profile_at)
     .filter((photo) => options.includeUnapprovedPhotos || (photo.moderation_status ?? "approved") === "approved")
@@ -91,10 +100,10 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
     companyName: row.company_name,
     trade: category?.name ?? "Paslauga",
     categorySlug: category?.slug ?? "paslauga",
-    categorySlugs: categories.map((item) => item.slug),
+    categorySlugs,
     categoryNames: categories.map((item) => item.name),
     publicStatus: row.public_status,
-    subcategorySlugs: subcategories.map((subcategory) => subcategory.slug),
+    subcategorySlugs: Array.from(new Set(subcategories.map((subcategory) => canonicalServiceSlug(subcategory.slug) ?? subcategory.slug))),
     subcategoryNames: subcategories.map((subcategory) => subcategory.name),
     town: row.base_city,
     district: row.base_city,
