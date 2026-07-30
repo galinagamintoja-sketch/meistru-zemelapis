@@ -5,8 +5,8 @@ const url = process.env.TAXONOMY_STAGING_URL;
 const key = process.env.TAXONOMY_STAGING_SERVICE_KEY;
 const email = "qa-taxonomy-browser-20260730@example.invalid";
 const registrationEmail = "qa-taxonomy-registration-20260730@example.invalid";
-const password = "LocalPro-QA-2026!";
-if (!url || !key) throw new Error("Missing staging configuration");
+const password = process.env.TAXONOMY_QA_PASSWORD;
+if (!url || !key || !password) throw new Error("Missing staging configuration");
 const db = createClient(url, key, { auth: { persistSession: false } });
 
 async function cleanup() {
