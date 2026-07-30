@@ -19,7 +19,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const status = state?.status ?? "new";
   const { data: job } = await supabase.from("enquiries").select("id,tradesperson_profile_id,source_service,service_category_slug,service_subcategory_slug,source_city,source_latitude,source_longitude,message,urgency,preferred_contact_method,client_name,client_phone,client_email,created_at,enquiry_photos(id,original_name,storage_path,moderation_status)").eq("id", id).not("privacy_consent_at", "is", null).single();
   if (!job) return NextResponse.json({ error: "Užklausa nerasta." }, { status: 404 });
-  let { data: candidate, error: candidateError } = await supabase.from("tradesperson_profiles").select(CANDIDATE_SELECT).eq("id", profile.id).single();
+  const { data: initialCandidate, error: candidateError } = await supabase.from("tradesperson_profiles").select(CANDIDATE_SELECT).eq("id", profile.id).single();
+  let candidate = initialCandidate;
   if (candidateError && /profile_category_assignments/i.test(candidateError.message)) {
     ({ data: candidate } = await supabase.from("tradesperson_profiles").select(LEGACY_CANDIDATE_SELECT).eq("id", profile.id).single());
   }

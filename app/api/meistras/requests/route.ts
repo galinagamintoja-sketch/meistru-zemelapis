@@ -12,7 +12,8 @@ export async function GET(request: Request) {
   const supabase = createServerSupabase();
   if (!supabase) return NextResponse.json({ requests: [], counts: {} });
 
-  let { data: candidate, error: candidateError } = await supabase.from("tradesperson_profiles").select(CANDIDATE_SELECT).eq("id", profile.id).single();
+  const { data: initialCandidate, error: candidateError } = await supabase.from("tradesperson_profiles").select(CANDIDATE_SELECT).eq("id", profile.id).single();
+  let candidate = initialCandidate;
   if (candidateError && /profile_category_assignments/i.test(candidateError.message)) {
     ({ data: candidate } = await supabase.from("tradesperson_profiles").select(LEGACY_CANDIDATE_SELECT).eq("id", profile.id).single());
   }
