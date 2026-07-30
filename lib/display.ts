@@ -18,12 +18,6 @@ const markerForms = {
   many: "žymeklių"
 };
 
-const masterForms = {
-  one: "Meistras",
-  few: "Meistrai",
-  many: "Meistrų"
-};
-
 const reviewForms = {
   one: "atsiliepimas",
   few: "atsiliepimai",
@@ -67,10 +61,6 @@ export function formatSpecialistCount(count: number) {
 
 export function formatMarkerCount(count: number) {
   return `${count} ${pluralizeLt(count, markerForms)}`;
-}
-
-export function formatMasterCount(count: number) {
-  return `${count} ${pluralizeLt(count, masterForms)}`;
 }
 
 export function formatReviewCount(count: number) {

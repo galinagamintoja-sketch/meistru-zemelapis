@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import AddressAutocomplete, { geocodeLithuanianAddress } from "./AddressAutocomplete";
 import SafeProfileImage from "./SafeProfileImage";
 import type { Category, Specialist } from "../lib/types";
-import { formatMasterCount, formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
+import { formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../lib/phone";
 import {
   countNonEmptyPhotoUrls,
@@ -1291,7 +1291,7 @@ export default function LocalProApp({
           <section className={`map-board ${viewMode === "map" ? "mobile-active" : ""}`} aria-label="OpenStreetMap LocalPro specialistų žemėlapis">
             <div className="map-toolbar">
               <span>LocalPro žemėlapis</span>
-              <span>{specialists.length ? formatMasterCount(specialists.length) : "Nėra atitikmenų"}</span>
+              <span>{specialists.length ? formatSpecialistCount(specialists.length) : "Nėra atitikmenų"}</span>
             </div>
             <div className="real-map" ref={mapElementRef} aria-label="Interaktyvus OpenStreetMap su LocalPro specialistų žymekliais">
               {mapNeedsSearch ? (
