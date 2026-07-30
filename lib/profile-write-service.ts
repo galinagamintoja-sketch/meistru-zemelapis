@@ -1,5 +1,6 @@
 import { createServerSupabase } from "./supabase";
 import { photoFieldMetadata } from "./validators";
+import { canonicalServiceSlug, MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, SERVICE_SLUG_ALIASES } from "./service-taxonomy";
 
 type SupabaseClient = NonNullable<ReturnType<typeof createServerSupabase>>;
 
@@ -122,6 +123,9 @@ export async function resolveSelectedCategories(
     invalidMessage: string;
   }
 ): Promise<{ categories: ServiceCategoryRow[]; primaryCategory: ServiceCategoryRow } | { error: HelperError }> {
+  if (new Set(options.categorySlugs).size > MAX_PROFILE_CATEGORIES) {
+    return { error: { message: `Pasiekėte ${MAX_PROFILE_CATEGORIES} darbo sričių limitą.`, status: 400 } };
+  }
   const categoryNames = options.categoryNames ?? [];
   const expectedCategoryCount = options.categorySlugs.length || categoryNames.length;
   const categoryQuery = supabase.from("service_categories").select("id,slug,name");
@@ -154,21 +158,36 @@ export async function resolveSelectedSubcategories(
     mismatchMessage: string;
   }
 ): Promise<{ selectedSubcategories: ServiceSubcategoryRow[] } | { error: HelperError }> {
+  if (new Set(options.subcategorySlugs).size > MAX_PROFILE_SERVICES) {
+    return { error: { message: `Pasiekėte ${MAX_PROFILE_SERVICES} paslaugų limitą.`, status: 400 } };
+  }
   let subcategories: ServiceSubcategoryRow[] = [];
   let queryError: { message: string } | null = null;
+  const selectedCategoryIds = new Set(options.categoryIds);
   if (options.subcategorySlugs.length) {
+    const candidateSlugs = Array.from(new Set(options.subcategorySlugs.flatMap((requested) => [
+      requested,
+      ...Object.entries(SERVICE_SLUG_ALIASES).filter(([, canonical]) => canonical === requested).map(([alias]) => alias)
+    ])));
     const assignmentResult = await supabase
       .from("service_subcategories")
       .select("id,slug,service_category_id,service_category_assignments(service_category_id)")
-      .in("slug", options.subcategorySlugs);
+      .in("slug", candidateSlugs);
     if (!assignmentResult.error) {
-      subcategories = (assignmentResult.data ?? []) as ServiceSubcategoryRow[];
+      const found = (assignmentResult.data ?? []) as ServiceSubcategoryRow[];
+      subcategories = options.subcategorySlugs.flatMap((requested) => {
+        const candidates = found.filter((item) => canonicalServiceSlug(item.slug) === requested)
+          .filter((item) => (item.service_category_assignments?.map((assignment) => assignment.service_category_id) ?? [item.service_category_id]).some((id) => selectedCategoryIds.has(id)))
+          .sort((a, b) => Number(b.slug === requested) - Number(a.slug === requested));
+        return candidates.slice(0, 1);
+      });
     } else {
       const legacyResult = await supabase
         .from("service_subcategories")
         .select("id,slug,service_category_id")
-        .in("slug", options.subcategorySlugs);
-      subcategories = (legacyResult.data ?? []) as ServiceSubcategoryRow[];
+        .in("slug", candidateSlugs);
+      const found = (legacyResult.data ?? []) as ServiceSubcategoryRow[];
+      subcategories = options.subcategorySlugs.flatMap((requested) => found.filter((item) => canonicalServiceSlug(item.slug) === requested && selectedCategoryIds.has(item.service_category_id)).sort((a, b) => Number(b.slug === requested) - Number(a.slug === requested)).slice(0, 1));
       queryError = legacyResult.error;
     }
   }
@@ -181,7 +200,6 @@ export async function resolveSelectedSubcategories(
     return { error: { message: options.invalidMessage, status: 400 } };
   }
 
-  const selectedCategoryIds = new Set(options.categoryIds);
   const selectedSubcategories = subcategories.filter((subcategory) => {
     const categoryIds = subcategory.service_category_assignments?.length
       ? subcategory.service_category_assignments.map((assignment) => assignment.service_category_id)

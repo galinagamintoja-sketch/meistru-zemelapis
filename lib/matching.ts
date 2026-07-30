@@ -1,5 +1,5 @@
 import { cityCoordinates, distanceKm, isNationwideTravelRange } from "./geo";
-import { SERVICE_CATEGORY_ALIASES } from "./service-taxonomy";
+import { canonicalServiceSlug, SERVICE_CATEGORY_ALIASES } from "./service-taxonomy";
 
 export type MatchReason =
   | "matched_category_and_service"
@@ -97,7 +97,7 @@ export function evaluateCandidate(job: MatchJob, candidate: MatchCandidate): Can
     }
   }
   if (!categorySlugs.has(job.categorySlug)) return excluded("excluded_category_mismatch");
-  if (job.subcategorySlug && !subcategorySlugs.has(job.subcategorySlug)) return excluded("excluded_category_mismatch");
+  if (job.subcategorySlug && !subcategorySlugs.has(canonicalServiceSlug(job.subcategorySlug) ?? job.subcategorySlug)) return excluded("excluded_category_mismatch");
 
   const jobPoint = typeof job.latitude === "number" && typeof job.longitude === "number"
     ? { lat: job.latitude, lng: job.longitude }

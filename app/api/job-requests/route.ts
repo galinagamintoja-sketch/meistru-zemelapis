@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { getCategories } from "../../../lib/specialists";
+import { canonicalServiceSlug } from "../../../lib/service-taxonomy";
 import { createServerSupabase } from "../../../lib/supabase";
 import { jobRequestSchema } from "../../../lib/validators";
 
@@ -17,8 +18,9 @@ export async function POST(request: Request) {
   const category = activeCategories.find((item) => item.slug === payload.categorySlug);
   if (!category) return NextResponse.json({ error: "Pasirinkite galiojančią kategoriją." }, { status: 400 });
 
-  if (payload.subcategorySlug) {
-    const subcategory = category.subcategories.find((item) => item.slug === payload.subcategorySlug);
+  const canonicalSubcategorySlug = canonicalServiceSlug(payload.subcategorySlug) ?? "";
+  if (canonicalSubcategorySlug) {
+    const subcategory = category.subcategories.find((item) => item.slug === canonicalSubcategorySlug);
     if (!subcategory) return NextResponse.json({ error: "Pasirinkite galiojančią paslaugą." }, { status: 400 });
   }
 
@@ -33,10 +35,10 @@ export async function POST(request: Request) {
     client_phone: payload.clientPhone || null,
     client_email: payload.clientEmail || null,
     source_city: payload.town,
-    source_service: payload.subcategorySlug || payload.categorySlug,
+    source_service: canonicalSubcategorySlug || payload.categorySlug,
     message: payload.description,
     service_category_slug: payload.categorySlug,
-    service_subcategory_slug: payload.subcategorySlug || null,
+    service_subcategory_slug: canonicalSubcategorySlug || null,
     source_address: payload.address,
     source_place_id: payload.placeId || null,
     source_latitude: payload.latitude,

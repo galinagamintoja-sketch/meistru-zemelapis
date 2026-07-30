@@ -7,8 +7,11 @@ describe("registration mobile UI regressions", () => {
   it("allows the two services available in a single category", () => {
     expect(page).toContain("draft.subcategorySlugs.length < 2");
     expect(page).toContain("Pasirinkite bent 2 konkrečias paslaugas.");
-    expect(page).toContain("formState.subcategorySlugs.length}/{MAX_PROFILE_SERVICES}");
-    expect(page).toContain("MAX_PROFILE_SERVICES - formState.subcategorySlugs.length");
+    expect(page).toContain('selectionCounter("Paslaugos", formState.subcategorySlugs.length, MAX_PROFILE_SERVICES)');
+    expect(page).toContain("Pasiekėte 25 paslaugų limitą.");
+    expect(page).toContain("window.confirm");
+    expect(page).toContain("Pašalinus darbo sritį, šios paslaugos taip pat bus pašalintos.");
+    expect(page).toContain("disabled={!formState.subcategorySlugs.includes(subcategory.slug) && formState.subcategorySlugs.length >= MAX_PROFILE_SERVICES}");
   });
 
   it("keeps manual URL import collapsed and starts without an empty URL row", () => {

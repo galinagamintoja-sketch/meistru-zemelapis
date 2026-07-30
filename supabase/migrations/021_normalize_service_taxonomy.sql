@@ -9,6 +9,13 @@ create table if not exists service_category_assignments (
   primary key (service_category_id, service_subcategory_id)
 );
 
+create table if not exists service_subcategory_aliases (
+  alias_slug text primary key,
+  alias_name text not null,
+  service_subcategory_id uuid not null references service_subcategories(id) on delete restrict,
+  created_at timestamptz not null default now()
+);
+
 insert into service_category_assignments (service_category_id, service_subcategory_id)
 select service_category_id, id from service_subcategories
 on conflict do nothing;
@@ -51,7 +58,10 @@ insert into taxonomy_service_merges values
   ('santechnikos-remontas','santechnikos-remontas-ir-smulkus-darbai','Santechnikos remontas ir smulkūs darbai','santechnika'),
   ('smulkus-santechnikos-darbai','santechnikos-remontas-ir-smulkus-darbai','Santechnikos remontas ir smulkūs darbai','santechnika'),
   ('elektros-instaliacijos-remontas','elektros-remontas-ir-smulkus-darbai','Elektros remontas ir smulkūs darbai','elektra-ir-apsauga'),
-  ('smulkus-elektros-darbai','elektros-remontas-ir-smulkus-darbai','Elektros remontas ir smulkūs darbai','elektra-ir-apsauga');
+  ('smulkus-elektros-darbai','elektros-remontas-ir-smulkus-darbai','Elektros remontas ir smulkūs darbai','elektra-ir-apsauga'),
+  ('lietaus-nuvedimo-sistemos','stogo-latakai-ir-lietvamzdziai','Stogo latakai ir lietvamzdžiai','stogai-ir-skardinimas'),
+  ('lietaus-nuotekos','lietaus-nuoteku-tinklai-sklype','Lietaus nuotekų tinklai sklype','lauko-ir-sklypo-darbai'),
+  ('griovimo-darbai','pastatu-ir-konstrukciju-griovimas','Pastatų ir konstrukcijų griovimas','griovimas-ir-atlieku-isvezimas');
 
 do $$
 declare
@@ -100,7 +110,15 @@ begin
     set source_service = target.canonical_slug
     where source_service = any(target.old_slugs);
 
-    delete from service_subcategories
+    insert into service_subcategory_aliases(alias_slug, alias_name, service_subcategory_id)
+    select ss.slug, ss.name, keep_id
+    from service_subcategories ss
+    where ss.slug = any(target.old_slugs)
+    on conflict (alias_slug) do update
+      set alias_name = excluded.alias_name, service_subcategory_id = excluded.service_subcategory_id;
+
+    update service_subcategories
+    set is_active = false
     where slug = any(target.old_slugs) and id <> keep_id;
 
     update service_subcategories
@@ -170,7 +188,7 @@ begin
 
   if selected_count <> cardinality(coalesce(target_subcategory_ids, '{}'::uuid[]))
      or selected_count > 25 then raise exception 'Invalid service selection'; end if;
-  if category_count > 13 then raise exception 'Maximum thirteen work areas'; end if;
+  if category_count > 8 then raise exception 'Maximum eight work areas'; end if;
 
   delete from profile_services where tradesperson_profile_id = target_profile_id;
   insert into profile_services (tradesperson_profile_id, service_category_id, service_subcategory_id)
@@ -183,6 +201,7 @@ end;
 $$;
 
 alter table service_category_assignments enable row level security;
+alter table service_subcategory_aliases enable row level security;
 drop policy if exists "Public can read active service assignments" on service_category_assignments;
 create policy "Public can read active service assignments"
 on service_category_assignments for select to anon, authenticated
@@ -192,5 +211,10 @@ using (
 );
 
 grant select on service_category_assignments to anon, authenticated, service_role;
+drop policy if exists "Public can resolve active service aliases" on service_subcategory_aliases;
+create policy "Public can resolve active service aliases"
+on service_subcategory_aliases for select to anon, authenticated
+using (exists (select 1 from service_subcategories s where s.id = service_subcategory_id and s.is_active));
+grant select on service_subcategory_aliases to anon, authenticated, service_role;
 revoke all on function replace_tradesperson_services(uuid,uuid[]) from public, anon, authenticated;
 grant execute on function replace_tradesperson_services(uuid,uuid[]) to service_role;

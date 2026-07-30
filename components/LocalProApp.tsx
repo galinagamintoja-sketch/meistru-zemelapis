@@ -16,7 +16,7 @@ import {
   uploadRegistrationPhotos
 } from "../lib/registration-photos";
 import type { HomepageAccountState } from "../lib/homepage-account-state";
-import { MAX_PROFILE_SERVICES, MAX_WORK_AREAS, uniqueServices } from "../lib/service-taxonomy";
+import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, selectionCounter, uniqueServices } from "../lib/service-taxonomy";
 import { EmailAuthForm } from "./email-auth-form";
 
 type Props = {
@@ -950,10 +950,18 @@ export default function LocalProApp({
   }
 
   function updateCategory(slug: string, checked: boolean) {
+    if (!checked) {
+      const remainingCategorySlugs = formState.categorySlugs.filter((item) => item !== slug);
+      const stillAvailable = new Set(
+        categories.filter((category) => remainingCategorySlugs.includes(category.slug)).flatMap((category) => category.subcategories.map((item) => item.slug))
+      );
+      const removedCount = formState.subcategorySlugs.filter((serviceSlug) => !stillAvailable.has(serviceSlug)).length;
+      if (removedCount > 0 && !window.confirm(`Šioje darbo srityje pasirinktos ${removedCount} paslaugos. Pašalinus darbo sritį, šios paslaugos taip pat bus pašalintos.`)) return;
+    }
     setFormState((current) => {
-      if (checked && !current.categorySlugs.includes(slug) && current.categorySlugs.length >= MAX_WORK_AREAS) {
+      if (checked && !current.categorySlugs.includes(slug) && current.categorySlugs.length >= MAX_PROFILE_CATEGORIES) {
         setSubmitTone("error");
-        setSubmitMessage(`Galima pasirinkti daugiausia ${MAX_WORK_AREAS} darbo sritis.`);
+        setSubmitMessage(`Pasiekėte ${MAX_PROFILE_CATEGORIES} darbo sričių limitą.`);
         return current;
       }
       const categorySlugs = checked
@@ -976,7 +984,7 @@ export default function LocalProApp({
     setFormState((current) => {
       if (checked && !current.subcategorySlugs.includes(slug) && current.subcategorySlugs.length >= MAX_PROFILE_SERVICES) {
         setSubmitTone("error");
-        setSubmitMessage(`Galima pasirinkti daugiausia ${MAX_PROFILE_SERVICES} paslaugas.`);
+        setSubmitMessage(`Pasiekėte ${MAX_PROFILE_SERVICES} paslaugų limitą.`);
         return current;
       }
 
@@ -1492,21 +1500,23 @@ export default function LocalProApp({
               </div>
               <p className="field-note">Tai pagrindinė darbo vieta. Tikslus adresas naudojamas privačiam geokodavimui; viešai rodoma tik apytikslė vieta.</p>
               <fieldset>
-                <legend>Darbo sritys * ({formState.categorySlugs.length}/{MAX_WORK_AREAS}; liko {MAX_WORK_AREAS - formState.categorySlugs.length})</legend>
+                <legend>{selectionCounter("Darbo sritys", formState.categorySlugs.length, MAX_PROFILE_CATEGORIES)}</legend>
                 {categories.map((category) => (
                   <label key={category.id}>
                     <input
                       type="checkbox"
                       checked={formState.categorySlugs.includes(category.slug)}
+                      disabled={!formState.categorySlugs.includes(category.slug) && formState.categorySlugs.length >= MAX_PROFILE_CATEGORIES}
                       onChange={(event) => updateCategory(category.slug, event.target.checked)}
                     />
                     {category.name}
                   </label>
                 ))}
               </fieldset>
+              {formState.categorySlugs.length >= MAX_PROFILE_CATEGORIES ? <p role="status">Pasiekėte 8 darbo sričių limitą.</p> : null}
               {selectedSubcategories.length ? (
                 <fieldset aria-invalid={Boolean(registrationErrors.services)}>
-                  <legend>Paslaugos * ({formState.subcategorySlugs.length}/{MAX_PROFILE_SERVICES}; liko {MAX_PROFILE_SERVICES - formState.subcategorySlugs.length})</legend>
+                  <legend>{selectionCounter("Paslaugos", formState.subcategorySlugs.length, MAX_PROFILE_SERVICES)}</legend>
                   <p className="field-note">Pasirinkite bent 2 paslaugas. Ta pati paslauga, rodoma keliose darbo srityse, skaičiuojama tik vieną kartą. Jei paslaugos sąraše nėra, įrašykite ją aprašyme.</p>
                   {selectedSubcategories.map((subcategory) => (
                     <label key={subcategory.id}>
@@ -1514,6 +1524,7 @@ export default function LocalProApp({
                         type="checkbox"
                         name="services"
                         checked={formState.subcategorySlugs.includes(subcategory.slug)}
+                        disabled={!formState.subcategorySlugs.includes(subcategory.slug) && formState.subcategorySlugs.length >= MAX_PROFILE_SERVICES}
                         onChange={(event) => {
                           updateSubcategory(subcategory.slug, event.target.checked);
                           setRegistrationErrors((current) => ({ ...current, services: undefined }));
@@ -1525,6 +1536,8 @@ export default function LocalProApp({
                   {registrationErrors.services ? <span className="field-error">{registrationErrors.services}</span> : null}
                 </fieldset>
               ) : null}
+              {!selectedSubcategories.length ? <p className="selection-counters"><strong>{selectionCounter("Paslaugos", 0, MAX_PROFILE_SERVICES)}</strong></p> : null}
+              {formState.subcategorySlugs.length >= MAX_PROFILE_SERVICES ? <p role="status">Pasiekėte 25 paslaugų limitą.</p> : null}
               <label>
                 Trumpas aprašymas * ({formState.description.trim().length} ženklų; mažiausiai 80)
                 <textarea

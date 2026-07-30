@@ -3,7 +3,7 @@ import { isObviousPublicTestProfile } from "./display";
 import { profileRowToSpecialist, toPublicSafeSpecialist, type ProfileRow } from "./db-mappers";
 import { approximatePublicCoordinates, cityCoordinates, distanceKm, isNationwideTravelRange } from "./geo";
 import { createServerSupabase } from "./supabase";
-import { categoriesFromAssignments } from "./service-taxonomy";
+import { categoriesFromAssignments, categoriesFromLegacy } from "./service-taxonomy";
 import type { Specialist } from "./types";
 
 type SpecialistFilters = {
@@ -79,14 +79,7 @@ export async function getCategories() {
     return [];
   }
 
-  return data.map((category) => ({
-    id: category.id,
-    name: category.name,
-    slug: category.slug,
-    subcategories: (category.service_subcategories ?? [])
-      .filter((subcategory) => subcategory.is_active)
-      .map((subcategory) => ({ id: subcategory.id, name: subcategory.name, slug: subcategory.slug }))
-  }));
+  return categoriesFromLegacy(data);
 }
 
 export async function getSpecialists(filters: SpecialistFilters = {}) {

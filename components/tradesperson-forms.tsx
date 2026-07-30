@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import AddressAutocomplete, { type AddressValue } from "./AddressAutocomplete";
-import { MAX_PROFILE_SERVICES, MAX_WORK_AREAS, uniqueServices } from "../lib/service-taxonomy";
+import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, selectionCounter, uniqueServices } from "../lib/service-taxonomy";
 
 type ProfileValues = { displayName: string; companyName: string; primaryCategoryId: string; experienceYears: number; phone: string; whatsappNumber: string; publicEmail: string; description: string; languages: string[]; publicContactConsent: boolean };
 
@@ -58,10 +58,10 @@ export function ServicesForm({ groups, selected, location }: {
 
   function toggle(itemId: string) {
     if (selectedIds.includes(itemId)) return setSelectedIds((items) => items.filter((id) => id !== itemId));
-    if (selectedIds.length >= MAX_PROFILE_SERVICES) return setMessage(`Galima pasirinkti daugiausia ${MAX_PROFILE_SERVICES} paslaugas.`);
+    if (selectedIds.length >= MAX_PROFILE_SERVICES) return setMessage(`Pasiekėte ${MAX_PROFILE_SERVICES} paslaugų limitą.`);
     const nextWorkAreas = new Set(selectedCategoryIds);
     groups.filter((group) => group.items.some((item) => item.id === itemId)).forEach((group) => nextWorkAreas.add(group.id));
-    if (nextWorkAreas.size > MAX_WORK_AREAS) return setMessage(`Galima pasirinkti daugiausia ${MAX_WORK_AREAS} darbo sritis.`);
+    if (nextWorkAreas.size > MAX_PROFILE_CATEGORIES) return setMessage(`Pasiekėte ${MAX_PROFILE_CATEGORIES} darbo sričių limitą.`);
     setSelectedIds((items) => [...items, itemId]);
     setMessage("");
   }
@@ -83,11 +83,15 @@ export function ServicesForm({ groups, selected, location }: {
     <section><h3>Darbo sritys ir paslaugos</h3>
       <label>Ieškoti paslaugos<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ieškoti paslaugos" /></label>
       <div className="selected-service-tags">{chosen.map((item) => <button type="button" key={item.id} onClick={() => setSelectedIds((ids) => ids.filter((id) => id !== item.id))}>{item.name} ×</button>)}</div>
-      <small>Pasirinkta {selectedCategoryIds.size} iš {MAX_WORK_AREAS} darbo sričių ({MAX_WORK_AREAS - selectedCategoryIds.size} liko) · {selectedIds.length} iš {MAX_PROFILE_SERVICES} paslaugų ({MAX_PROFILE_SERVICES - selectedIds.length} liko)</small>
+      <div className="selection-counters" aria-live="polite">
+        <strong>{selectionCounter("Darbo sritys", selectedCategoryIds.size, MAX_PROFILE_CATEGORIES)}</strong>
+        <strong>{selectionCounter("Paslaugos", selectedIds.length, MAX_PROFILE_SERVICES)}</strong>
+      </div>
+      {selectedIds.length >= MAX_PROFILE_SERVICES ? <p role="status">Pasiekėte 25 paslaugų limitą.</p> : null}
       <div className="service-accordions">{groups.map((group) => {
         const visible = group.items.filter((item) => item.name.toLocaleLowerCase("lt").includes(query.toLocaleLowerCase("lt")));
         if (query && !visible.length) return null;
-        return <details key={group.id} open={Boolean(query)}><summary>{group.name}<span>{group.items.filter((item) => selectedIds.includes(item.id)).length}</span></summary><div className="portal-checks">{visible.map((item) => <label key={item.id}><input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggle(item.id)} />{item.name}</label>)}</div></details>;
+        return <details key={group.id} open={Boolean(query)}><summary>{group.name}<span>{group.items.filter((item) => selectedIds.includes(item.id)).length}</span></summary><div className="portal-checks">{visible.map((item) => { const checked = selectedIds.includes(item.id); return <label key={item.id}><input type="checkbox" checked={checked} disabled={!checked && selectedIds.length >= MAX_PROFILE_SERVICES} onChange={() => toggle(item.id)} />{item.name}</label>; })}</div></details>;
       })}</div>
     </section>
     <section><h3>Darbo vieta ir spindulys</h3>

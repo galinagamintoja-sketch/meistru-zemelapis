@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { categoriesFromAssignments, MAX_PROFILE_SERVICES, MAX_WORK_AREAS, uniqueServices } from "../lib/service-taxonomy";
+import { canonicalServiceSlug, categoriesFromAssignments, MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, MIN_PROFILE_SERVICES, selectionCounter, uniqueServices } from "../lib/service-taxonomy";
 import { registrationSchema } from "../lib/validators";
 import { tradespersonServicesUpdateSchema } from "../lib/tradesperson-profile-schema";
 import { evaluateCandidate, type MatchCandidate } from "../lib/matching";
 
-const migration = readFileSync(new URL("../supabase/migrations/020_normalize_service_taxonomy.sql", import.meta.url), "utf8");
+const migration = readFileSync(new URL("../supabase/migrations/021_normalize_service_taxonomy.sql", import.meta.url), "utf8");
 const initialTaxonomy = readFileSync(new URL("../supabase/migrations/015_localpro_service_taxonomy.sql", import.meta.url), "utf8");
 
 const categoryNames = [
@@ -80,7 +80,10 @@ describe("service taxonomy normalization", () => {
     const services = Array.from({ length: MAX_PROFILE_SERVICES }, (_, index) => `paslauga-${index}`);
     expect(registrationSchema.safeParse({ ...base, subcategorySlugs: services }).success).toBe(true);
     expect(registrationSchema.safeParse({ ...base, subcategorySlugs: [...services, "paslauga-26"] }).success).toBe(false);
-    expect(MAX_WORK_AREAS).toBe(13);
+    expect(MAX_PROFILE_CATEGORIES).toBe(8);
+    expect(MIN_PROFILE_SERVICES).toBe(2);
+    expect(selectionCounter("Darbo sritys", 3, MAX_PROFILE_CATEGORIES)).toBe("Darbo sritys: pasirinkta 3 iš 8 · liko 5");
+    expect(selectionCounter("Paslaugos", 24, MAX_PROFILE_SERVICES)).toBe("Paslaugos: pasirinkta 24 iš 25 · liko 1");
   });
 
   it("matches a shared canonical service through either relevant work area", () => {
@@ -92,5 +95,13 @@ describe("service taxonomy normalization", () => {
       profile_services: [{ service_categories: { slug: "vidaus-apdaila" }, service_subcategories: { slug: "vidaus-duru-montavimas" } }]
     };
     expect(evaluateCandidate({ categorySlug: "langai-durys-laiptai", subcategorySlug: "vidaus-duru-montavimas", city: "Vilnius" }, candidate).matched).toBe(true);
+    expect(canonicalServiceSlug("langai-vidaus-duru-montavimas")).toBe("vidaus-duru-montavimas");
+    expect(canonicalServiceSlug("lietaus-nuvedimo-sistemos")).toBe("stogo-latakai-ir-lietvamzdziai");
+  });
+
+  it("retains aliases before deactivating obsolete rows", () => {
+    expect(migration).toContain("create table if not exists service_subcategory_aliases");
+    expect(migration.indexOf("insert into service_subcategory_aliases")).toBeLessThan(migration.indexOf("set is_active = false"));
+    expect(migration).not.toMatch(/delete from service_subcategories/i);
   });
 });

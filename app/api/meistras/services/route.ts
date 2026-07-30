@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "../../../../lib/supabase";
 import { requireOwnedProfile } from "../../../../lib/tradesperson-account";
 import { tradespersonServicesUpdateSchema } from "../../../../lib/tradesperson-profile-schema";
-import { MAX_WORK_AREAS } from "../../../../lib/service-taxonomy";
+import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES } from "../../../../lib/service-taxonomy";
 
 export async function PUT(request: Request) {
   const { profile } = await requireOwnedProfile();
@@ -21,7 +21,8 @@ export async function PUT(request: Request) {
   const workAreaIds = !assignmentError && assignments?.length
     ? assignments.map((item) => item.service_category_id)
     : (allowed ?? []).map((item) => item.service_category_id);
-  if (new Set(workAreaIds).size > MAX_WORK_AREAS) return NextResponse.json({ error: `Galima pasirinkti daugiausia ${MAX_WORK_AREAS} darbo sritis.` }, { status: 400 });
+  if (new Set(parsed.data.subcategoryIds).size > MAX_PROFILE_SERVICES) return NextResponse.json({ error: `Pasiekėte ${MAX_PROFILE_SERVICES} paslaugų limitą.` }, { status: 400 });
+  if (new Set(workAreaIds).size > MAX_PROFILE_CATEGORIES) return NextResponse.json({ error: `Pasiekėte ${MAX_PROFILE_CATEGORIES} darbo sričių limitą.` }, { status: 400 });
   const { error } = await supabase.rpc("replace_tradesperson_services", {
     target_profile_id: profile.id,
     target_subcategory_ids: parsed.data.subcategoryIds

@@ -3,7 +3,7 @@ import { ServicesForm } from "../../../components/tradesperson-forms";
 import { UnlinkedAccount } from "../../../components/unlinked-account";
 import { createServerSupabase } from "../../../lib/supabase";
 import { requireOwnedProfile } from "../../../lib/tradesperson-account";
-import { categoriesFromAssignments } from "../../../lib/service-taxonomy";
+import { categoriesFromAssignments, categoriesFromLegacy } from "../../../lib/service-taxonomy";
 export default async function Page() {
   const { profile } = await requireOwnedProfile(); if (!profile) return <UnlinkedAccount />;
   const supabase = createServerSupabase();
@@ -14,7 +14,7 @@ export default async function Page() {
   ]) : [{ data: [], error: null }, { data: [] }, { data: [] }];
   const groups = !assignmentError && assignmentCategories?.length
     ? categoriesFromAssignments(assignmentCategories).map((category) => ({ id: category.id, name: category.name, items: category.subcategories }))
-    : (legacyCategories ?? []).map((category) => ({ id: category.id, name: category.name, items: category.service_subcategories ?? [] }));
+    : categoriesFromLegacy(legacyCategories ?? []).map((category) => ({ id: category.id, name: category.name, items: category.subcategories }));
   return <div className="portal-page"><div className="portal-heading"><h1>Paslaugos</h1><p>Pasirinkite darbo sritis ir konkrečias paslaugas, privačią darbo bazę bei vieną bendrą aptarnavimo spindulį.</p></div><PortalCard title="Mano paslaugos"><ServicesForm groups={groups} selected={(current ?? []).map((item) => item.service_subcategory_id).filter(Boolean)} location={{
     baseCity: profile.base_city ?? "", radiusKm: profile.radius_km ?? 20,
     address: profile.registered_address ?? "", placeId: profile.google_place_id ?? "",
