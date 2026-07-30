@@ -32,11 +32,6 @@ export function ProfileForm({ initial, categories }: { initial: ProfileValues; c
         <label>Kalbos (nebūtina)<input name="languages" defaultValue={initial.languages.join(", ")} placeholder="Lietuvių, anglų, lenkų" /><small>Atskirkite kableliais.</small></label>
         <label className="portal-consent"><input type="checkbox" name="publicContactConsent" defaultChecked={initial.publicContactConsent} /><span>Sutinku, kad viešame profilyje būtų rodomi mano pasirinkti kontaktiniai duomenys.</span></label>
       </section>
-      <section className="profile-preview-panel"><h3><SectionIcon path="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm0 0c2.2 2.5 3.3 5.5 3.3 9S14.2 18.5 12 21M3 12h18" />Viešas profilis</h3>
-        <div className="profile-preview-avatar">{initial.displayName.trim().charAt(0).toLocaleUpperCase("lt-LT")}</div>
-        <strong>{initial.displayName}</strong><p>{categories.find((category) => category.id === initial.primaryCategoryId)?.name}</p>
-        <p>{initial.experienceYears}+ m. patirtis</p>
-      </section>
     </div>
     <div className="profile-editor-actions"><button className="portal-primary" type="submit">Išsaugoti pakeitimus</button><p role="status">{message}</p></div>
   </form>;
