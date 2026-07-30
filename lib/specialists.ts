@@ -3,7 +3,7 @@ import { isObviousPublicTestProfile } from "./display";
 import { profileRowToSpecialist, toPublicSafeSpecialist, type ProfileRow } from "./db-mappers";
 import { approximatePublicCoordinates, cityCoordinates, distanceKm, isNationwideTravelRange } from "./geo";
 import { createServerSupabase } from "./supabase";
-import { categoriesFromAssignments, categoriesFromLegacy } from "./service-taxonomy";
+import { canonicalServiceSlug, categoriesFromAssignments, categoriesFromLegacy } from "./service-taxonomy";
 import type { Specialist } from "./types";
 
 type SpecialistFilters = {
@@ -42,11 +42,13 @@ const SPECIALIST_SELECT = `
   source,
   service_area_label,
   service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
+  profile_category_assignments(service_categories(name, slug)),
   profile_services(service_categories(name, slug), service_subcategories(name, slug)),
   operating_areas(city, radius_km),
   profile_photos(id, label, url, storage_path, moderation_status, sort_order, removed_from_profile_at),
   reviews(client_name, rating, text, moderation_status)
 `;
+const LEGACY_SPECIALIST_SELECT = SPECIALIST_SELECT.replace("  profile_category_assignments(service_categories(name, slug)),\n", "");
 
 export async function getCategories() {
   const supabase = createServerSupabase();
@@ -93,7 +95,10 @@ export async function getSpecialists(filters: SpecialistFilters = {}) {
     return filterSeedSpecialists(filters);
   }
 
-  const { data, error } = await runSpecialistQuery(SPECIALIST_SELECT, filters);
+  let { data, error } = await runSpecialistQuery(SPECIALIST_SELECT, filters);
+  if (error && /profile_category_assignments/i.test(error.message)) {
+    ({ data, error } = await runSpecialistQuery(LEGACY_SPECIALIST_SELECT, filters));
+  }
 
   if (error) {
     if (isMissingPhase1MigrationError(error.message)) {
@@ -173,7 +178,7 @@ function removePublicTestProfiles(list: Specialist[], filters: SpecialistFilters
   return list.filter((specialist) => !isObviousPublicTestProfile(specialist));
 }
 
-function applyFilters(list: Specialist[], filters: SpecialistFilters) {
+export function applyFilters(list: Specialist[], filters: SpecialistFilters) {
   const searchPoint = getSearchPoint(filters);
   const customerRadiusKm = filters.customerRadiusKm && filters.customerRadiusKm > 0 ? filters.customerRadiusKm : null;
 
@@ -188,7 +193,7 @@ function applyFilters(list: Specialist[], filters: SpecialistFilters) {
       specialist.trade === service ||
       specialist.categorySlug === service ||
       specialist.categorySlugs?.includes(service) ||
-      specialist.subcategorySlugs.includes(service);
+      specialist.subcategorySlugs.includes(canonicalServiceSlug(service) ?? service);
     const cityMatch = !city || specialist.town === city || specialist.operatingCities.includes(city);
     const verificationMatch = !verification || specialist.verification.includes(verification);
     const verifiedMatch = !filters.verifiedOnly || specialist.verification.length > 0;

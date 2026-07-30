@@ -64,7 +64,7 @@ export function normalizeSlugList(value: unknown) {
         .map((entry) => cleanText(entry).toLowerCase())
         .filter((entry) => entry.length >= 2)
     )
-  ).slice(0, 20) as string[];
+  ) as string[];
 }
 
 export function normalizeUrlList(value: unknown) {
@@ -247,6 +247,34 @@ export async function replaceProfileServices(
   }
 
   return insertProfileServices(supabase, profileId, selectedSubcategories);
+}
+
+export async function insertProfileCategories(
+  supabase: SupabaseClient,
+  profileId: string,
+  categories: ServiceCategoryRow[]
+) {
+  if (!categories.length) return null;
+  const { error } = await supabase.from("profile_category_assignments").insert(
+    categories.map((category) => ({
+      tradesperson_profile_id: profileId,
+      service_category_id: category.id
+    }))
+  );
+  return error?.message ?? null;
+}
+
+export async function replaceProfileCategories(
+  supabase: SupabaseClient,
+  profileId: string,
+  categories: ServiceCategoryRow[]
+) {
+  const { error: deleteError } = await supabase
+    .from("profile_category_assignments")
+    .delete()
+    .eq("tradesperson_profile_id", profileId);
+  if (deleteError) return deleteError.message;
+  return insertProfileCategories(supabase, profileId, categories);
 }
 
 export async function insertOperatingAreas(

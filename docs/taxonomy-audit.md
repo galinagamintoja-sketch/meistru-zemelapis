@@ -1,6 +1,6 @@
 # LocalPro taxonomy audit
 
-Status: Preview proposal only. Migration `020_normalize_service_taxonomy.sql` has not been applied to production.
+Status: Preview proposal only. Migration `021_normalize_service_taxonomy.sql` has not been applied to production.
 
 ## Scope and decisions
 
@@ -10,7 +10,7 @@ Status: Preview proposal only. Migration `020_normalize_service_taxonomy.sql` ha
 - Use one canonical service row for every merged identity.
 - Use `service_category_assignments` to show a canonical service under more than one relevant work area.
 - Store at most one `profile_services` relationship per profile and canonical service.
-- Normalize the previously conflicting work-area limits (8 in registration, 3 in the dashboard) to the 13 available work areas, and raise the service limit from 15/20 to 25 in registration, dashboard validation, API validation, and the atomic database function.
+- Normalize the previously conflicting work-area limits to 8 selected work areas and raise the service limit from 15/20 to 25 in registration, dashboard validation, API validation, and the atomic database function.
 
 ## Canonical merges
 
@@ -45,7 +45,7 @@ The migration:
 5. updates stored request service slugs to the canonical slug;
 6. removes only obsolete duplicate taxonomy rows;
 7. adds a uniqueness index preventing future double-selection of one canonical service;
-8. replaces the atomic dashboard service function with limits of 25 services and 13 available work areas.
+8. persists explicit profile work-area selections and replaces the atomic dashboard service function with limits of 25 services and 8 work areas.
 
 It does not delete profiles, requests, photos, operating areas, consent logs, or admin history.
 

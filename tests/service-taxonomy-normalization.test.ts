@@ -4,6 +4,9 @@ import { canonicalServiceSlug, categoriesFromAssignments, MAX_PROFILE_CATEGORIES
 import { registrationSchema } from "../lib/validators";
 import { tradespersonServicesUpdateSchema } from "../lib/tradesperson-profile-schema";
 import { evaluateCandidate, type MatchCandidate } from "../lib/matching";
+import { normalizeSlugList } from "../lib/profile-write-service";
+import { applyFilters } from "../lib/specialists";
+import { specialists as seedSpecialists } from "../lib/seed-data";
 
 const migration = readFileSync(new URL("../supabase/migrations/021_normalize_service_taxonomy.sql", import.meta.url), "utf8");
 const initialTaxonomy = readFileSync(new URL("../supabase/migrations/015_localpro_service_taxonomy.sql", import.meta.url), "utf8");
@@ -69,8 +72,9 @@ describe("service taxonomy normalization", () => {
 
   it("allows 25 unique services in registration and dashboard editing, but not 26", () => {
     const ids = Array.from({ length: MAX_PROFILE_SERVICES }, (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`);
-    expect(tradespersonServicesUpdateSchema.safeParse({ subcategoryIds: ids }).success).toBe(true);
-    expect(tradespersonServicesUpdateSchema.safeParse({ subcategoryIds: [...ids, "00000000-0000-4000-8000-999999999999"] }).success).toBe(false);
+    const categoryIds = ["00000000-0000-4000-8000-000000000100"];
+    expect(tradespersonServicesUpdateSchema.safeParse({ categoryIds, subcategoryIds: ids }).success).toBe(true);
+    expect(tradespersonServicesUpdateSchema.safeParse({ categoryIds, subcategoryIds: [...ids, "00000000-0000-4000-8000-999999999999"] }).success).toBe(false);
 
     const base = {
       name: "Test Meistras", phone: "+37061234567", email: "test@example.lt", address: "Trakų g. 10, Lentvaris",
@@ -86,17 +90,33 @@ describe("service taxonomy normalization", () => {
     expect(selectionCounter("Paslaugos", 24, MAX_PROFILE_SERVICES)).toBe("Paslaugos: pasirinkta 24 iš 25 · liko 1");
   });
 
-  it("matches a shared canonical service through either relevant work area", () => {
+  it("matches a shared canonical service only through an explicitly selected work area", () => {
     const candidate: MatchCandidate = {
       id: "profile", display_name: "Meistras", phone: "+37061234567", email: "m@example.lt", base_city: "Vilnius",
       radius_km: 150, latitude: 54.6872, longitude: 25.2797, public_status: "public", approval_status: "approved",
       public_contact_consent_at: new Date().toISOString(),
       service_categories: { slug: "vidaus-apdaila" },
+      profile_category_assignments: [{ service_categories: { slug: "langai-durys-laiptai" } }],
       profile_services: [{ service_categories: { slug: "vidaus-apdaila" }, service_subcategories: { slug: "vidaus-duru-montavimas" } }]
     };
     expect(evaluateCandidate({ categorySlug: "langai-durys-laiptai", subcategorySlug: "vidaus-duru-montavimas", city: "Vilnius" }, candidate).matched).toBe(true);
+    expect(evaluateCandidate({ categorySlug: "vidaus-apdaila", subcategorySlug: "vidaus-duru-montavimas", city: "Vilnius" }, candidate).matched).toBe(false);
     expect(canonicalServiceSlug("langai-vidaus-duru-montavimas")).toBe("vidaus-duru-montavimas");
     expect(canonicalServiceSlug("lietaus-nuvedimo-sistemos")).toBe("stogo-latakai-ir-lietvamzdziai");
+  });
+
+  it("never silently truncates admin category or service input", () => {
+    expect(normalizeSlugList(Array.from({ length: 25 }, (_, index) => `service-${index}`))).toHaveLength(25);
+    expect(normalizeSlugList(Array.from({ length: 26 }, (_, index) => `service-${index}`))).toHaveLength(26);
+  });
+
+  it("keeps old service slugs working in saved public-search URLs", () => {
+    const specialist = {
+      ...seedSpecialists[0],
+      categorySlugs: ["vidaus-apdaila"],
+      subcategorySlugs: ["pilna-busto-apdaila-ir-remontas"]
+    };
+    expect(applyFilters([specialist], { service: "remonto-darbai" })).toHaveLength(1);
   });
 
   it("retains aliases before deactivating obsolete rows", () => {

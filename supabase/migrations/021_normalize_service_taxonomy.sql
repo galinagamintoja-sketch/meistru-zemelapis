@@ -16,6 +16,27 @@ create table if not exists service_subcategory_aliases (
   created_at timestamptz not null default now()
 );
 
+create table if not exists profile_category_assignments (
+  tradesperson_profile_id uuid not null references tradesperson_profiles(id) on delete cascade,
+  service_category_id uuid not null references service_categories(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (tradesperson_profile_id, service_category_id)
+);
+
+-- Preserve the categories profiles explicitly stored before this join existed.
+-- Do not infer every presentation category of a shared service.
+insert into profile_category_assignments (tradesperson_profile_id, service_category_id)
+select id, service_category_id
+from tradesperson_profiles
+where service_category_id is not null
+on conflict do nothing;
+
+insert into profile_category_assignments (tradesperson_profile_id, service_category_id)
+select tradesperson_profile_id, service_category_id
+from profile_services
+where service_category_id is not null
+on conflict do nothing;
+
 insert into service_category_assignments (service_category_id, service_subcategory_id)
 select service_category_id, id from service_subcategories
 on conflict do nothing;
@@ -163,8 +184,10 @@ join service_categories c on c.slug = a.category_slug
 join service_subcategories s on s.slug = a.service_slug
 on conflict do nothing;
 
+drop function if exists replace_tradesperson_services(uuid, uuid[]);
 create or replace function replace_tradesperson_services(
   target_profile_id uuid,
+  target_category_ids uuid[],
   target_subcategory_ids uuid[]
 )
 returns integer
@@ -174,22 +197,35 @@ set search_path = public
 as $$
 declare
   selected_count integer;
-  category_count integer;
 begin
   perform pg_advisory_xact_lock(hashtextextended(target_profile_id::text, 1));
+  if cardinality(coalesce(target_category_ids, '{}'::uuid[])) < 1
+     or cardinality(coalesce(target_category_ids, '{}'::uuid[])) > 8
+     or cardinality(coalesce(target_category_ids, '{}'::uuid[])) <>
+        (select count(distinct id) from service_categories where id = any(coalesce(target_category_ids, '{}'::uuid[])) and is_active = true)
+  then raise exception 'Invalid work area selection'; end if;
   select count(*) into selected_count
   from service_subcategories
   where id = any(coalesce(target_subcategory_ids, '{}'::uuid[]))
     and is_active = true;
 
-  select count(distinct service_category_id) into category_count
-  from service_category_assignments
-  where service_subcategory_id = any(coalesce(target_subcategory_ids, '{}'::uuid[]));
-
   if selected_count <> cardinality(coalesce(target_subcategory_ids, '{}'::uuid[]))
      or selected_count > 25 then raise exception 'Invalid service selection'; end if;
-  if category_count > 8 then raise exception 'Maximum eight work areas'; end if;
+  if exists (
+    select 1
+    from unnest(coalesce(target_subcategory_ids, '{}'::uuid[])) selected_service(id)
+    where not exists (
+      select 1 from service_category_assignments assignment
+      where assignment.service_subcategory_id = selected_service.id
+        and assignment.service_category_id = any(coalesce(target_category_ids, '{}'::uuid[]))
+    )
+  ) then raise exception 'Service outside selected work areas'; end if;
 
+  delete from profile_category_assignments where tradesperson_profile_id = target_profile_id;
+  insert into profile_category_assignments (tradesperson_profile_id, service_category_id)
+  select target_profile_id, id
+  from service_categories
+  where id = any(coalesce(target_category_ids, '{}'::uuid[]));
   delete from profile_services where tradesperson_profile_id = target_profile_id;
   insert into profile_services (tradesperson_profile_id, service_category_id, service_subcategory_id)
   select target_profile_id, service_category_id, id
@@ -202,6 +238,7 @@ $$;
 
 alter table service_category_assignments enable row level security;
 alter table service_subcategory_aliases enable row level security;
+alter table profile_category_assignments enable row level security;
 drop policy if exists "Public can read active service assignments" on service_category_assignments;
 create policy "Public can read active service assignments"
 on service_category_assignments for select to anon, authenticated
@@ -216,5 +253,6 @@ create policy "Public can resolve active service aliases"
 on service_subcategory_aliases for select to anon, authenticated
 using (exists (select 1 from service_subcategories s where s.id = service_subcategory_id and s.is_active));
 grant select on service_subcategory_aliases to anon, authenticated, service_role;
-revoke all on function replace_tradesperson_services(uuid,uuid[]) from public, anon, authenticated;
-grant execute on function replace_tradesperson_services(uuid,uuid[]) to service_role;
+grant select on profile_category_assignments to service_role;
+revoke all on function replace_tradesperson_services(uuid,uuid[],uuid[]) from public, anon, authenticated;
+grant execute on function replace_tradesperson_services(uuid,uuid[],uuid[]) to service_role;

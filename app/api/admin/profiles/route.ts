@@ -10,12 +10,14 @@ import {
   cleanText,
   insertOperatingAreas,
   insertPhotoRecords,
+  insertProfileCategories,
   insertProfileServices,
   normalizeCities,
   normalizeRadius,
   normalizeSlugList,
   normalizeUrlList,
   replaceOperatingAreas,
+  replaceProfileCategories,
   replaceProfileServices,
   resolveSelectedCategories,
   resolveSelectedSubcategories,
@@ -76,6 +78,7 @@ export async function GET(request: Request) {
     privacy_acknowledged_at,
     public_contact_consent_at,
     service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
+    profile_category_assignments(service_categories(name, slug)),
     profile_services(service_categories(name, slug), service_subcategories(name, slug)),
     operating_areas(city, radius_km),
     profile_photos(id, label, url, storage_path, moderation_status, sort_order, removed_from_profile_at),
@@ -218,6 +221,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const categoryError = await insertProfileCategories(supabase, profile.id, categoryResult.categories);
+  if (categoryError) {
+    return NextResponse.json({ error: categoryError }, { status: 500 });
+  }
   const serviceError = await insertProfileServices(supabase, profile.id, subcategoryResult.selectedSubcategories);
   if (serviceError) {
     return NextResponse.json({ error: serviceError }, { status: 500 });
@@ -279,6 +286,7 @@ export async function PATCH(request: Request) {
     const hasCategoryUpdate = Object.prototype.hasOwnProperty.call(updates, "categorySlugs") || Object.prototype.hasOwnProperty.call(updates, "categorySlug");
     const hasSubcategoryUpdate = Object.prototype.hasOwnProperty.call(updates, "subcategorySlugs") || Object.prototype.hasOwnProperty.call(updates, "subcategories");
     let serviceCategoryId: string | null | undefined;
+    let selectedCategories: Array<{ id: string; slug?: string | null; name?: string | null }> = [];
     let selectedSubcategories: Array<{ id: string; service_category_id: string }> = [];
 
     if (updates.phone && !isLithuanianPhone(String(updates.phone))) {
@@ -302,6 +310,7 @@ export async function PATCH(request: Request) {
         }
 
         serviceCategoryId = categoryResult.primaryCategory.id;
+        selectedCategories = categoryResult.categories;
 
         if (subcategorySlugs.length) {
           const subcategoryResult = await resolveSelectedSubcategories(supabase, {
@@ -375,6 +384,10 @@ export async function PATCH(request: Request) {
 
       if (categoryUpdateError) {
         return NextResponse.json({ error: categoryUpdateError.message }, { status: 500 });
+      }
+      const categoryAssignmentError = await replaceProfileCategories(supabase, id, selectedCategories);
+      if (categoryAssignmentError) {
+        return NextResponse.json({ error: categoryAssignmentError }, { status: 500 });
       }
     }
 
