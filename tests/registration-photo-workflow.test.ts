@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { registrationSchema } from "../lib/validators";
 import {
   mergeRegistrationPhotoSelections,
-  REGISTRATION_PHOTO_MAX_BYTES,
+  fitPhotoDimensions,
+  REGISTRATION_PHOTO_INPUT_MAX_BYTES,
   type RegistrationPhotoFileLike,
   type RegistrationPhotoSelection,
   type RegistrationPhotoUploadPlan,
@@ -115,10 +116,21 @@ describe("registration photo selection behavior", () => {
     expect(result.invalidTypeCount).toBe(1);
   });
 
-  it("rejects files over the supported five megabyte limit", () => {
-    const result = merge([], [file("large.jpg", { size: REGISTRATION_PHOTO_MAX_BYTES + 1 })]);
+  it("accepts camera originals up to 10 MB and rejects larger inputs", () => {
+    expect(merge([], [file("camera.jpg", { size: REGISTRATION_PHOTO_INPUT_MAX_BYTES })]).acceptedCount).toBe(1);
+    const result = merge([], [file("large.jpg", { size: REGISTRATION_PHOTO_INPUT_MAX_BYTES + 1 })]);
     expect(result.next).toHaveLength(0);
     expect(result.oversizedCount).toBe(1);
+  });
+
+  it("accepts HEIC camera inputs for browser conversion", () => {
+    expect(merge([], [file("camera.heic", { type: "image/heic" })]).acceptedCount).toBe(1);
+  });
+
+  it("fits landscape and portrait images inside 1920 pixels without enlarging", () => {
+    expect(fitPhotoDimensions(4032, 3024)).toEqual({ width: 1920, height: 1440 });
+    expect(fitPhotoDimensions(3024, 4032)).toEqual({ width: 1440, height: 1920 });
+    expect(fitPhotoDimensions(800, 600)).toEqual({ width: 800, height: 600 });
   });
 });
 

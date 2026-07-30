@@ -268,7 +268,7 @@ export async function POST(request: Request) {
       uploadPlans.push(...payload.photoUploads.map(() => null));
     } else {
       for (const photo of payload.photoUploads) {
-        const extension = photo.type === "image/png" ? "png" : photo.type === "image/webp" ? "webp" : "jpg";
+        const extension = "webp";
         const storagePath = `${profile.id}/${crypto.randomUUID()}.${extension}`;
         const { data: signed, error: signError } = await supabase.storage.from(PROFILE_PHOTOS_BUCKET).createSignedUploadUrl(storagePath);
         if (signError || !signed) {

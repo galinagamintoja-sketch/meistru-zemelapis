@@ -18,10 +18,11 @@ export const lithuanianPhoneSchema = z
   .refine(isLithuanianPhone, "Įveskite lietuvišką telefono numerį, pvz. +37061234567");
 
 export const photoUrlSchema = z.string().trim().url().max(500);
+const enquiryPhotoTypes = ["image/jpeg", "image/png", "image/webp"] as const;
 export const photoUploadSchema = z.object({
   name: z.string().trim().min(1).max(180),
-  type: z.enum(photoFieldMetadata.acceptedTypes),
-  size: z.number().int().min(1).max(photoFieldMetadata.maxSizeMb * 1024 * 1024),
+  type: z.enum(enquiryPhotoTypes),
+  size: z.number().int().min(1).max(5 * 1024 * 1024),
   dataUrl: z.string().startsWith("data:image/").max(8_000_000)
 });
 

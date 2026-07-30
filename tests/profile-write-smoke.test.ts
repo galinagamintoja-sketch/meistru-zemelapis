@@ -177,7 +177,7 @@ describe("profile write regression smoke", () => {
     const { POST } = await import("../app/api/tradesperson/register/route");
     const response = await POST(registrationPostRequest({
       ...validRegistration,
-      photoUploads: [{ name: "one.jpg", type: "image/jpeg", size: 1024, lastModified: 1 }]
+      photoUploads: [{ name: "one.webp", type: "image/webp", size: 1024, lastModified: 1 }]
     }));
     const data = await response.json();
 
