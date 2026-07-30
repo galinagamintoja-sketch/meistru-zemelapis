@@ -61,7 +61,7 @@ async function setup() {
     target_profile_id: profile.id, target_category_ids: categoryIds, target_subcategory_ids: serviceIds
   });
   if (rpcError) throw rpcError;
-  console.log(JSON.stringify({ email, registrationEmail, password, profileId: profile.id, categoryIds, serviceIds }));
+  console.log(JSON.stringify({ email, registrationEmail, profileId: profile.id, categoryIds, serviceIds }));
 }
 
 await (mode === "setup" ? setup() : cleanup());
