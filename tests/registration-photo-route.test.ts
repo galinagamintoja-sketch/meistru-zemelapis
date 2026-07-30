@@ -24,7 +24,7 @@ function installPhotoRouteSupabase(metadata: StorageMetadata) {
       storage: {
         from: () => ({
           list: async () => ({
-            data: [{ name: "photo.jpg", metadata }],
+            data: [{ name: "photo.webp", metadata }],
             error: null
           }),
           remove: async (paths: string[]) => {
@@ -47,13 +47,13 @@ describe("public registration photo finalization", () => {
   });
 
   it("creates a private pending record only after server-reported size and type match", async () => {
-    const state = installPhotoRouteSupabase({ size: 1000, mimetype: "image/jpeg" });
+    const state = installPhotoRouteSupabase({ size: 1000, mimetype: "image/webp" });
     const { createRegistrationPhotoUploadToken } = await import("../lib/registration-photo-upload-token");
     const token = createRegistrationPhotoUploadToken({
       profileId: "profile-id",
-      storagePath: "profile-id/photo.jpg",
-      name: "photo.jpg",
-      type: "image/jpeg",
+      storagePath: "profile-id/photo.webp",
+      name: "photo.webp",
+      type: "image/webp",
       size: 1000,
       expiresAt: Date.now() + 60_000
     });
@@ -66,7 +66,7 @@ describe("public registration photo finalization", () => {
     expect(response.status).toBe(200);
     expect(state.inserted).toContainEqual(expect.objectContaining({
       table: "profile_photos",
-      storage_path: "profile-id/photo.jpg",
+      storage_path: "profile-id/photo.webp",
       url: null,
       moderation_status: "pending"
     }));
@@ -74,13 +74,13 @@ describe("public registration photo finalization", () => {
   });
 
   it("removes the object and refuses a mismatched server-reported file", async () => {
-    const state = installPhotoRouteSupabase({ size: 999, mimetype: "image/jpeg" });
+    const state = installPhotoRouteSupabase({ size: 999, mimetype: "image/webp" });
     const { createRegistrationPhotoUploadToken } = await import("../lib/registration-photo-upload-token");
     const token = createRegistrationPhotoUploadToken({
       profileId: "profile-id",
-      storagePath: "profile-id/photo.jpg",
-      name: "photo.jpg",
-      type: "image/jpeg",
+      storagePath: "profile-id/photo.webp",
+      name: "photo.webp",
+      type: "image/webp",
       size: 1000,
       expiresAt: Date.now() + 60_000
     });
@@ -92,7 +92,7 @@ describe("public registration photo finalization", () => {
 
     expect(response.status).toBe(400);
     expect(state.inserted).toEqual([]);
-    expect(state.removed).toEqual([["profile-id/photo.jpg"]]);
+    expect(state.removed).toEqual([["profile-id/photo.webp"]]);
   });
 
   it("rejects expired or forged upload tokens", async () => {

@@ -7,7 +7,7 @@ const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8")
 describe("mobile admin photo UI regressions", () => {
   it("uses the gallery picker without a camera capture input", () => {
     expect(page).toContain("Pridėti nuotraukas");
-    expect(page).toContain('accept="image/jpeg,image/png,image/webp" multiple');
+    expect(page).toContain("accept={REGISTRATION_PHOTO_ACCEPT} multiple");
     expect(page).not.toContain('capture="environment"');
     expect(page).not.toContain("Fotografuoti");
   });

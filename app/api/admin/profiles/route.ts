@@ -3,6 +3,7 @@ import { specialists as seedSpecialists } from "../../../../lib/seed-data";
 import { requireAdminSession } from "../../../../lib/auth-session";
 import { profileRowToSpecialist, toPublicSafeSpecialist, type ProfileRow } from "../../../../lib/db-mappers";
 import { signManagedPhotoUrls } from "../../../../lib/specialists";
+import { REGISTRATION_PHOTO_MAX_BYTES, REGISTRATION_PHOTO_TYPES } from "../../../../lib/registration-photos";
 import {
   assignNullableText,
   assignText,
@@ -419,15 +420,15 @@ export async function PATCH(request: Request) {
 
   if (action === "create_photo_upload") {
     const photo = body.photo ?? {};
-    const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+    const allowedTypes = new Set<string>(REGISTRATION_PHOTO_TYPES);
     const type = String(photo.type ?? "");
     const size = Number(photo.size);
-    if (!allowedTypes.has(type) || !Number.isFinite(size) || size < 1 || size > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: "JPG, PNG arba WebP nuotrauka gali būti iki 5 MB." }, { status: 400 });
+    if (!allowedTypes.has(type) || !Number.isFinite(size) || size < 1 || size > REGISTRATION_PHOTO_MAX_BYTES) {
+      return NextResponse.json({ error: "Į saugyklą siunčiama WebP nuotrauka turi būti iki 1 MB." }, { status: 400 });
     }
     const { count } = await supabase.from("profile_photos").select("id", { count: "exact", head: true }).eq("tradesperson_profile_id", id).is("removed_from_profile_at", null);
     if ((count ?? 0) >= 8) return NextResponse.json({ error: "Galima turėti daugiausia 8 nuotraukas." }, { status: 400 });
-    const extension = type === "image/png" ? "png" : type === "image/webp" ? "webp" : "jpg";
+    const extension = "webp";
     const storagePath = `${id}/${crypto.randomUUID()}.${extension}`;
     const { data: signed, error: signError } = await supabase.storage.from("profile-photos").createSignedUploadUrl(storagePath);
     if (signError || !signed) return NextResponse.json({ error: signError?.message ?? "Nepavyko paruošti įkėlimo." }, { status: 500 });
@@ -444,7 +445,7 @@ export async function PATCH(request: Request) {
     const uploaded = objects?.find((item) => item.name === fileName);
     const size = Number(uploaded?.metadata?.size ?? 0);
     const mime = String(uploaded?.metadata?.mimetype ?? "");
-    if (listError || !uploaded || size < 1 || size > 5 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(mime)) {
+    if (listError || !uploaded || size < 1 || size > REGISTRATION_PHOTO_MAX_BYTES || !REGISTRATION_PHOTO_TYPES.includes(mime as (typeof REGISTRATION_PHOTO_TYPES)[number])) {
       await supabase.storage.from("profile-photos").remove([storagePath]);
       return NextResponse.json({ error: "Įkeltas failas neatitiko nuotraukos reikalavimų." }, { status: 400 });
     }

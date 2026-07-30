@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, MouseEvent, useEffect, useRef, useState } from "react";
 import type { Category, Specialist } from "../../lib/types";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../../lib/phone";
+import { compressProfilePhoto, isSupportedPhotoInput, REGISTRATION_PHOTO_ACCEPT, REGISTRATION_PHOTO_INPUT_MAX_BYTES } from "../../lib/registration-photos";
 
 type StatusFilter = "pending" | "approved" | "rejected" | "suspended" | "all";
 type EditDraft = {
@@ -268,7 +269,7 @@ export default function AdminPage() {
     });
   }
 
-  function selectPhotos(profileId: string | "add", event: ChangeEvent<HTMLInputElement>) {
+  async function selectPhotos(profileId: string | "add", event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
     const profile = profileId === "add" ? undefined : profiles.find((item) => item.id === profileId);
@@ -279,12 +280,21 @@ export default function AdminPage() {
       setMessage("Galima turėti daugiausia 8 nuotraukas.");
       return;
     }
-    const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
-    if (files.some((file) => !allowed.has(file.type) || file.size > 5 * 1024 * 1024)) {
-      setMessage("Rinkitės JPG, PNG arba WebP failus, iki 5 MB kiekvieną.");
+    if (files.some((file) => !isSupportedPhotoInput(file) || file.size > REGISTRATION_PHOTO_INPUT_MAX_BYTES)) {
+      setMessage("Rinkitės JPG, PNG, WebP arba HEIC failus, iki 10 MB kiekvieną.");
       return;
     }
-    const next = files.map((file) => ({ id: crypto.randomUUID(), file, previewUrl: URL.createObjectURL(file) }));
+    setMessage("Nuotraukos optimizuojamos…");
+    let next: SelectedPhoto[];
+    try {
+      next = await Promise.all(files.map(async (original) => {
+        const file = await compressProfilePhoto(original);
+        return { id: crypto.randomUUID(), file, previewUrl: URL.createObjectURL(file) };
+      }));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Nuotraukų apdoroti nepavyko.");
+      return;
+    }
     if (profileId === "add") setAddSelectedPhotos((current) => [...current, ...next]);
     else setSelectedPhotos((current) => ({ ...current, [profileId]: [...(current[profileId] ?? []), ...next] }));
     setMessage(`${next.length} nuotraukos paruoštos. Patvirtinkite įkėlimą.`);
@@ -880,10 +890,10 @@ export default function AdminPage() {
             <fieldset className="admin-wide">
               <legend>Nuotraukos</legend>
               <label className="admin-upload-button">Pridėti nuotraukas
-                <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => selectPhotos("add", event)} />
+                <input type="file" accept={REGISTRATION_PHOTO_ACCEPT} multiple onChange={(event) => { void selectPhotos("add", event); }} />
               </label>
               <SelectedPhotoPreviews photos={addSelectedPhotos} onRemove={(id) => removeSelectedPhoto("add", id)} />
-              <p className="field-note">JPG, PNG arba WebP; iki 8 nuotraukų; iki 5 MB kiekviena. Nuotraukos bus įkeltos tik sukūrus privatų profilį.</p>
+              <p className="field-note">JPG, PNG, WebP arba HEIC; iki 8 nuotraukų; originalas iki 10 MB. Prieš įkeliant automatiškai optimizuojama į WebP iki 1920 px ir 1 MB.</p>
               <details className="admin-advanced"><summary>Išplėstiniai nustatymai: nuotraukų URL</summary>
               {addDraft.photoUrls.map((photoUrl, index) => (
                 <div className="form-row" key={`add-photo-${index}`}>
@@ -1180,12 +1190,12 @@ export default function AdminPage() {
                   <legend>Nuotraukos</legend>
                   <label className="admin-upload-button">
                     Pridėti nuotraukas
-                    <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => selectPhotos(profile.id, event)} />
+                    <input type="file" accept={REGISTRATION_PHOTO_ACCEPT} multiple onChange={(event) => { void selectPhotos(profile.id, event); }} />
                   </label>
                   <SelectedPhotoPreviews photos={selectedPhotos[profile.id] ?? []} onRemove={(id) => removeSelectedPhoto(profile.id, id)} />
                   {(selectedPhotos[profile.id]?.length ?? 0) > 0 ? <button type="button" onClick={() => uploadSelectedPhotos(profile.id, selectedPhotos[profile.id] ?? [])} disabled={pendingActions[`${profile.id}:upload`]}>Įkelti pasirinktas nuotraukas</button> : null}
                   {uploadProgress[profile.id] !== undefined ? <progress max="100" value={uploadProgress[profile.id]}>{uploadProgress[profile.id]}%</progress> : null}
-                  <p className="field-note">JPG, PNG arba WebP; iki 8 aktyvių nuotraukų; iki 5 MB kiekviena.</p>
+                  <p className="field-note">JPG, PNG, WebP arba HEIC; iki 8 aktyvių nuotraukų; originalas iki 10 MB. Saugoma tik optimizuota WebP versija iki 1 MB.</p>
                   {approvedPhotos.length ? <div className="admin-main-photo"><img src={approvedPhotos[0].url} alt="" /><div><strong>Pagrindinė nuotrauka</strong><span>{formatPhotoStatus(approvedPhotos[0])}</span></div></div> : <p className="field-note">Patvirtintų viešų nuotraukų dar nėra.</p>}
                   {activePhotos.length ? (
                     <div className="admin-photo-moderation">

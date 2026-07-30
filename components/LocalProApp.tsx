@@ -7,8 +7,10 @@ import type { Category, Specialist } from "../lib/types";
 import { formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../lib/phone";
 import {
+  compressProfilePhoto,
   countNonEmptyPhotoUrls,
   mergeRegistrationPhotoSelections,
+  REGISTRATION_PHOTO_ACCEPT,
   type RegistrationPhotoSelection,
   type RegistrationPhotoUploadPlan,
   uploadRegistrationPhotos
@@ -168,8 +170,8 @@ declare global {
 
 const photoFieldMetadata = {
   maxItems: 8,
-  maxSizeMb: 5,
-  acceptedTypes: ["image/jpeg", "image/png", "image/webp"] as const
+  maxSizeMb: 10,
+  accept: REGISTRATION_PHOTO_ACCEPT
 };
 
 const registrationFieldLabels: Record<string, string> = {
@@ -1033,7 +1035,7 @@ export default function LocalProApp({
     setSubmitTone("");
   }
 
-  function updatePhotoUploads(files: FileList | null) {
+  async function updatePhotoUploads(files: FileList | null) {
     const result = mergeRegistrationPhotoSelections(
       formState.photoUploads,
       Array.from(files ?? []),
@@ -1051,9 +1053,28 @@ export default function LocalProApp({
         };
       }
     );
-    setFormState((current) => ({ ...current, photoUploads: result.next }));
-    setSubmitMessage(result.message || (result.acceptedCount ? `${result.acceptedCount} nuotraukos pridėtos.` : ""));
-    setSubmitTone(result.message ? "error" : "");
+    const accepted = result.next.slice(formState.photoUploads.length);
+    if (!accepted.length) {
+      setSubmitMessage(result.message);
+      setSubmitTone(result.message ? "error" : "");
+      return;
+    }
+    setSubmitMessage("Nuotraukos optimizuojamos…");
+    try {
+      const compressed = await Promise.all(accepted.map(async (photo) => {
+        if (!photo.file) throw new Error("Failas nepasiekiamas.");
+        const file = await compressProfilePhoto(photo.file);
+        URL.revokeObjectURL(photo.previewUrl);
+        return { ...photo, name: file.name, type: "image/webp" as const, size: file.size, previewUrl: URL.createObjectURL(file), file };
+      }));
+      setFormState((current) => ({ ...current, photoUploads: [...current.photoUploads, ...compressed] }));
+      setSubmitMessage(result.message || `${compressed.length} nuotraukos optimizuotos ir pridėtos.`);
+      setSubmitTone(result.message ? "error" : "");
+    } catch (error) {
+      accepted.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+      setSubmitMessage(error instanceof Error ? error.message : "Nuotraukų apdoroti nepavyko.");
+      setSubmitTone("error");
+    }
   }
 
   function getSubcategoryCategorySlug(subcategorySlug: string) {
@@ -1519,16 +1540,16 @@ export default function LocalProApp({
               <fieldset>
                 <legend>Darbų nuotraukos nebūtinos</legend>
                 <p className="field-note">
-                  Galite pridėti darbų pavyzdžius dabar arba papildyti profilį vėliau. {photoFieldMetadata.acceptedTypes.join(", ")}; iki {photoFieldMetadata.maxItems} nuotraukų; iki {photoFieldMetadata.maxSizeMb} MB kiekviena.
+                  Galite pridėti darbų pavyzdžius dabar arba papildyti profilį vėliau. JPG, PNG, WebP arba HEIC; iki {photoFieldMetadata.maxItems} nuotraukų; iki {photoFieldMetadata.maxSizeMb} MB kiekviena. Jos automatiškai optimizuojamos į WebP iki 1920 px ir 1 MB.
                 </p>
                 <label>
                   {formState.photoUploads.length ? "Pridėti daugiau nuotraukų" : "Pridėti nuotraukas"}
                   <input
                     type="file"
-                    accept={photoFieldMetadata.acceptedTypes.join(",")}
+                    accept={photoFieldMetadata.accept}
                     multiple
                     onChange={(event) => {
-                      updatePhotoUploads(event.target.files);
+                      void updatePhotoUploads(event.target.files);
                       event.currentTarget.value = "";
                     }}
                   />

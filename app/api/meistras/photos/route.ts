@@ -20,11 +20,11 @@ export async function POST(request: Request) {
     const size = Number(body.size);
     const name = String(body.name ?? "Nuotrauka").slice(0, 160);
     const replacePhotoId = String(body.replacePhotoId ?? "");
-    if (!REGISTRATION_PHOTO_TYPES.includes(type) || size < 1 || size > REGISTRATION_PHOTO_MAX_BYTES) return NextResponse.json({ error: "JPG, PNG arba WebP nuotrauka gali būti iki 5 MB." }, { status: 400 });
+    if (!REGISTRATION_PHOTO_TYPES.includes(type) || size < 1 || size > REGISTRATION_PHOTO_MAX_BYTES) return NextResponse.json({ error: "Į saugyklą siunčiama WebP nuotrauka turi būti iki 1 MB." }, { status: 400 });
     if (replacePhotoId && !(await ownedApprovedPhoto(supabase, profile.id, replacePhotoId))) return NextResponse.json({ error: "Keičiama nuotrauka nerasta." }, { status: 404 });
     const { count } = await supabase.from("profile_photos").select("id", { count: "exact", head: true }).eq("tradesperson_profile_id", profile.id).is("removed_from_profile_at", null).is("replaces_photo_id", null);
     if ((count ?? 0) >= 8 && !replacePhotoId) return NextResponse.json({ error: "Galima turėti daugiausia 8 nuotraukas." }, { status: 400 });
-    const extension = type === "image/png" ? "png" : type === "image/webp" ? "webp" : "jpg";
+    const extension = "webp";
     const storagePath = `${profile.id}/${crypto.randomUUID()}.${extension}`;
     const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(storagePath);
     if (error || !data) return NextResponse.json({ error: "Nepavyko paruošti įkėlimo." }, { status: 500 });
