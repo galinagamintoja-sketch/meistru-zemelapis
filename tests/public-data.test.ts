@@ -42,6 +42,15 @@ describe("public specialist listing", () => {
     expect(formatReviewCount(2)).toBe("2 atsiliepimai");
   });
 
+  it("uses the same specialist terminology for every public result counter", async () => {
+    const source = await import("node:fs/promises").then(({ readFile }) =>
+      readFile(new URL("../components/LocalProApp.tsx", import.meta.url), "utf8")
+    );
+
+    expect(source).not.toContain("formatMasterCount");
+    expect(source).toContain("formatSpecialistCount(specialists.length)");
+  });
+
   it("recognizes obvious public test profiles without deleting records", () => {
     expect(
       isObviousPublicTestProfile({
