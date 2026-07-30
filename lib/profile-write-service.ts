@@ -13,6 +13,7 @@ type ServiceSubcategoryRow = {
   id: string;
   slug?: string | null;
   service_category_id: string;
+  service_category_assignments?: Array<{ service_category_id: string }> | null;
 };
 
 type ProfileInsert = {
@@ -153,15 +154,27 @@ export async function resolveSelectedSubcategories(
     mismatchMessage: string;
   }
 ): Promise<{ selectedSubcategories: ServiceSubcategoryRow[] } | { error: HelperError }> {
-  const { data: subcategories, error } = options.subcategorySlugs.length
-    ? await supabase
+  let subcategories: ServiceSubcategoryRow[] = [];
+  let queryError: { message: string } | null = null;
+  if (options.subcategorySlugs.length) {
+    const assignmentResult = await supabase
+      .from("service_subcategories")
+      .select("id,slug,service_category_id,service_category_assignments(service_category_id)")
+      .in("slug", options.subcategorySlugs);
+    if (!assignmentResult.error) {
+      subcategories = (assignmentResult.data ?? []) as ServiceSubcategoryRow[];
+    } else {
+      const legacyResult = await supabase
         .from("service_subcategories")
         .select("id,slug,service_category_id")
-        .in("slug", options.subcategorySlugs)
-    : { data: [], error: null };
+        .in("slug", options.subcategorySlugs);
+      subcategories = (legacyResult.data ?? []) as ServiceSubcategoryRow[];
+      queryError = legacyResult.error;
+    }
+  }
 
-  if (error) {
-    return { error: { message: error.message, status: 500 } };
+  if (queryError) {
+    return { error: { message: queryError.message, status: 500 } };
   }
 
   if ((subcategories ?? []).length !== options.subcategorySlugs.length) {
@@ -169,9 +182,12 @@ export async function resolveSelectedSubcategories(
   }
 
   const selectedCategoryIds = new Set(options.categoryIds);
-  const selectedSubcategories = ((subcategories ?? []) as ServiceSubcategoryRow[]).filter((subcategory) =>
-    selectedCategoryIds.has(subcategory.service_category_id)
-  );
+  const selectedSubcategories = subcategories.filter((subcategory) => {
+    const categoryIds = subcategory.service_category_assignments?.length
+      ? subcategory.service_category_assignments.map((assignment) => assignment.service_category_id)
+      : [subcategory.service_category_id];
+    return categoryIds.some((categoryId) => selectedCategoryIds.has(categoryId));
+  });
 
   if (selectedSubcategories.length !== (subcategories ?? []).length) {
     return { error: { message: options.mismatchMessage, status: 400 } };

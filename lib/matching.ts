@@ -1,4 +1,5 @@
 import { cityCoordinates, distanceKm, isNationwideTravelRange } from "./geo";
+import { SERVICE_CATEGORY_ALIASES } from "./service-taxonomy";
 
 export type MatchReason =
   | "matched_category_and_service"
@@ -38,7 +39,13 @@ export type MatchCandidate = {
   service_categories?: { slug: string } | Array<{ slug: string }> | null;
   profile_services?: Array<{
     service_categories?: { slug: string } | Array<{ slug: string }> | null;
-    service_subcategories?: { slug: string } | Array<{ slug: string }> | null;
+    service_subcategories?: {
+      slug: string;
+      service_category_assignments?: Array<{ service_categories?: { slug: string } | Array<{ slug: string }> | null }> | null;
+    } | Array<{
+      slug: string;
+      service_category_assignments?: Array<{ service_categories?: { slug: string } | Array<{ slug: string }> | null }> | null;
+    }> | null;
   }>;
   operating_areas?: Array<{ city: string; radius_km?: number | null }>;
 };
@@ -80,7 +87,14 @@ export function evaluateCandidate(job: MatchJob, candidate: MatchCandidate): Can
     const category = Array.isArray(service.service_categories) ? service.service_categories[0] : service.service_categories;
     const subcategory = Array.isArray(service.service_subcategories) ? service.service_subcategories[0] : service.service_subcategories;
     if (category?.slug) categorySlugs.add(category.slug);
-    if (subcategory?.slug) subcategorySlugs.add(subcategory.slug);
+    if (subcategory?.slug) {
+      subcategorySlugs.add(subcategory.slug);
+      for (const alias of SERVICE_CATEGORY_ALIASES[subcategory.slug] ?? []) categorySlugs.add(alias);
+      for (const assignment of subcategory.service_category_assignments ?? []) {
+        const assignedCategory = Array.isArray(assignment.service_categories) ? assignment.service_categories[0] : assignment.service_categories;
+        if (assignedCategory?.slug) categorySlugs.add(assignedCategory.slug);
+      }
+    }
   }
   if (!categorySlugs.has(job.categorySlug)) return excluded("excluded_category_mismatch");
   if (job.subcategorySlug && !subcategorySlugs.has(job.subcategorySlug)) return excluded("excluded_category_mismatch");

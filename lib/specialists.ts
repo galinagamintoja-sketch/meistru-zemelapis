@@ -3,6 +3,7 @@ import { isObviousPublicTestProfile } from "./display";
 import { profileRowToSpecialist, toPublicSafeSpecialist, type ProfileRow } from "./db-mappers";
 import { approximatePublicCoordinates, cityCoordinates, distanceKm, isNationwideTravelRange } from "./geo";
 import { createServerSupabase } from "./supabase";
+import { categoriesFromAssignments } from "./service-taxonomy";
 import type { Specialist } from "./types";
 
 type SpecialistFilters = {
@@ -52,6 +53,16 @@ export async function getCategories() {
 
   if (!supabase) {
     return categories;
+  }
+
+  const assignmentResult = await supabase
+    .from("service_categories")
+    .select("id,name,slug,service_category_assignments(service_subcategories(id,name,slug,is_active))")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true });
+
+  if (!assignmentResult.error && assignmentResult.data?.length) {
+    return categoriesFromAssignments(assignmentResult.data);
   }
 
   const { data, error } = await supabase

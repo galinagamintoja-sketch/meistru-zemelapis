@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isLithuanianPhone } from "./phone";
+import { MAX_PROFILE_SERVICES } from "./service-taxonomy";
 
 export const tradespersonProfileUpdateSchema = z.object({
   displayName: z.string().trim().min(2).max(120),
@@ -25,5 +26,5 @@ export const tradespersonAreasUpdateSchema = z.object({
 });
 
 export const tradespersonServicesUpdateSchema = z.object({
-  subcategoryIds: z.array(z.string().uuid()).max(15).refine((ids) => new Set(ids).size === ids.length)
+  subcategoryIds: z.array(z.string().uuid()).max(MAX_PROFILE_SERVICES).refine((ids) => new Set(ids).size === ids.length)
 });

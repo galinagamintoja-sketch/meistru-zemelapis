@@ -16,6 +16,7 @@ import {
   uploadRegistrationPhotos
 } from "../lib/registration-photos";
 import type { HomepageAccountState } from "../lib/homepage-account-state";
+import { MAX_PROFILE_SERVICES, MAX_WORK_AREAS, uniqueServices } from "../lib/service-taxonomy";
 import { EmailAuthForm } from "./email-auth-form";
 
 type Props = {
@@ -495,7 +496,7 @@ export default function LocalProApp({
     [categories, formState.categorySlugs]
   );
   const selectedSubcategories = useMemo(
-    () => categories.filter((category) => formState.categorySlugs.includes(category.slug)).flatMap((category) => category.subcategories),
+    () => uniqueServices(categories.filter((category) => formState.categorySlugs.includes(category.slug)).flatMap((category) => category.subcategories)),
     [categories, formState.categorySlugs]
   );
   const specialistsKey = useMemo(() => specialists.map((specialist) => specialist.id).join("|"), [specialists]);
@@ -950,6 +951,11 @@ export default function LocalProApp({
 
   function updateCategory(slug: string, checked: boolean) {
     setFormState((current) => {
+      if (checked && !current.categorySlugs.includes(slug) && current.categorySlugs.length >= MAX_WORK_AREAS) {
+        setSubmitTone("error");
+        setSubmitMessage(`Galima pasirinkti daugiausia ${MAX_WORK_AREAS} darbo sritis.`);
+        return current;
+      }
       const categorySlugs = checked
         ? Array.from(new Set([...current.categorySlugs, slug]))
         : current.categorySlugs.filter((item) => item !== slug);
@@ -968,15 +974,15 @@ export default function LocalProApp({
 
   function updateSubcategory(slug: string, checked: boolean) {
     setFormState((current) => {
-      const categorySlug = getSubcategoryCategorySlug(slug);
-      const categorySlugs = !categorySlug || current.categorySlugs.includes(categorySlug)
-        ? current.categorySlugs
-        : Array.from(new Set([...current.categorySlugs, categorySlug]));
+      if (checked && !current.subcategorySlugs.includes(slug) && current.subcategorySlugs.length >= MAX_PROFILE_SERVICES) {
+        setSubmitTone("error");
+        setSubmitMessage(`Galima pasirinkti daugiausia ${MAX_PROFILE_SERVICES} paslaugas.`);
+        return current;
+      }
 
       return {
         ...current,
-        trade: categories.find((category) => categorySlugs.includes(category.slug))?.name ?? current.trade,
-        categorySlugs,
+        trade: categories.find((category) => current.categorySlugs.includes(category.slug))?.name ?? current.trade,
         subcategorySlugs: checked
           ? Array.from(new Set([...current.subcategorySlugs, slug]))
           : current.subcategorySlugs.filter((item) => item !== slug)
@@ -1075,10 +1081,6 @@ export default function LocalProApp({
       setSubmitMessage(error instanceof Error ? error.message : "Nuotraukų apdoroti nepavyko.");
       setSubmitTone("error");
     }
-  }
-
-  function getSubcategoryCategorySlug(subcategorySlug: string) {
-    return categories.find((category) => category.subcategories.some((item) => item.slug === subcategorySlug))?.slug ?? "";
   }
 
   async function logoutToHomepage() {
@@ -1490,7 +1492,7 @@ export default function LocalProApp({
               </div>
               <p className="field-note">Tai pagrindinė darbo vieta. Tikslus adresas naudojamas privačiam geokodavimui; viešai rodoma tik apytikslė vieta.</p>
               <fieldset>
-                <legend>Darbo sritys *</legend>
+                <legend>Darbo sritys * ({formState.categorySlugs.length}/{MAX_WORK_AREAS}; liko {MAX_WORK_AREAS - formState.categorySlugs.length})</legend>
                 {categories.map((category) => (
                   <label key={category.id}>
                     <input
@@ -1504,8 +1506,8 @@ export default function LocalProApp({
               </fieldset>
               {selectedSubcategories.length ? (
                 <fieldset aria-invalid={Boolean(registrationErrors.services)}>
-                  <legend>Konkrečios paslaugos * ({formState.subcategorySlugs.length}/2)</legend>
-                  <p className="field-note">Pasirinkite bent 2 konkrečias paslaugas. Jei paslaugos sąraše nėra, įrašykite ją aprašyme.</p>
+                  <legend>Paslaugos * ({formState.subcategorySlugs.length}/{MAX_PROFILE_SERVICES}; liko {MAX_PROFILE_SERVICES - formState.subcategorySlugs.length})</legend>
+                  <p className="field-note">Pasirinkite bent 2 paslaugas. Ta pati paslauga, rodoma keliose darbo srityse, skaičiuojama tik vieną kartą. Jei paslaugos sąraše nėra, įrašykite ją aprašyme.</p>
                   {selectedSubcategories.map((subcategory) => (
                     <label key={subcategory.id}>
                       <input

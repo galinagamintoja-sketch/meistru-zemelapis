@@ -9,9 +9,9 @@ const query = {
       id: "category-remontas",
       name: "Remontas",
       slug: "remontas",
-      service_subcategories: [
-        { id: "active-service", name: "Aktyvi paslauga", slug: "aktyvi-paslauga", is_active: true },
-        { id: "inactive-service", name: "Neaktyvi paslauga", slug: "neaktyvi-paslauga", is_active: false }
+      service_category_assignments: [
+        { service_subcategories: { id: "active-service", name: "Aktyvi paslauga", slug: "aktyvi-paslauga", is_active: true } },
+        { service_subcategories: { id: "inactive-service", name: "Neaktyvi paslauga", slug: "neaktyvi-paslauga", is_active: false } }
       ]
     }],
     error: null
@@ -27,12 +27,12 @@ describe("hosted category taxonomy", () => {
     select.mockImplementation(() => query);
   });
 
-  it("uses the direct category foreign key and returns active services only", async () => {
+  it("uses canonical category assignments and returns active services only", async () => {
     const { getCategories } = await import("../lib/specialists");
     const categories = await getCategories();
 
     expect(select).toHaveBeenCalledWith(expect.stringContaining(
-      "service_subcategories!service_subcategories_service_category_id_fkey"
+      "service_category_assignments(service_subcategories"
     ));
     expect(categories).toEqual([{
       id: "category-remontas",

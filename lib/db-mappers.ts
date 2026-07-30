@@ -1,6 +1,7 @@
 import type { Specialist } from "./types";
 import { formatVerificationSummary } from "./display";
 import { approximatePublicCoordinates, profileCoordinates } from "./geo";
+import { SERVICE_CATEGORY_ALIASES } from "./service-taxonomy";
 
 export type ProfileRow = {
   id: string;
@@ -65,6 +66,10 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
           : service.service_subcategories
       )
       .filter((subcategory): subcategory is { name: string; slug: string } => Boolean(subcategory)) ?? [];
+  const categorySlugs = Array.from(new Set([
+    ...categories.map((item) => item.slug),
+    ...subcategories.flatMap((subcategory) => SERVICE_CATEGORY_ALIASES[subcategory.slug] ?? [])
+  ]));
   const visiblePhotoRows = (row.profile_photos ?? [])
     .filter((photo) => options.includeRemovedPhotos || !photo.removed_from_profile_at)
     .filter((photo) => options.includeUnapprovedPhotos || (photo.moderation_status ?? "approved") === "approved")
@@ -91,7 +96,7 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
     companyName: row.company_name,
     trade: category?.name ?? "Paslauga",
     categorySlug: category?.slug ?? "paslauga",
-    categorySlugs: categories.map((item) => item.slug),
+    categorySlugs,
     categoryNames: categories.map((item) => item.name),
     publicStatus: row.public_status,
     subcategorySlugs: subcategories.map((subcategory) => subcategory.slug),
