@@ -108,9 +108,9 @@ begin
 
     -- One profile-service row survives when a profile selected multiple aliases.
     delete from profile_services
-    where id in (
-      select id from (
-        select ps.id, row_number() over (partition by ps.tradesperson_profile_id order by (ps.service_subcategory_id = keep_id) desc, ps.id) as position
+    where ctid in (
+      select row_ctid from (
+        select ps.ctid as row_ctid, row_number() over (partition by ps.tradesperson_profile_id order by (ps.service_subcategory_id = keep_id) desc, ps.ctid) as position
         from profile_services ps
         join service_subcategories ss on ss.id = ps.service_subcategory_id
         where ss.slug = any(target.old_slugs)
@@ -155,7 +155,7 @@ delete from profile_services a
 using profile_services b
 where a.tradesperson_profile_id = b.tradesperson_profile_id
   and a.service_subcategory_id = b.service_subcategory_id
-  and a.id > b.id;
+  and a.ctid > b.ctid;
 
 create unique index if not exists profile_services_profile_subcategory_unique
   on profile_services (tradesperson_profile_id, service_subcategory_id)
