@@ -108,3 +108,6 @@ grant execute on function resolve_verified_email_account(uuid, text, boolean) to
 
 -- Keep the old token operation disabled; do not repurpose it.
 revoke all on function claim_tradesperson_profile(text) from public, anon, authenticated;
+
+-- Expose the newly created resolver and audit grants after a clean 022 -> 023 replay.
+notify pgrst, 'reload schema';
