@@ -1,7 +1,6 @@
 -- Resolve legacy LocalPro ownership only from a server-verified login email.
 -- This is separate from the deprecated token claim flow in migration 012/018.
 create table if not exists account_resolution_audit (
-  id uuid primary key default gen_random_uuid(),
   auth_user_id uuid not null,
   outcome text not null,
   candidate_count integer not null check (candidate_count >= 0),

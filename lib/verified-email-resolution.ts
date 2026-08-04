@@ -10,10 +10,11 @@ export type AccountResolution = {
 
 function verifiedEmail(user: User) {
   if (!user.email || !user.email_confirmed_at) return null;
-  const supportedIdentity = (user.identities ?? []).some((identity) =>
-    identity.provider === "google" || identity.provider === "email"
+  const verifiedIdentity = (user.identities ?? []).some((identity) =>
+    identity.provider === "email"
+    || (identity.provider === "google" && identity.identity_data?.email_verified === true)
   );
-  return supportedIdentity ? user.email.trim().toLowerCase() : null;
+  return verifiedIdentity ? user.email.trim().toLowerCase() : null;
 }
 
 async function resolveVerifiedEmailAccount(confirm: boolean): Promise<AccountResolution> {
@@ -42,4 +43,3 @@ async function resolveVerifiedEmailAccount(confirm: boolean): Promise<AccountRes
 
 export const inspectVerifiedEmailResolution = () => resolveVerifiedEmailAccount(false);
 export const confirmVerifiedEmailResolution = () => resolveVerifiedEmailAccount(true);
-

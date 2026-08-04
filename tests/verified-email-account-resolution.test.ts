@@ -62,6 +62,21 @@ describe("verified-email account resolution", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  it("rejects a Google identity whose provider claim is not verified", async () => {
+    authUser = {
+      ...authUser,
+      identities: [{ provider: "google", identity_data: { email_verified: false } }]
+    };
+    const { inspectVerifiedEmailResolution } = await import("../lib/verified-email-resolution");
+
+    await expect(inspectVerifiedEmailResolution()).resolves.toEqual({
+      outcome: "unverified_email",
+      candidateCount: 0,
+      linked: false
+    });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("confirms through one atomic operation and returns no candidate profile data", async () => {
     rpc.mockResolvedValue({ data: [{ outcome: "linked", candidate_count: 1, linked: true }], error: null });
     const { POST } = await import("../app/api/meistras/resolve-account/route");

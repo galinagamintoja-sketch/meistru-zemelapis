@@ -60,6 +60,10 @@ begin
     where table_schema = 'public' and table_name = 'account_resolution_audit'
       and column_name in ('email', 'profile_id', 'profile_data')
   ) then raise exception 'Audit table stores private resolution data'; end if;
+  if (select count(*) from information_schema.columns
+      where table_schema = 'public' and table_name = 'account_resolution_audit') <> 4 then
+    raise exception 'Audit table contains fields beyond auth ID, outcome, count and timestamp';
+  end if;
   if (select count(*) from account_resolution_audit where auth_user_id in (auth_user_a, auth_user_b, auth_user_c)) <> 5 then
     raise exception 'Resolution outcomes were not fully audited';
   end if;
