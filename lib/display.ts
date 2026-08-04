@@ -80,7 +80,7 @@ export function formatVerificationBadge(value: string) {
 
 export function formatVerificationSummary(values: string[]) {
   const labels = values.map(formatVerificationLabel).filter(Boolean);
-  return labels.length ? labels.join(", ") : "Kontaktas tikrinamas";
+  return labels.join(", ");
 }
 
 export function isObviousPublicTestProfile(specialist: Pick<Specialist, "name" | "email" | "description" | "source">) {
