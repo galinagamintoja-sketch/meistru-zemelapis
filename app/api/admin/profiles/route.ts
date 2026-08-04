@@ -26,6 +26,7 @@ import {
 import { createServerSupabase } from "../../../../lib/supabase";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../../../../lib/validators";
 import { conflictingProfileId, isContactNumberConflict, PROFILE_PHONE_CONFLICT } from "../../../../lib/contact-number-conflict";
+import { validateProfileForPublication } from "../../../../lib/profile-publication-readiness";
 
 const validStatuses = new Set(["pending", "approved", "rejected", "suspended", "all"]);
 const validActions = new Set(["approve", "reject", "suspend", "return_pending", "verify_contact", "verify_whatsapp", "update", "moderate_photo", "record_public_contact_consent", "admin_note", "create_photo_upload", "finalize_photo_upload", "abort_photo_upload", "remove_photo", "reorder_photos"]);
@@ -627,65 +628,4 @@ function assignPhone(patch: Record<string, string | number | null>, key: string,
       patch[key] = nextValue;
     }
   }
-}
-
-async function validateProfileForPublication(supabase: NonNullable<ReturnType<typeof createServerSupabase>>, id: string) {
-  const errors: string[] = [];
-  const { data: profile, error } = await supabase
-    .from("tradesperson_profiles")
-      .select(`
-        display_name,
-        company_name,
-        phone,
-        service_category_id,
-        description,
-        public_contact_consent_at,
-        operating_areas(city, radius_km),
-        profile_services(service_subcategory_id),
-        profile_photos(moderation_status, removed_from_profile_at)
-      `)
-    .eq("id", id)
-    .single();
-
-  if (error || !profile) {
-    return ["Profilis nerastas."];
-  }
-
-  if (!cleanText(profile.display_name) && !cleanText(profile.company_name)) {
-    errors.push("Truksta asmens arba imones pavadinimo.");
-  }
-
-  if (!isLithuanianPhone(String(profile.phone ?? ""))) {
-    errors.push("Truksta galiojancio telefono numerio.");
-  }
-
-  if (!profile.service_category_id) {
-    errors.push("Truksta pagrindines darbo srities.");
-  }
-
-  const operatingAreaCount = (profile.operating_areas ?? []).filter((area: { city?: string | null; radius_km?: number | null }) => cleanText(area.city).length >= 2 && Number(area.radius_km) > 0).length;
-  if (operatingAreaCount < 1) {
-    errors.push("Truksta aptarnavimo miesto ir spindulio.");
-  }
-
-  const serviceTagCount = (profile.profile_services ?? []).filter((service: { service_subcategory_id: string | null }) => service.service_subcategory_id).length;
-  if (serviceTagCount < 2) {
-    errors.push("Reikia bent 2 konkreciu paslaugu zymu.");
-  }
-
-  if (cleanText(profile.description).length < 80) {
-    errors.push("Aprasymas turi buti bent 80 simboliu.");
-  }
-
-  if (!profile.public_contact_consent_at) {
-    errors.push("Truksta aiskaus sutikimo viesai rodyti kontaktus.");
-  }
-
-  const visiblePhotos = (profile.profile_photos ?? []).filter((photo: { moderation_status: string; removed_from_profile_at?: string | null }) => !photo.removed_from_profile_at);
-  const hasUnapprovedVisiblePhoto = visiblePhotos.some((photo: { moderation_status: string }) => photo.moderation_status !== "approved");
-  if (hasUnapprovedVisiblePhoto) {
-    errors.push("Visos rodomos nuotraukos turi būti patvirtintos arba pašalintos iš profilio.");
-  }
-
-  return errors;
 }

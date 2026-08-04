@@ -36,7 +36,7 @@ export default async function SpecialistPage({ params }: PageProps) {
 
       <article className="public-profile-card">
         <header className="public-profile-header">
-          <p className="eyebrow">Patvirtintas viešas profilis</p>
+          <p className="eyebrow">Specialisto profilis</p>
           <h1>{specialist.companyName || specialist.name}</h1>
           {specialist.companyName ? <p className="public-profile-person">{specialist.name}</p> : null}
           <div className="tag-row">
@@ -58,13 +58,9 @@ export default async function SpecialistPage({ params }: PageProps) {
             </section>
             <section>
               <h2>Darbo zona</h2>
-              <p>{specialist.serviceArea}</p>
-              <p className="privacy-note">Rodoma tik apytikslė vietovė. Registracijos adresas ir tikslios koordinatės neviešinami.</p>
+              <p>{specialist.approximateLocation || specialist.town} · Iki {specialist.radius} km</p>
             </section>
-            <section>
-              <h2>Patvirtinimas</h2>
-              <p>{formatVerificationSummary(specialist.verification)}</p>
-            </section>
+            {specialist.verification.length ? <section><h2>Patvirtinta informacija</h2><p>{formatVerificationSummary(specialist.verification)}</p></section> : null}
           </div>
 
           <aside className="public-profile-actions" aria-label="Susisiekti">

@@ -832,14 +832,6 @@ export default function LocalProApp({
     return services.slice(0, 6).join(", ");
   }
 
-  function formatTrustSummary(specialist: Specialist) {
-    if (specialist.verification.length) {
-      return formatVerificationSummary(specialist.verification);
-    }
-
-    return specialist.publicContactConsentAt ? "Kontaktai patvirtinti publikavimui" : "Laukia papildomos patikros";
-  }
-
   function openSpecialistProfile(specialistId: string) {
     selectSpecialist(specialistId, true);
   }
@@ -1331,7 +1323,7 @@ export default function LocalProApp({
                     <span className="tag">{specialist.approximateLocation ?? specialist.town}</span>
                     <span className="tag">{formatTravelRange(specialist.radius)}</span>
                     <span className="tag">{formatAvailability(specialist)}</span>
-                    <span className="tag">{formatVerificationSummary(specialist.verification)}</span>
+                    {specialist.verification.length ? <span className="tag">{formatVerificationSummary(specialist.verification)}</span> : null}
                   </span>
                   <span>
                     {formatReviewCount(specialist.reviewCount)}
@@ -1380,7 +1372,7 @@ export default function LocalProApp({
                     <strong>{activeSpecialist.companyName || activeSpecialist.name}</strong>
                     <span>{activeSpecialist.trade}</span>
                     <span>{activeSpecialist.rating ? activeSpecialist.rating.toFixed(1) : "Naujas"} ★ / {formatReviewCount(activeSpecialist.reviewCount)}</span>
-                    <span>{formatVerificationSummary(activeSpecialist.verification)} · {activeSpecialist.approximateLocation ?? activeSpecialist.town}</span>
+                    <span>{activeSpecialist.verification.length ? `${formatVerificationSummary(activeSpecialist.verification)} · ` : ""}{activeSpecialist.approximateLocation ?? activeSpecialist.town}</span>
                     <span>{formatAvailability(activeSpecialist)}</span>
                     <span>{typeof activeSpecialist.distanceKm === "number" ? `${activeSpecialist.distanceKm.toFixed(1)} km` : "Atstumas tikslinamas"} · {formatTravelRange(activeSpecialist.radius)}</span>
                   </div>
@@ -1406,7 +1398,7 @@ export default function LocalProApp({
                   <span className="tag">{activeSpecialist.approximateLocation ?? activeSpecialist.town}</span>
                   <span className="tag">{formatTravelRange(activeSpecialist.radius)}</span>
                   <span className="tag">{formatAvailability(activeSpecialist)}</span>
-                  <span className="tag">{formatVerificationSummary(activeSpecialist.verification)}</span>
+                  {activeSpecialist.verification.length ? <span className="tag">{formatVerificationSummary(activeSpecialist.verification)}</span> : null}
                   <span className="rating">{activeSpecialist.rating ? activeSpecialist.rating.toFixed(1) : "Naujas"} {stars(activeSpecialist.rating)}</span>
                 </div>
                 <p>{formatReviewCount(activeSpecialist.reviewCount)}. Darbo zona: {activeSpecialist.serviceArea}.</p>
@@ -1415,11 +1407,8 @@ export default function LocalProApp({
                   <div><strong>Paslaugos</strong><span>{formatServiceList(activeSpecialist)}</span></div>
                   <div><strong>Darbo zona</strong><span>{activeSpecialist.operatingCities.join(", ")} · {formatTravelRange(activeSpecialist.radius)}</span></div>
                   <div><strong>Vieta</strong><span>{activeSpecialist.approximateLocation ?? activeSpecialist.town}</span></div>
-                  <div><strong>Patikimumas</strong><span>{formatTrustSummary(activeSpecialist)}</span></div>
                 </div>
-                <div className="verification-list">
-                  {activeSpecialist.verification.length ? activeSpecialist.verification.map((label) => <span key={label}>{formatVerificationBadge(label)}</span>) : <span>Laukia papildomų patikros žymų</span>}
-                </div>
+                {activeSpecialist.verification.length ? <div className="verification-list">{activeSpecialist.verification.map((label) => <span key={label}>{formatVerificationBadge(label)}</span>)}</div> : null}
                 <div className="contact-list">
                   <a href={`/specialist/${activeSpecialist.id}`}><span>Viešas profilis</span><strong>Atidaryti</strong></a>
                   <a href={`tel:${activeSpecialist.phone.replaceAll(" ", "")}`} onClick={() => logEnquiry(activeSpecialist.id, "phone_click")}><span>Telefonas</span><strong>{activeSpecialist.phone}</strong></a>
@@ -1534,7 +1523,7 @@ export default function LocalProApp({
                   placeholder="Pvz. Trakų g. 10, Lentvaris"
                 />
               </div>
-              <p className="field-note">Tai pagrindinė darbo vieta. Tikslus adresas naudojamas privačiam geokodavimui; viešai rodoma tik apytikslė vieta.</p>
+              <p className="field-note">Klientams rodoma tik bendra vietovė ir aptarnavimo zona.</p>
               <fieldset>
                 <legend>{selectionCounter("Darbo sritys", formState.categorySlugs.length, MAX_PROFILE_CATEGORIES)}</legend>
                 {categories.map((category) => (
@@ -1847,7 +1836,7 @@ function createMapPopup(specialist: Specialist) {
       </div>
       <div class="map-popup-meta">
         <span>${escapeHtml(rating)} / ${escapeHtml(formatReviewCount(specialist.reviewCount))}</span>
-        <span>${escapeHtml(formatVerificationSummary(specialist.verification))}</span>
+        ${specialist.verification.length ? `<span>${escapeHtml(formatVerificationSummary(specialist.verification))}</span>` : ""}
       </div>
       <div class="map-popup-actions">
         <a href="#profile">Peržiūrėti profilį</a>

@@ -86,6 +86,8 @@
 .profile-status-banner { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr); align-items: center; gap: 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .profile-status-copy { display: grid; gap: 6px; }
 .profile-status-copy p { margin: 0; color: var(--muted); font-size: .85rem; }
+.profile-visibility-control { display: grid; justify-items: start; gap: 5px; margin-top: 4px; }
+.profile-visibility-control p { min-height: 1.1em; color: var(--muted); font-size: .78rem; }
 .profile-completion { display: grid; gap: 7px; min-width: 220px; }
 .profile-completion div { display: flex; justify-content: space-between; gap: 12px; font-size: .84rem; }
 .profile-completion progress, .photo-summary progress { width: 100%; accent-color: var(--spruce); }
