@@ -10,6 +10,8 @@ create table if not exists account_resolution_audit (
 alter table account_resolution_audit enable row level security;
 comment on table account_resolution_audit is
   'Private verified-email resolution audit. Never stores raw email or profile data.';
+revoke all on table account_resolution_audit from public, anon, authenticated;
+grant select, delete on table account_resolution_audit to service_role;
 
 create index if not exists users_normalized_email_idx on users ((lower(trim(email))));
 create index if not exists unowned_profiles_normalized_email_idx
