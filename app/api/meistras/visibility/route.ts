@@ -7,6 +7,11 @@ import { requireOwnedProfile } from "../../../../lib/tradesperson-account";
 const visibilitySchema = z.object({ visible: z.boolean() }).strict();
 
 export async function PATCH(request: Request) {
+  const requestOrigin = request.headers.get("origin");
+  if (requestOrigin && requestOrigin !== new URL(request.url).origin) {
+    return NextResponse.json({ error: "Neleistina užklausa." }, { status: 403 });
+  }
+
   const { profile } = await requireOwnedProfile();
   if (!profile) return NextResponse.json({ error: "Profilis nesusietas." }, { status: 403 });
 
@@ -23,7 +28,9 @@ export async function PATCH(request: Request) {
     if (profile.approval_status !== "approved") {
       return NextResponse.json({ error: "Profilį vėl rodyti galima tik tada, kai jis patvirtintas." }, { status: 409 });
     }
-    const validationErrors = await validateProfileForPublication(supabase, profile.id);
+    const validationErrors = await validateProfileForPublication(supabase, profile.id, {
+      requireAllActivePhotosApproved: false
+    });
     if (validationErrors.length) {
       return NextResponse.json({
         error: "Prieš vėl rodydami profilį užbaikite privalomus profilio duomenis.",
@@ -32,23 +39,21 @@ export async function PATCH(request: Request) {
     }
   }
 
-  let update = supabase
-    .from("tradesperson_profiles")
-    .update({ public_status: targetStatus })
-    .eq("id", profile.id);
-  if (parsed.data.visible) update = update.eq("approval_status", "approved");
-
-  const { data: updated, error: updateError } = await update.select("id").maybeSingle();
-  if (updateError) return NextResponse.json({ error: "Profilio matomumo pakeisti nepavyko." }, { status: 500 });
-  if (!updated) return NextResponse.json({ error: "Profilio būsena pasikeitė. Atnaujinkite puslapį ir bandykite dar kartą." }, { status: 409 });
-
-  const { error: auditError } = await supabase.from("admin_actions").insert({
-    tradesperson_profile_id: profile.id,
-    action: parsed.data.visible ? "tradesperson_profile_restored" : "tradesperson_profile_hidden",
-    notes: parsed.data.visible ? "Profile visibility restored by owner" : "Profile temporarily hidden by owner",
-    created_by_role: "tradesperson"
+  const { data, error } = await supabase.rpc("set_owned_profile_visibility", {
+    p_profile_id: profile.id,
+    p_visible: parsed.data.visible
   });
-  if (auditError) return NextResponse.json({ error: "Matomumas pakeistas, bet veiksmo įrašo išsaugoti nepavyko." }, { status: 500 });
+  if (error) {
+    if (error.message?.includes("profile_not_approved")) {
+      return NextResponse.json({ error: "Profilio būsena pasikeitė. Atnaujinkite puslapį ir bandykite dar kartą." }, { status: 409 });
+    }
+    return NextResponse.json({ error: "Profilio matomumo pakeisti nepavyko." }, { status: 500 });
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result || result.public_status !== targetStatus) {
+    return NextResponse.json({ error: "Profilio būsena pasikeitė. Atnaujinkite puslapį ir bandykite dar kartą." }, { status: 409 });
+  }
 
   return NextResponse.json({ ok: true, publicStatus: targetStatus });
 }
