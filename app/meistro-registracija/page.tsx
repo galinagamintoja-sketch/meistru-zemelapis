@@ -5,6 +5,7 @@ import { createSupabaseAuthClient } from "../../lib/supabase-ssr";
 import { getLinkedTradespersonProfile } from "../../lib/tradesperson-account";
 import { getHomepageAccountState } from "../../lib/homepage-account-state";
 import { isAdminEmail } from "../../lib/auth-session";
+import { inspectVerifiedEmailResolution } from "../../lib/verified-email-resolution";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,12 @@ export default async function TradespersonRegistrationPage() {
   const user = auth.data.user;
   const profile = user ? await getLinkedTradespersonProfile(user.id) : null;
   if (profile) redirect("/meistras/uzklausos");
+  if (user) {
+    const resolution = await inspectVerifiedEmailResolution();
+    if (resolution.outcome === "unique_match" || resolution.outcome === "ambiguous" || resolution.outcome === "ownership_conflict") {
+      redirect("/meistras/susieti");
+    }
+  }
 
   const accountState = {
     ...getHomepageAccountState(user?.id ?? null, false, isAdminEmail(user?.email)),
