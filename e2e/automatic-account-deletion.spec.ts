@@ -12,12 +12,13 @@ test("owner schedules, is blocked, cancels, and sees a responsive account UI", a
   await page.getByRole("button", { name: "Prisijungti el. paštu" }).click();
   await page.waitForURL(/\/meistras\/paskyra/);
 
+  const privacyCard = page.locator(".portal-card").filter({ has: page.getByRole("heading", { name: "Privatumas ir paskyros veiksmai" }) });
   await expect(page.getByRole("heading", { name: "Visam laikui ištrinti paskyrą" })).toBeVisible();
   await page.getByRole("button", { name: "Ištrinti paskyrą" }).click();
   await page.getByLabel("Prisijungimo el. paštas", { exact: true }).last().fill("wrong@example.lt");
   await page.getByLabel(/Suprantu, kad po 7 dienų/).check();
   await page.getByRole("button", { name: "Patvirtinti paskyros ištrynimą" }).click();
-  await expect(page.getByRole("status")).toContainText("nesutampa");
+  await expect(privacyCard.getByRole("status")).toContainText("nesutampa");
 
   await page.getByLabel("Prisijungimo el. paštas", { exact: true }).last().fill(email!);
   await page.getByRole("button", { name: "Patvirtinti paskyros ištrynimą" }).click();
@@ -32,7 +33,7 @@ test("owner schedules, is blocked, cancels, and sees a responsive account UI", a
 
   await page.goto("/meistras/paskyra");
   await page.getByRole("button", { name: "Atšaukti paskyros ištrynimą" }).click();
-  await expect(page.getByRole("status")).toContainText("Profilis vėl rodomas viešai");
+  await expect(privacyCard.getByRole("status")).toContainText("Profilis vėl rodomas viešai");
 
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 1000 }]) {
     await page.setViewportSize(viewport);
