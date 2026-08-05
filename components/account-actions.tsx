@@ -1,9 +1,11 @@
 "use client";
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Deletion = { status: string; scheduledDeletionAt: string | null } | null;
 
 export function AccountActions({ hasPassword, email, initialDeletion }: { hasPassword: boolean; email: string; initialDeletion: Deletion }) {
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [deletion, setDeletion] = useState<Deletion>(initialDeletion);
   const [confirming, setConfirming] = useState(false);
@@ -29,6 +31,7 @@ export function AccountActions({ hasPassword, email, initialDeletion }: { hasPas
     if (response.ok) {
       setDeletion({ status: data.deletion.status, scheduledDeletionAt: data.deletion.scheduledDeletionAt });
       setConfirming(false); setMessage("");
+      router.refresh();
     } else setMessage(data.error ?? "Paskyros ištrynimo suplanuoti nepavyko.");
     setPending(false);
   }
@@ -37,7 +40,7 @@ export function AccountActions({ hasPassword, email, initialDeletion }: { hasPas
     setPending(true);
     const response = await fetch("/api/meistras/account-requests", { method: "DELETE" });
     const data = await response.json();
-    if (response.ok) setDeletion(null);
+    if (response.ok) { setDeletion(null); router.refresh(); }
     setMessage(response.ok ? data.message : data.error ?? "Paskyros ištrynimo atšaukti nepavyko.");
     setPending(false);
   }
