@@ -4,9 +4,12 @@ import { requireOwnedProfile } from "../../../lib/tradesperson-account";
 import { createServerSupabase } from "../../../lib/supabase";
 import Link from "next/link";
 import { PARTIAL_REGISTRATION_PHOTO_NOTICE } from "../../../lib/registration-photos";
+import { getActiveAccountDeletion } from "../../../lib/account-deletion";
+import { DeletionPendingState } from "../../../components/deletion-pending-state";
 
 export default async function RequestsPage({ searchParams }: { searchParams: Promise<{ registracija?: string; nepavyko?: string }> }) {
-  const { profile } = await requireOwnedProfile();
+  const { user, profile } = await requireOwnedProfile();
+  if (await getActiveAccountDeletion(user.id)) return <DeletionPendingState />;
   if (!profile) return <UnlinkedAccount />;
   const supabase = createServerSupabase();
   const { data: services } = supabase ? await supabase

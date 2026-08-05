@@ -1581,3 +1581,16 @@ fieldset label {
     grid-template-columns: 1fr;
   }
 }
+.account-deletion-section { border-top: 1px solid #dccfc2; margin-top: 1rem; padding-top: 1rem; }
+.account-deletion-section h3 { margin: 0 0 .6rem; color: #7a2f23; }
+.deletion-confirmation { display: grid; gap: .8rem; padding: 1rem; border: 1px solid #bd7b70; border-radius: 12px; background: #fff8f6; }
+.checkbox-line { display: flex !important; align-items: flex-start; gap: .6rem; }
+.checkbox-line input { width: auto !important; margin-top: .25rem; }
+.deletion-pending-banner { margin: 1rem; padding: .9rem 1rem; border: 1px solid #c69b73; border-radius: 10px; background: #fff8ed; color: #5f3b22; }
+.privacy-request-counts { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; margin-bottom: 1rem; }
+.privacy-request-list { display: grid; gap: .6rem; padding: 0; list-style: none; }
+.privacy-request-list li { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .75rem; border: 1px solid #e2d7cc; border-radius: 8px; }
+@media (max-width: 390px) {
+  .account-deletion-section .portal-actions, .privacy-request-list li { align-items: stretch; flex-direction: column; }
+  .account-deletion-section button, .privacy-request-list button { width: 100%; }
+}

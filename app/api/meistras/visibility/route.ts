@@ -3,6 +3,7 @@ import { z } from "zod";
 import { validateProfileForPublication } from "../../../../lib/profile-publication-readiness";
 import { createServerSupabase } from "../../../../lib/supabase";
 import { requireOwnedProfile } from "../../../../lib/tradesperson-account";
+import { accountMutationBlocked } from "../../../../lib/account-deletion";
 
 const visibilitySchema = z.object({ visible: z.boolean() }).strict();
 
@@ -12,7 +13,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Neleistina užklausa." }, { status: 403 });
   }
 
-  const { profile } = await requireOwnedProfile();
+  const { user, profile } = await requireOwnedProfile();
+  if (await accountMutationBlocked(user.id)) return NextResponse.json({ error: "Paskyros ištrynimas suplanuotas. Profilio viešinti negalima." }, { status: 409 });
   if (!profile) return NextResponse.json({ error: "Profilis nesusietas." }, { status: 403 });
 
   const parsed = visibilitySchema.safeParse(await request.json().catch(() => null));

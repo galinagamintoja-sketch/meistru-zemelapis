@@ -5,8 +5,11 @@ import { ProfileVisibilityControl } from "../../../components/profile-visibility
 import { requireOwnedProfile } from "../../../lib/tradesperson-account";
 import { createServerSupabase } from "../../../lib/supabase";
 import Link from "next/link";
+import { getActiveAccountDeletion } from "../../../lib/account-deletion";
+import { DeletionPendingState } from "../../../components/deletion-pending-state";
 export default async function Page() {
-  const { profile } = await requireOwnedProfile();
+  const { user, profile } = await requireOwnedProfile();
+  if (await getActiveAccountDeletion(user.id)) return <DeletionPendingState />;
   if (!profile) return <UnlinkedAccount />;
   const supabase = createServerSupabase();
   const { data: categories } = supabase ? await supabase.from("service_categories").select("id,name").eq("is_active", true).order("sort_order") : { data: [] };

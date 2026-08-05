@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "../../../../lib/supabase";
 import { requireOwnedProfile } from "../../../../lib/tradesperson-account";
 import { tradespersonServicesUpdateSchema } from "../../../../lib/tradesperson-profile-schema";
+import { accountMutationBlocked, isSameOrigin } from "../../../../lib/account-deletion";
 
 export async function PUT(request: Request) {
-  const { profile } = await requireOwnedProfile();
+  if (!isSameOrigin(request)) return NextResponse.json({ error: "Neleistina užklausa." }, { status: 403 });
+  const { user, profile } = await requireOwnedProfile();
+  if (await accountMutationBlocked(user.id)) return NextResponse.json({ error: "Paskyros ištrynimas suplanuotas. Pakeitimai laikinai išjungti." }, { status: 409 });
   if (!profile) return NextResponse.json({ error: "Profilis nesusietas." }, { status: 403 });
   const parsed = tradespersonServicesUpdateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Neteisingas darbo sričių arba paslaugų sąrašas." }, { status: 400 });

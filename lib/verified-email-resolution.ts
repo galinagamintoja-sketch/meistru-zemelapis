@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { createServerSupabase } from "./supabase";
 import { createSupabaseAuthClient } from "./supabase-ssr";
+import { getActiveAccountDeletion } from "./account-deletion";
 
 export type AccountResolution = {
   outcome: string;
@@ -27,6 +28,9 @@ async function resolveVerifiedEmailAccount(confirm: boolean): Promise<AccountRes
 
   const supabase = createServerSupabase();
   if (!supabase) return { outcome: "unavailable", candidateCount: 0, linked: false };
+  if (confirm && await getActiveAccountDeletion(user.id, supabase)) {
+    return { outcome: "deletion_pending", candidateCount: 0, linked: false };
+  }
   const { data, error: rpcError } = await supabase.rpc("resolve_verified_email_account", {
     p_auth_user_id: user.id,
     p_email: email,
