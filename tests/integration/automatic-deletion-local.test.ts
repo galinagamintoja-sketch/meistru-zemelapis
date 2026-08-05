@@ -5,13 +5,14 @@ import { processClaimedAccountDeletion } from "../../lib/account-deletion";
 const url = process.env.LOCAL_SUPABASE_URL;
 const key = process.env.LOCAL_SUPABASE_SERVICE_ROLE_KEY;
 const run = url && key ? describe : describe.skip;
+const localSupabase = url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
 const createdAuthIds: string[] = [];
 const createdProfileIds: string[] = [];
 const createdRequestIds: string[] = [];
 const createdAdminActionIds: string[] = [];
 
 run("local automatic deletion integration", () => {
-  const supabase = createClient(url!, key!, { auth: { persistSession: false } });
+  const supabase = localSupabase!;
 
   afterAll(async () => {
     for (const requestId of createdRequestIds) await supabase.from("account_privacy_requests").delete().eq("id", requestId);
