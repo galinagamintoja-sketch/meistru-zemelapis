@@ -6,6 +6,12 @@ const password = process.env.QA_DELETION_PASSWORD;
 test.skip(!email || !password, "Controlled local account credentials are required");
 
 test("owner schedules, is blocked, cancels, and sees a responsive account UI", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  const pageErrors: string[] = [];
+  const serverErrors: string[] = [];
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("response", (response) => { if (response.status() >= 500) serverErrors.push(`${response.status()} ${new URL(response.url()).pathname}`); });
   await page.goto("/login?next=%2Fmeistras%2Fpaskyra");
   await page.getByLabel("El. paštas").fill(email!);
   await page.getByLabel("Slaptažodis").fill(password!);
@@ -40,5 +46,7 @@ test("owner schedules, is blocked, cancels, and sees a responsive account UI", a
     await expect(page.getByRole("heading", { name: "Visam laikui ištrinti paskyrą" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   }
-  expect(await page.evaluate(() => performance.getEntriesByType("resource").filter((entry) => (entry as PerformanceResourceTiming).responseStatus >= 500).length)).toBe(0);
+  expect(consoleErrors).toEqual([]);
+  expect(pageErrors).toEqual([]);
+  expect(serverErrors).toEqual([]);
 });
