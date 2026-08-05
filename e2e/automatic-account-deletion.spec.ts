@@ -25,6 +25,7 @@ test("owner schedules, is blocked, cancels, and sees a responsive account UI", a
   await page.getByLabel(/Suprantu, kad po 7 dienų/).check();
   await page.getByRole("button", { name: "Patvirtinti paskyros ištrynimą" }).click();
   await expect(privacyCard.getByRole("status")).toContainText("nesutampa");
+  consoleErrors.length = 0; // The deliberately exercised 400 response is expected and already asserted.
 
   await page.getByLabel("Prisijungimo el. paštas", { exact: true }).last().fill(email!);
   await page.getByRole("button", { name: "Patvirtinti paskyros ištrynimą" }).click();
