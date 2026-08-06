@@ -18,9 +18,9 @@ for (const viewport of [
   test(`${viewport.name}: searchable service combobox`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
     const combobox = page.getByRole("combobox", { name: "Kokio darbo reikia?" });
     const listbox = page.getByRole("listbox", { name: "Darbo sričių ir paslaugų pasiūlymai" });
+    await expect(combobox).toBeVisible();
 
     for (const [query, expected] of examples) {
       await combobox.fill(query);
