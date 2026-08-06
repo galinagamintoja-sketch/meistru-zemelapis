@@ -84,11 +84,18 @@ export class QueryBuilder {
 export function installSupabaseMock(
   tables: Record<string, Record<string, unknown>[]>,
   operations: Array<Record<string, unknown>> = [],
-  storage: Record<string, unknown> = {}
+  storage: Record<string, unknown> = {},
+  rpcHandler?: (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>
 ) {
   vi.doMock("../../lib/supabase", () => ({
     createServerSupabase: () => ({
       from: (table: string) => new QueryBuilder(table, tables[table] ?? [], operations),
+      ...(rpcHandler ? {
+        rpc: async (name: string, args: Record<string, unknown>) => {
+          operations.push({ type: "rpc", name, args });
+          return rpcHandler(name, args);
+        }
+      } : {}),
       storage: {
         getBucket: async () => ({ data: { id: "profile-photos" }, error: null }),
         createBucket: async () => ({ data: null, error: null }),

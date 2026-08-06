@@ -1,11 +1,13 @@
 import { TradespersonShell } from "../../components/tradesperson-shell";
 import { requireOwnedProfile } from "../../lib/tradesperson-account";
 import { createServerSupabase } from "../../lib/supabase";
+import { getActiveAccountDeletion } from "../../lib/account-deletion";
 
 export default async function TradespersonLayout({ children }: { children: React.ReactNode }) {
   const { user, profile } = await requireOwnedProfile();
   const name = String(profile?.display_name ?? user.user_metadata?.full_name ?? user.email?.split("@")[0] ?? "Meistras");
   const supabase = createServerSupabase();
+  const deletion = await getActiveAccountDeletion(user.id, supabase);
   const [{ data: category }, { data: photo }] = profile && supabase ? await Promise.all([
     profile.service_category_id
       ? supabase.from("service_categories").select("name").eq("id", profile.service_category_id).maybeSingle()
@@ -17,5 +19,5 @@ export default async function TradespersonLayout({ children }: { children: React
     : null);
   const profession = category?.name ?? profile?.company_name ?? profile?.service_area_label ?? profile?.base_city ?? null;
   const active = profile?.approval_status === "approved" && profile?.public_status === "public";
-  return <TradespersonShell profile={{ name, profession, active, photoUrl }}>{children}</TradespersonShell>;
+  return <TradespersonShell profile={{ name, profession, active: active && !deletion, photoUrl }} deletionPending={Boolean(deletion)}>{children}</TradespersonShell>;
 }

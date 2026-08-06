@@ -3,7 +3,7 @@ import { TradespersonNavigation } from "./tradesperson-navigation";
 
 type ShellProfile = { name: string; profession?: string | null; active: boolean; photoUrl?: string | null };
 
-export function TradespersonShell({ children, profile }: { children: React.ReactNode; profile: ShellProfile }) {
+export function TradespersonShell({ children, profile, deletionPending = false }: { children: React.ReactNode; profile: ShellProfile; deletionPending?: boolean }) {
   const initial = profile.name.trim().charAt(0).toLocaleUpperCase("lt-LT") || "M";
   return <div className="tradesperson-shell">
     <aside className="tradesperson-sidebar">
@@ -21,7 +21,7 @@ export function TradespersonShell({ children, profile }: { children: React.React
           <CheckIcon />{profile.active ? "Profilis aktyvus" : "Profilis ruošiamas"}
         </span>
       </section>
-      <TradespersonNavigation />
+      <TradespersonNavigation deletionPending={deletionPending} />
       <div className="tradesperson-logout"><Logout /></div>
     </aside>
     <div className="tradesperson-main">
@@ -29,9 +29,9 @@ export function TradespersonShell({ children, profile }: { children: React.React
         <Link className="brand" href="/"><span className="brand-mark">LP</span><strong>LocalPro.lt</strong></Link>
         <strong>{profile.name}</strong><span className="mobile-header-action"><BellIcon /></span>
       </header>
-      <main>{children}</main>
+      <main>{deletionPending ? <div className="deletion-pending-banner" role="status">Paskyros ištrynimas suplanuotas. Profilis paslėptas, o pakeitimai išjungti. Ištrynimą galite atšaukti paskyros puslapyje.</div> : null}{children}</main>
     </div>
-    <TradespersonNavigation mobile />
+    <TradespersonNavigation mobile deletionPending={deletionPending} />
   </div>;
 }
 

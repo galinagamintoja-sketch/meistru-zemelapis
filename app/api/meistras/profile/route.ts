@@ -4,9 +4,12 @@ import { tradespersonProfileUpdateSchema } from "../../../../lib/tradesperson-pr
 import { createServerSupabase } from "../../../../lib/supabase";
 import { normalizeLithuanianPhone } from "../../../../lib/phone";
 import { isContactNumberConflict, PROFILE_PHONE_CONFLICT } from "../../../../lib/contact-number-conflict";
+import { accountMutationBlocked, isSameOrigin } from "../../../../lib/account-deletion";
 
 export async function PATCH(request: Request) {
+  if (!isSameOrigin(request)) return NextResponse.json({ error: "Neleistina užklausa." }, { status: 403 });
   const { user, profile } = await requireOwnedProfile();
+  if (await accountMutationBlocked(user.id)) return NextResponse.json({ error: "Paskyros ištrynimas suplanuotas. Pakeitimai laikinai išjungti." }, { status: 409 });
   if (!profile) return NextResponse.json({ error: "Profilis nesusietas." }, { status: 403 });
   const parsed = tradespersonProfileUpdateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Patikrinkite įvestus duomenis.", details: parsed.error.flatten() }, { status: 400 });

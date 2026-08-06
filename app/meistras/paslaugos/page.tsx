@@ -4,8 +4,12 @@ import { UnlinkedAccount } from "../../../components/unlinked-account";
 import { createServerSupabase } from "../../../lib/supabase";
 import { requireOwnedProfile } from "../../../lib/tradesperson-account";
 import { categoriesFromAssignments, categoriesFromLegacy } from "../../../lib/service-taxonomy";
+import { getActiveAccountDeletion } from "../../../lib/account-deletion";
+import { DeletionPendingState } from "../../../components/deletion-pending-state";
 export default async function Page() {
-  const { profile } = await requireOwnedProfile(); if (!profile) return <UnlinkedAccount />;
+  const { user, profile } = await requireOwnedProfile();
+  if (await getActiveAccountDeletion(user.id)) return <DeletionPendingState />;
+  if (!profile) return <UnlinkedAccount />;
   const supabase = createServerSupabase();
   const [{ data: assignmentCategories, error: assignmentError }, { data: legacyCategories }, { data: current }, { data: currentCategories, error: currentCategoriesError }] = supabase ? await Promise.all([
     supabase.from("service_categories").select("id,name,slug,service_category_assignments(service_subcategories(id,name,slug,is_active))").eq("is_active", true).order("sort_order"),

@@ -1,5 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { installSupabaseMock } from "./helpers/supabase";
+import { installSupabaseMock as installBaseSupabaseMock } from "./helpers/supabase";
+
+function installSupabaseMock(
+  tables: Record<string, Record<string, unknown>[]>,
+  operations: Array<Record<string, unknown>> = [],
+  rpcHandler: (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }> = async (_name, args) => ({
+    data: [{ public_status: args.p_visible ? "public" : "private", changed: true }],
+    error: null
+  })
+) {
+  installBaseSupabaseMock(tables, operations, {}, rpcHandler);
+}
 
 let ownedProfile: Record<string, unknown> | null;
 
@@ -46,22 +57,12 @@ describe("tradesperson temporary profile visibility", () => {
 
     expect(response.status).toBe(200);
     expect(operations).toContainEqual(expect.objectContaining({
-      table: "tradesperson_profiles",
-      type: "update",
-      values: { public_status: "private" }
-    }));
-    expect(operations).not.toContainEqual(expect.objectContaining({
-      table: "tradesperson_profiles",
-      values: expect.objectContaining({ approval_status: expect.anything() })
-    }));
-    expect(operations).toContainEqual(expect.objectContaining({
-      table: "admin_actions",
-      type: "insert",
-      values: expect.objectContaining({
-        tradesperson_profile_id: "owned-profile",
-        action: "tradesperson_profile_hidden",
-        created_by_role: "tradesperson"
-      })
+      type: "rpc",
+      name: "set_owned_profile_visibility",
+      args: {
+        p_profile_id: "owned-profile",
+        p_visible: false
+      }
     }));
   });
 
@@ -80,14 +81,39 @@ describe("tradesperson temporary profile visibility", () => {
 
     expect(response.status).toBe(200);
     expect(operations).toContainEqual(expect.objectContaining({
-      table: "tradesperson_profiles",
-      type: "update",
-      values: { public_status: "public" }
+      type: "rpc",
+      name: "set_owned_profile_visibility",
+      args: {
+        p_profile_id: "owned-profile",
+        p_visible: true
+      }
     }));
-    expect(operations).toContainEqual(expect.objectContaining({
-      table: "admin_actions",
-      type: "insert",
-      values: expect.objectContaining({ action: "tradesperson_profile_restored" })
+  });
+
+  it("restores an approved profile while a pending replacement stays private", async () => {
+    const operations: Array<Record<string, unknown>> = [];
+    const hidden = {
+      ...completeProfile,
+      public_status: "private",
+      profile_photos: [
+        { id: "approved-photo", moderation_status: "approved", removed_from_profile_at: null },
+        { id: "pending-replacement", moderation_status: "pending", removed_from_profile_at: null }
+      ]
+    };
+    ownedProfile = hidden;
+    installSupabaseMock({ tradesperson_profiles: [hidden], admin_actions: [] }, operations);
+
+    const { PATCH } = await import("../app/api/meistras/visibility/route");
+    const response = await PATCH(new Request("http://localhost/api/meistras/visibility", {
+      method: "PATCH",
+      headers: { "content-type": "application/json", origin: "http://localhost" },
+      body: JSON.stringify({ visible: true })
+    }));
+
+    expect(response.status).toBe(200);
+    expect(operations).not.toContainEqual(expect.objectContaining({
+      table: "profile_photos",
+      type: "update"
     }));
   });
 
@@ -110,7 +136,7 @@ describe("tradesperson temporary profile visibility", () => {
     }));
 
     expect(response.status).toBe(409);
-    expect(operations).not.toContainEqual(expect.objectContaining({ table: "tradesperson_profiles", type: "update" }));
+    expect(operations).not.toContainEqual(expect.objectContaining({ type: "rpc" }));
   });
 
   it("rejects an account without an owned profile", async () => {
@@ -139,6 +165,45 @@ describe("tradesperson temporary profile visibility", () => {
     }));
 
     expect(response.status).toBe(400);
+    expect(operations).not.toContainEqual(expect.objectContaining({ type: "rpc" }));
+  });
+
+  it("rejects a cross-origin visibility request", async () => {
+    const operations: Array<Record<string, unknown>> = [];
+    installSupabaseMock({ tradesperson_profiles: [{ ...completeProfile }], admin_actions: [] }, operations);
+
+    const { PATCH } = await import("../app/api/meistras/visibility/route");
+    const response = await PATCH(new Request("http://localhost/api/meistras/visibility", {
+      method: "PATCH",
+      headers: { "content-type": "application/json", origin: "https://attacker.example" },
+      body: JSON.stringify({ visible: false })
+    }));
+
+    expect(response.status).toBe(403);
+    expect(operations).not.toContainEqual(expect.objectContaining({ type: "rpc" }));
+  });
+
+  it("returns an error without a separate profile write when the atomic operation rolls back", async () => {
+    const operations: Array<Record<string, unknown>> = [];
+    installSupabaseMock(
+      { tradesperson_profiles: [{ ...completeProfile }], admin_actions: [] },
+      operations,
+      async () => ({ data: null, error: { message: "audit insert failed; transaction rolled back" } })
+    );
+
+    const { PATCH } = await import("../app/api/meistras/visibility/route");
+    const response = await PATCH(new Request("http://localhost/api/meistras/visibility", {
+      method: "PATCH",
+      headers: { "content-type": "application/json", origin: "http://localhost" },
+      body: JSON.stringify({ visible: false })
+    }));
+
+    expect(response.status).toBe(500);
+    expect(operations).toContainEqual(expect.objectContaining({
+      type: "rpc",
+      name: "set_owned_profile_visibility"
+    }));
     expect(operations).not.toContainEqual(expect.objectContaining({ table: "tradesperson_profiles", type: "update" }));
+    expect(operations).not.toContainEqual(expect.objectContaining({ table: "admin_actions", type: "insert" }));
   });
 });

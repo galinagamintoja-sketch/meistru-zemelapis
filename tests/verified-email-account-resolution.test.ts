@@ -6,7 +6,18 @@ const rpc = vi.fn();
 let authUser: Record<string, unknown> | null;
 
 vi.mock("../lib/supabase", () => ({
-  createServerSupabase: () => ({ rpc })
+  createServerSupabase: () => ({
+    rpc,
+    from: () => {
+      const builder = {
+        select: () => builder,
+        eq: () => builder,
+        in: () => builder,
+        maybeSingle: async () => ({ data: null, error: null })
+      };
+      return builder;
+    }
+  })
 }));
 
 vi.mock("../lib/supabase-ssr", () => ({

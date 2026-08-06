@@ -13,10 +13,10 @@ export const tradespersonNavigation = [
   { href: "/meistras/paskyra", label: "Paskyra", mobileLabel: "Paskyra", icon: "account" }
 ] satisfies ReadonlyArray<{ href: string; label: string; mobileLabel: string; icon: IconName }>;
 
-export function TradespersonNavigation({ mobile = false }: { mobile?: boolean }) {
+export function TradespersonNavigation({ mobile = false, deletionPending = false }: { mobile?: boolean; deletionPending?: boolean }) {
   const pathname = usePathname();
   return <nav className={mobile ? "tradesperson-bottom-nav" : "tradesperson-side-nav"} aria-label={mobile ? "Mobilioji navigacija" : "Meistro paskyra"}>
-    {tradespersonNavigation.map((item) => {
+    {tradespersonNavigation.filter((item) => !deletionPending || item.icon === "account").map((item) => {
       const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
       return <Link href={item.href} key={item.href} aria-current={active ? "page" : undefined}>
         <DashboardIcon name={item.icon} /><span>{mobile ? item.mobileLabel : item.label}</span>

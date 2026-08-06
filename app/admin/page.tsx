@@ -5,6 +5,7 @@ import type { Category, Specialist } from "../../lib/types";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../../lib/phone";
 import { compressProfilePhoto, isSupportedPhotoInput, REGISTRATION_PHOTO_ACCEPT, REGISTRATION_PHOTO_INPUT_MAX_BYTES } from "../../lib/registration-photos";
 import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, selectionCounter, uniqueServices } from "../../lib/service-taxonomy";
+import { AdminPrivacyRequests } from "../../components/admin-privacy-requests";
 
 type StatusFilter = "pending" | "approved" | "rejected" | "suspended" | "all";
 type EditDraft = {
@@ -733,6 +734,8 @@ export default function AdminPage() {
         <button type="button" aria-current={section === "specialists" ? "page" : undefined} onClick={() => setSection("specialists")}>Meistrai</button>
         <button type="button" aria-current={section === "add" ? "page" : undefined} onClick={() => { setSection("add"); setIsAddOpen(true); }}>Pridėti meistrą</button>
       </nav>
+
+      <AdminPrivacyRequests />
 
       {section === "specialists" ? <div className="admin-toolbar">
         <label>

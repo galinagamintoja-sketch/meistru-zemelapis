@@ -4,7 +4,15 @@ import { isLithuanianPhone } from "./validators";
 
 type ServerSupabase = NonNullable<ReturnType<typeof createServerSupabase>>;
 
-export async function validateProfileForPublication(supabase: ServerSupabase, id: string) {
+type PublicationValidationOptions = {
+  requireAllActivePhotosApproved?: boolean;
+};
+
+export async function validateProfileForPublication(
+  supabase: ServerSupabase,
+  id: string,
+  options: PublicationValidationOptions = {}
+) {
   const errors: string[] = [];
   const { data: profile, error } = await supabase
     .from("tradesperson_profiles")
@@ -51,7 +59,7 @@ export async function validateProfileForPublication(supabase: ServerSupabase, id
   }
 
   const photos = (profile.profile_photos ?? []) as Array<{ moderation_status?: string | null; removed_from_profile_at?: string | null }>;
-  if (photos.some((photo) => !photo.removed_from_profile_at && photo.moderation_status !== "approved")) {
+  if (options.requireAllActivePhotosApproved !== false && photos.some((photo) => !photo.removed_from_profile_at && photo.moderation_status !== "approved")) {
     errors.push("Visos rodomos nuotraukos turi būti patvirtintos arba pašalintos iš profilio.");
   }
 
