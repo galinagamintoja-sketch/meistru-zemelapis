@@ -16,11 +16,13 @@ import { createServerSupabase, hasSupabaseConfig } from "../../../../lib/supabas
 import { resolveLithuanianCoordinates, resolveRegisteredAddressCoordinates } from "../../../../lib/geo";
 import { createRegistrationPhotoUploadToken } from "../../../../lib/registration-photo-upload-token";
 import { createSupabaseAuthClient } from "../../../../lib/supabase-ssr";
+import { accountMutationBlocked, isSameOrigin } from "../../../../lib/account-deletion";
 
 const PROFILE_PHOTOS_BUCKET = "profile-photos";
 let profilePhotosBucketReady = false;
 
 export async function POST(request: Request) {
+  if (!isSameOrigin(request)) return NextResponse.json({ error: "Neleistina užklausa." }, { status: 403 });
   const requestBody = await request.json().catch(() => null);
   const parsed = registrationSchema.safeParse(requestBody);
   const supabase = createServerSupabase();
@@ -36,6 +38,9 @@ export async function POST(request: Request) {
   const { data: { user }, error: authError } = await auth.auth.getUser();
   if (authError || !user?.email) {
     return NextResponse.json({ error: "Norėdami registruotis, pirmiausia prisijunkite." }, { status: 401 });
+  }
+  if (await accountMutationBlocked(user.id)) {
+    return NextResponse.json({ error: "Paskyros ištrynimas suplanuotas. Naujo profilio kurti negalima." }, { status: 409 });
   }
 
   const { data: existingLocalUser } = await supabase

@@ -4,11 +4,14 @@ import { createServerSupabase } from "../../../../lib/supabase";
 import { requireOwnedProfile } from "../../../../lib/tradesperson-account";
 import { REGISTRATION_PHOTO_MAX_BYTES, REGISTRATION_PHOTO_TYPES } from "../../../../lib/registration-photos";
 import { createRegistrationPhotoUploadToken, verifyRegistrationPhotoUploadToken } from "../../../../lib/registration-photo-upload-token";
+import { accountMutationBlocked, isSameOrigin } from "../../../../lib/account-deletion";
 
 const bucket = "profile-photos";
 
 export async function POST(request: Request) {
-  const { profile } = await requireOwnedProfile();
+  if (!isSameOrigin(request)) return NextResponse.json({ error: "Neleistina užklausa." }, { status: 403 });
+  const { user, profile } = await requireOwnedProfile();
+  if (await accountMutationBlocked(user.id)) return NextResponse.json({ error: "Paskyros ištrynimas suplanuotas. Nuotraukų keisti negalima." }, { status: 409 });
   if (!profile) return NextResponse.json({ error: "Profilis nesusietas." }, { status: 403 });
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const action = String(body.action ?? "");
@@ -57,7 +60,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const { profile } = await requireOwnedProfile();
+  if (!isSameOrigin(request)) return NextResponse.json({ error: "Neleistina užklausa." }, { status: 403 });
+  const { user, profile } = await requireOwnedProfile();
+  if (await accountMutationBlocked(user.id)) return NextResponse.json({ error: "Paskyros ištrynimas suplanuotas. Nuotraukų keisti negalima." }, { status: 409 });
   if (!profile) return NextResponse.json({ error: "Profilis nesusietas." }, { status: 403 });
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const action = String(body.action ?? ""), photoId = String(body.photoId ?? "");
