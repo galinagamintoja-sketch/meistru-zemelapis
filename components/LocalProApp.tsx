@@ -19,6 +19,7 @@ import type { HomepageAccountState } from "../lib/homepage-account-state";
 import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, selectionCounter, uniqueServices } from "../lib/service-taxonomy";
 import { clampToLithuania, getResponsiveLithuaniaMinZoom, LITHUANIA_BOUNDS } from "../lib/lithuania-map";
 import { EmailAuthForm } from "./email-auth-form";
+import { ServiceSearchCombobox } from "./service-search-combobox";
 
 type Props = {
   initialSpecialists: Specialist[];
@@ -1200,20 +1201,7 @@ export default function LocalProApp({
               <strong>Kokio meistro ieškote?</strong>
               {loading || locationResolving ? <span>{loading ? "Kraunama" : "Tikslinama vieta"}</span> : null}
             </div>
-            <label>
-              Kokio darbo reikia?
-              <select value={trade} onChange={(event) => setTrade(event.target.value)}>
-                <option value="all">Visos sritys</option>
-                {categories.map((category) => (
-                  <optgroup key={category.id} label={category.name}>
-                    <option value={category.slug}>{category.name}</option>
-                    {category.subcategories.map((subcategory) => (
-                      <option key={subcategory.id} value={subcategory.slug}>{subcategory.name}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
+            <ServiceSearchCombobox categories={categories} value={trade} onChange={setTrade} />
             <label>
               Kur reikalingas meistras?
               <input
