@@ -2,10 +2,11 @@ export default function TermsPage() {
   return <main className="legal-page">
     <h1>Naudojimosi sąlygos</h1>
     <p><strong>Atnaujinta: 2026 m. rugpjūčio 9 d.</strong></p>
+    <p><strong>Platformos valdytojo juridinis vardas ir adresas: bus patvirtinti netrukus.</strong></p>
     <p>LocalPro.lt padeda klientams rasti savarankiškai paslaugas siūlančius specialistus. LocalPro nėra statybos darbų rangovas, darbo kokybės garantas ar sutarties tarp kliento ir specialisto šalis.</p>
 
     <h2>Specialistų profiliai</h2>
-    <p>Specialistas privalo pateikti teisingą informaciją, turėti teisę siūlyti nurodytas paslaugas ir viešinti įkeltas nuotraukas. Kontaktai rodomi tik gavus aiškų sutikimą. LocalPro gali nepublikuoti, grąžinti taisyti, sustabdyti arba pašalinti klaidinantį, neteisėtą, nesaugų ar taisyklių neatitinkantį profilį.</p>
+    <p>Galiojantis savarankiškai pateiktas profilis paskelbiamas iš karto. Specialistas privalo pateikti teisingą informaciją, turėti teisę siūlyti nurodytas paslaugas ir viešinti įkeltas nuotraukas. Kontaktai rodomi tik gavus aiškų sutikimą. Lankytojai gali pranešti apie neteisingą kontaktą, nesusijusią nuotrauką, klaidinančią informaciją ar kitą problemą. LocalPro gali laikinai paslėpti, grąžinti taisyti, sustabdyti arba pašalinti klaidinantį, neteisėtą, nesaugų ar taisyklių neatitinkantį profilį.</p>
     <p>Žyma „patvirtintas“ reiškia tik tai, kad administratorius atliko tuo metu aprašytą platformos patikrą. Ji nėra profesinės kvalifikacijos, darbo kokybės, mokumo ar tapatybės garantija, nebent prie žymos aiškiai nurodyta kitaip.</p>
 
     <h2>Klientų užklausos</h2>

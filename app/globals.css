@@ -819,6 +819,17 @@
 .public-profile-actions .primary-action { background: var(--clay); }
 .public-profile-actions .secondary-action { background: var(--spruce); }
 
+.profile-report { display: grid; gap: 10px; margin-top: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.profile-report-toggle { min-height: 44px; border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
+.profile-report-form { display: grid; gap: 10px; }
+.profile-report-form label { display: grid; gap: 5px; color: var(--ink); font-size: .9rem; font-weight: 800; }
+.profile-report-form input,
+.profile-report-form select,
+.profile-report-form textarea { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--ink); font: inherit; }
+.profile-report-form button[type="submit"] { min-height: 44px; border: 0; border-radius: 8px; background: var(--ink); color: white; font: inherit; font-weight: 900; cursor: pointer; }
+.profile-report-form p { margin: 0; color: var(--muted); font-size: .9rem; }
+.report-honeypot { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; overflow: hidden !important; }
+
 .public-profile-gallery { margin-top: 42px; }
 .public-profile-photo { position: relative; min-height: 260px; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 10px; background: var(--soft); }
 .public-profile-photo img { object-fit: cover; }

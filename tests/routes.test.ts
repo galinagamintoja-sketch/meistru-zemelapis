@@ -218,6 +218,24 @@ describe("profile API routes", () => {
     expect(nonAdmin.status).toBe(401);
   });
 
+  it("rejects invalid public profile reports before database access", async () => {
+    const { POST } = await import("../app/api/profile-reports/route");
+    const response = await POST(new Request("http://localhost/api/profile-reports", {
+      method: "POST",
+      headers: { origin: "http://localhost", "content-type": "application/json" },
+      body: JSON.stringify({ profileId: "not-a-profile", reason: "wrong_photo", details: "per trumpa" })
+    }));
+    expect(response.status).toBe(400);
+  });
+
+  it("keeps profile reports behind admin authentication", async () => {
+    const { GET } = await import("../app/api/admin/profile-reports/route");
+    const anonymous = await GET(new Request("http://localhost/api/admin/profile-reports"));
+    const nonAdmin = await GET(new Request("http://localhost/api/admin/profile-reports", { headers: { cookie: signedCookie("not-admin@example.lt") } }));
+    expect(anonymous.status).toBe(401);
+    expect(nonAdmin.status).toBe(401);
+  });
+
   it("allows admin profile access for allowlisted Google email", async () => {
     const { GET } = await import("../app/api/admin/profiles/route");
     const response = await GET(

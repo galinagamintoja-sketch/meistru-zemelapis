@@ -2,7 +2,7 @@ export default function PrivacyPage() {
   return <main className="legal-page">
     <h1>Privatumo politika</h1>
     <p><strong>Atnaujinta: 2026 m. rugpjūčio 9 d.</strong></p>
-    <p>LocalPro.lt platformos valdytojas tvarko asmens duomenis, reikalingus paskyroms, specialistų profiliams, klientų užklausoms, saugumui ir platformos administravimui. Privatumo klausimais kreipkitės <a href="mailto:pagalba@localpro.lt">pagalba@localpro.lt</a>.</p>
+    <p><strong>Duomenų valdytojo juridinis vardas ir adresas: bus patvirtinti netrukus.</strong> LocalPro.lt platformos valdytojas tvarko asmens duomenis, reikalingus paskyroms, specialistų profiliams, klientų užklausoms, saugumui ir platformos administravimui. Privatumo klausimais kreipkitės <a href="mailto:pagalba@localpro.lt">pagalba@localpro.lt</a>.</p>
 
     <h2>Kokius duomenis tvarkome</h2>
     <ul>

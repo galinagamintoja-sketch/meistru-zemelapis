@@ -229,7 +229,7 @@ export async function POST(request: Request) {
     {
       tradesperson_profile_id: profile.id,
       consent_type: "public_contact_display",
-      consent_text: "Tradesperson gave explicit permission to publicly display selected contact details after admin approval.",
+      consent_text: "Tradesperson gave explicit permission to display selected contact details on the immediately published profile.",
       captured_channel: "website",
       captured_at: now
     },
