@@ -174,7 +174,7 @@ export function distanceKm(from: { lat: number; lng: number }, to: { lat: number
 export function approximatePublicCoordinates(id: string, coordinates: { lat: number; lng: number }) {
   const hash = Array.from(id).reduce((sum, character) => sum + character.charCodeAt(0), 0);
   const angle = (hash % 360) * (Math.PI / 180);
-  const offsetKm = 0.35 + (hash % 7) * 0.08;
+  const offsetKm = 0.5 + (hash % 11) * 0.05;
 
   return {
     lat: coordinates.lat + (Math.cos(angle) * offsetKm) / 111,

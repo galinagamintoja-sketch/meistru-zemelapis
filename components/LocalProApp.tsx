@@ -1705,7 +1705,7 @@ export default function LocalProApp({
         <footer className="site-footer">
           <a href="/privacy">Privatumo politika</a>
           <a href="/terms">Naudojimosi sąlygos</a>
-          <span>Teisinis tekstas yra juodraštis ir turi būti peržiūrėtas teisės specialisto.</span>
+          <span>Privatumo ir naudojimosi informacija atnaujinta 2026-08-09.</span>
         </footer>
       </main>
     </div>
