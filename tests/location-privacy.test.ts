@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { profileRowToSpecialist, toPublicSafeSpecialist, type ProfileRow } from "../lib/db-mappers";
 
+const intendedBrowserColumns = [
+  "id", "display_name", "company_name", "phone", "whatsapp_number", "email", "base_city",
+  "radius_km", "service_category_id", "description", "service_area_label", "review_score",
+  "review_count", "verification_labels", "public_status", "approval_status", "source",
+  "public_latitude", "public_longitude"
+];
+
 const row = {
   id: "11111111-1111-4111-8111-111111111111", display_name: "Meistras", company_name: null,
   phone: "+37060000000", whatsapp_number: null, email: "m@example.lt", base_city: "Vilnius",
@@ -29,7 +36,26 @@ describe("public location privacy", () => {
     expect(migration).toContain("distance_km := 1.0 + random()");
     expect(migration).toContain("add column if not exists public_latitude");
     expect(migration).toContain("revoke select on public.tradesperson_profiles");
-    expect(migration).toContain("column_name not in ('latitude', 'longitude', 'registered_address'");
     expect(migration).not.toContain("new.id");
+  });
+
+  it("grants browser roles only an explicit public profile column allowlist", () => {
+    const migration = readFileSync("supabase/migrations/027_public_locations_photo_monitoring_report_limits.sql", "utf8");
+    const grant = migration.match(/grant select \(([\s\S]*?)\)\s+on public\.tradesperson_profiles to anon, authenticated;/i);
+    expect(grant, "explicit profile column grant should exist").not.toBeNull();
+    const grantedColumns = grant![1].split(",").map((column) => column.trim()).filter(Boolean);
+    expect(grantedColumns).toEqual(intendedBrowserColumns);
+    for (const privateColumn of ["latitude", "longitude", "registered_address", "street_name", "postcode", "house_number_private", "google_place_id", "admin_notes", "hypothetical_future_internal_column"]) {
+      expect(grantedColumns).not.toContain(privateColumn);
+    }
+    expect(migration).not.toContain("information_schema.columns");
+    expect(migration).not.toContain("string_agg(quote_ident(column_name)");
+  });
+
+  it("keeps browser profile rows restricted to approved public profiles", () => {
+    const migration = readFileSync("supabase/migrations/027_public_locations_photo_monitoring_report_limits.sql", "utf8");
+    expect(migration).toContain('create policy "Browser can read approved public profiles"');
+    expect(migration).toMatch(/approval_status\s*=\s*'approved'/);
+    expect(migration).toMatch(/public_status\s*=\s*'public'/);
   });
 });

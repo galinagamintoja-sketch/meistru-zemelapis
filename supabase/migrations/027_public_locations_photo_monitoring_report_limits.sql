@@ -94,15 +94,39 @@ grant execute on function public.submit_profile_report(uuid,text,text,text,text,
 -- Browser roles must not be able to read reports or exact registered locations directly.
 revoke all on table public.profile_reports from public, anon, authenticated;
 revoke select on public.tradesperson_profiles from public, anon, authenticated;
-do $$
-declare safe_columns text;
-begin
-  select string_agg(quote_ident(column_name), ', ' order by ordinal_position) into safe_columns
-  from information_schema.columns
-  where table_schema = 'public' and table_name = 'tradesperson_profiles'
-    and column_name not in ('latitude', 'longitude', 'registered_address', 'street_name', 'postcode', 'house_number_private', 'google_place_id');
-  execute format('grant select (%s) on public.tradesperson_profiles to anon, authenticated', safe_columns);
-end $$;
+grant select (
+  id,
+  display_name,
+  company_name,
+  phone,
+  whatsapp_number,
+  email,
+  base_city,
+  radius_km,
+  service_category_id,
+  description,
+  service_area_label,
+  review_score,
+  review_count,
+  verification_labels,
+  public_status,
+  approval_status,
+  source,
+  public_latitude,
+  public_longitude
+) on public.tradesperson_profiles to anon, authenticated;
+
+drop policy if exists "Browser can read approved public profiles" on public.tradesperson_profiles;
+create policy "Browser can read approved public profiles"
+on public.tradesperson_profiles
+for select
+to anon, authenticated
+using (
+  approval_status = 'approved'
+  and public_status = 'public'
+  and is_demo = false
+  and public_contact_consent_at is not null
+);
 
 comment on column public.tradesperson_profiles.public_latitude is 'Stable approximate coordinate for public map display.';
 comment on column public.tradesperson_profiles.public_longitude is 'Stable approximate coordinate for public map display.';
