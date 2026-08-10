@@ -23,7 +23,7 @@ for (const viewport of [
 
     await page.goto("/privacy");
     await expect(page.getByRole("heading", { name: "Privatumo politika" })).toBeVisible();
-    await expect(page.getByText("0,5–1 km")).toBeVisible();
+    await expect(page.getByText("Viešame žemėlapyje rodoma apytikslė vieta", { exact: false })).toBeVisible();
     await expect(page.getByText("Valstybinei duomenų apsaugos inspekcijai")).toBeVisible();
 
     await page.goto("/terms");

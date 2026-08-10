@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isSameOrigin } from "../../../lib/account-deletion";
 import { profileReportSchema } from "../../../lib/profile-reports";
 import { createServerSupabase } from "../../../lib/supabase";
+import { profileReportAbuseKeys } from "../../../lib/profile-report-abuse";
 
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return NextResponse.json({ error: "Neleistina užklausa." }, { status: 403 });
@@ -14,12 +15,18 @@ export async function POST(request: Request) {
     .eq("id", parsed.data.profileId).eq("public_status", "public").eq("approval_status", "approved").maybeSingle();
   if (!profile) return NextResponse.json({ error: "Viešas profilis nerastas." }, { status: 404 });
 
-  const { error } = await supabase.from("profile_reports").insert({
-    tradesperson_profile_id: parsed.data.profileId,
-    reason: parsed.data.reason,
-    details: parsed.data.details,
-    reporter_email: parsed.data.reporterEmail || null
+  const abuse = profileReportAbuseKeys(request, parsed.data);
+  const { error } = await supabase.rpc("submit_profile_report", {
+    target_profile_id: parsed.data.profileId,
+    report_reason: parsed.data.reason,
+    report_details: parsed.data.details,
+    report_email: parsed.data.reporterEmail || "",
+    source_hash: abuse.sourceHash,
+    fingerprint: abuse.fingerprint
   });
+  if (error?.message?.includes("RATE_LIMITED")) {
+    return NextResponse.json({ error: "Per daug pranešimų. Bandykite dar kartą po 24 valandų." }, { status: 429 });
+  }
   if (error) return NextResponse.json({ error: "Pranešimo išsaugoti nepavyko." }, { status: 500 });
   return NextResponse.json({ accepted: true }, { status: 201 });
 }

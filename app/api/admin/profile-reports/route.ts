@@ -9,11 +9,20 @@ export async function GET(request: Request) {
   if (!admin) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const supabase = createServerSupabase();
   if (!supabase) return NextResponse.json({ reports: [] });
-  const { data, error } = await supabase.from("profile_reports")
-    .select("id,reason,details,reporter_email,status,admin_notes,created_at,reviewed_at,tradesperson_profiles(id,display_name,company_name)")
+  const select = "id,reason,details,reporter_email,status,admin_notes,created_at,reviewed_at,tradesperson_profiles(id,display_name,company_name)";
+  const { data: open, error } = await supabase.from("profile_reports")
+    .select(select).in("status", ["pending", "reviewing"])
     .order("created_at", { ascending: false }).limit(100);
   if (error) return NextResponse.json({ error: "Pranešimų įkelti nepavyko." }, { status: 500 });
-  return NextResponse.json({ reports: data ?? [] });
+  const remaining = Math.max(0, 100 - (open?.length ?? 0));
+  let closed: unknown[] = [];
+  if (remaining) {
+    const result = await supabase.from("profile_reports").select(select)
+      .in("status", ["resolved", "dismissed"]).order("created_at", { ascending: false }).limit(remaining);
+    if (result.error) return NextResponse.json({ error: "Pranešimų įkelti nepavyko." }, { status: 500 });
+    closed = result.data ?? [];
+  }
+  return NextResponse.json({ reports: [...(open ?? []), ...closed] });
 }
 
 export async function PATCH(request: Request) {

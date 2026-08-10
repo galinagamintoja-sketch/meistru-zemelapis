@@ -138,8 +138,8 @@ describe("public routes with mocked Supabase queries", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(operations).not.toContainEqual(expect.objectContaining({ table: "profile_photos", values: expect.objectContaining({ moderation_status: "approved" }) }));
-    expect(operations).toContainEqual(expect.objectContaining({ table: "profile_photos", type: "insert", values: expect.objectContaining({ url: "https://example.lt/new.jpg", moderation_status: "pending" }) }));
+    expect(operations).not.toContainEqual(expect.objectContaining({ table: "profile_photos", type: "update", values: expect.objectContaining({ moderation_status: "approved" }) }));
+    expect(operations).toContainEqual(expect.objectContaining({ table: "profile_photos", type: "insert", values: expect.objectContaining({ url: "https://example.lt/new.jpg", moderation_status: "approved" }) }));
     expect(operations).toContainEqual(expect.objectContaining({ table: "profile_photos", type: "update", values: expect.objectContaining({ removed_from_profile_at: expect.any(String) }) }));
   });
 

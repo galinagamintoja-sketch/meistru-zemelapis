@@ -318,7 +318,7 @@ export function buildPhotoRows(profileId: string, photoUrls: string[], profileNa
     label: null,
     alt_text: profileName ? `${profileName} nuotrauka` : null,
     sort_order: index + 1,
-    moderation_status: "pending",
+    moderation_status: "approved",
     ...(includeRemovedFlag ? { removed_from_profile_at: null } : {})
   }));
 }
@@ -398,7 +398,7 @@ export async function syncProfilePhotos(
       label: null,
       alt_text: profileName ? `${profileName} nuotrauka` : null,
       sort_order: index + 1,
-      moderation_status: "pending",
+      moderation_status: "approved",
       removed_from_profile_at: null
     });
 

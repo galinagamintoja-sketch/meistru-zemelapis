@@ -55,8 +55,12 @@ export async function POST(request: Request) {
     target_replaces_photo_id: replacePhotoId
   });
   if (error) { await supabase.storage.from(bucket).remove([claims.storagePath]); return NextResponse.json({ error: "Nuotraukos įrašyti nepavyko." }, { status: 500 }); }
-  await supabase.from("admin_actions").insert({ tradesperson_profile_id: profile.id, action: "tradesperson_photo_submitted", notes: replacePhotoId ? `Replacement for ${replacePhotoId}` : "Gallery photo submitted", created_by_role: "tradesperson" });
-  return NextResponse.json({ ok: true, moderationStatus: "pending" });
+  const { data: inserted } = await supabase.from("profile_photos").select("id").eq("storage_path", claims.storagePath).eq("tradesperson_profile_id", profile.id).maybeSingle();
+  if (!inserted?.id) { await supabase.storage.from(bucket).remove([claims.storagePath]); return NextResponse.json({ error: "Nuotraukos įrašyti nepavyko." }, { status: 500 }); }
+  const { error: approvalError } = await supabase.rpc("approve_profile_photo_replacement", { target_photo_id: inserted.id });
+  if (approvalError) { await supabase.storage.from(bucket).remove([claims.storagePath]); return NextResponse.json({ error: "Nuotraukos paskelbti nepavyko." }, { status: 500 }); }
+  await supabase.from("admin_actions").insert({ tradesperson_profile_id: profile.id, action: "tradesperson_photo_published", notes: replacePhotoId ? `Replacement for ${replacePhotoId}` : "Gallery photo published immediately", created_by_role: "tradesperson" });
+  return NextResponse.json({ ok: true, moderationStatus: "approved" });
 }
 
 export async function PATCH(request: Request) {
@@ -76,7 +80,6 @@ export async function PATCH(request: Request) {
     const { error } = await supabase.from("profile_photos").update({ is_primary: true }).eq("id", photoId).eq("tradesperson_profile_id", profile.id);
     if (error) return NextResponse.json({ error: "Išsaugoti nepavyko." }, { status: 500 });
   } else if (action === "remove") {
-    if (photo.moderation_status === "approved") return NextResponse.json({ error: "Patvirtintą nuotrauką keiskite pakeitimo veiksmu." }, { status: 400 });
     await supabase.from("profile_photos").update({ removed_from_profile_at: new Date().toISOString(), is_primary: false }).eq("id", photoId).eq("tradesperson_profile_id", profile.id);
     if (photo.storage_path) await supabase.storage.from(bucket).remove([photo.storage_path]);
   } else return NextResponse.json({ error: "Nežinomas veiksmas." }, { status: 400 });

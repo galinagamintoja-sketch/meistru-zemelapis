@@ -171,17 +171,6 @@ export function distanceKm(from: { lat: number; lng: number }, to: { lat: number
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function approximatePublicCoordinates(id: string, coordinates: { lat: number; lng: number }) {
-  const hash = Array.from(id).reduce((sum, character) => sum + character.charCodeAt(0), 0);
-  const angle = (hash % 360) * (Math.PI / 180);
-  const offsetKm = 0.5 + (hash % 11) * 0.05;
-
-  return {
-    lat: coordinates.lat + (Math.cos(angle) * offsetKm) / 111,
-    lng: coordinates.lng + (Math.sin(angle) * offsetKm) / (111 * Math.cos(toRadians(coordinates.lat)))
-  };
-}
-
 export function isNationwideTravelRange(value: number | string | null | undefined) {
   return String(value ?? "").toLowerCase() === "lt" || Number(value) >= 150;
 }

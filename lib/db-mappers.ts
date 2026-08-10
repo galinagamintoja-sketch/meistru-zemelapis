@@ -1,6 +1,6 @@
 import type { Specialist } from "./types";
 import { formatVerificationSummary } from "./display";
-import { approximatePublicCoordinates, profileCoordinates } from "./geo";
+import { profileCoordinates } from "./geo";
 import { canonicalServiceSlug } from "./service-taxonomy";
 
 export type ProfileRow = {
@@ -16,6 +16,8 @@ export type ProfileRow = {
   radius_km: number;
   latitude: number | null;
   longitude: number | null;
+  public_latitude?: number | null;
+  public_longitude?: number | null;
   description: string | null;
   review_score: number | null;
   review_count: number | null;
@@ -43,7 +45,7 @@ export type ProfileRow = {
 export function profileRowToSpecialist(row: ProfileRow, options: { includeUnapprovedPhotos?: boolean; includeRemovedPhotos?: boolean } = {}): Specialist {
   const operatingCities = uniqueList([row.base_city, ...(row.operating_areas?.map((area) => area.city).filter(Boolean) ?? [])]);
   const coordinates = profileCoordinates(row.latitude, row.longitude, operatingCities);
-  const publicCoordinates = approximatePublicCoordinates(row.id, coordinates);
+  const publicCoordinates = profileCoordinates(row.public_latitude, row.public_longitude, operatingCities);
   const serviceArea = formatServiceArea(row.service_area_label, row.base_city, operatingCities, row.radius_km, row.source);
   const approvedReviews = row.reviews?.filter((review) => review.moderation_status === "approved") ?? [];
   const category = Array.isArray(row.service_categories) ? row.service_categories[0] : row.service_categories;

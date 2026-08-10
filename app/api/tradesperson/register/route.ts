@@ -263,7 +263,7 @@ export async function POST(request: Request) {
   const { error: actionError } = await supabase.from("admin_actions").insert({
     tradesperson_profile_id: profile.id,
     action: "profile_submitted",
-    notes: "Authenticated self-registration activated after required-field validation. Photos remain moderated separately.",
+    notes: "Authenticated self-registration and valid photos publish immediately; post-publication moderation remains available.",
     created_by_role: "system"
   });
 

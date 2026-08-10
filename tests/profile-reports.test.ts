@@ -33,4 +33,23 @@ describe("profile reports", () => {
     expect(migration).toContain("revoke all on table public.profile_reports from public, anon, authenticated");
     expect(migration).toContain("grant select, insert, update, delete on table public.profile_reports to service_role");
   });
+
+  it("defines atomic same-profile, duplicate and site-wide 24-hour limits", () => {
+    const migration = readFileSync("supabase/migrations/027_public_locations_photo_monitoring_report_limits.sql", "utf8");
+    expect(migration).toContain("now() - interval '24 hours'");
+    expect(migration).toContain("tradesperson_profile_id = target_profile_id");
+    expect(migration).toContain("report_fingerprint = fingerprint");
+    expect(migration).toContain(") >= 10");
+    expect(migration).toContain("pg_advisory_xact_lock");
+    expect(migration).toContain("message = 'RATE_LIMITED'");
+  });
+
+  it("stores only keyed IP hashes and never raw IP values", async () => {
+    process.env.PROFILE_REPORT_HASH_SECRET = "test-secret";
+    const { profileReportAbuseKeys } = await import("../lib/profile-report-abuse");
+    const keys = profileReportAbuseKeys(new Request("http://localhost", { headers: { "x-real-ip": "203.0.113.10" } }), valid);
+    expect(keys.sourceHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(keys.sourceHash).not.toContain("203.0.113.10");
+    expect(keys.fingerprint).toMatch(/^[a-f0-9]{64}$/);
+  });
 });

@@ -7,6 +7,7 @@ import { compressProfilePhoto, isSupportedPhotoInput, REGISTRATION_PHOTO_ACCEPT,
 import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, selectionCounter, uniqueServices } from "../../lib/service-taxonomy";
 import { AdminPrivacyRequests } from "../../components/admin-privacy-requests";
 import { AdminProfileReports } from "../../components/admin-profile-reports";
+import { AdminRecentPhotos } from "../../components/admin-recent-photos";
 
 type StatusFilter = "pending" | "approved" | "rejected" | "suspended" | "all";
 type EditDraft = {
@@ -90,7 +91,7 @@ export default function AdminPage() {
   const [consentDrafts, setConsentDrafts] = useState<Record<string, ConsentDraft>>({});
   const [addDraft, setAddDraft] = useState<AddDraft>(emptyAddDraft);
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [section, setSection] = useState<"requests" | "reports" | "specialists" | "add">("specialists");
+  const [section, setSection] = useState<"requests" | "reports" | "photos" | "specialists" | "add">("specialists");
   const [openProfileId, setOpenProfileId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [selectedPhotos, setSelectedPhotos] = useState<Record<string, SelectedPhoto[]>>({});
@@ -733,6 +734,7 @@ export default function AdminPage() {
       <nav className="admin-tabs" aria-label="Administravimo skyriai">
         <button type="button" aria-current={section === "requests" ? "page" : undefined} onClick={() => setSection("requests")}>Užklausos</button>
         <button type="button" aria-current={section === "reports" ? "page" : undefined} onClick={() => setSection("reports")}>Pranešimai</button>
+        <button type="button" aria-current={section === "photos" ? "page" : undefined} onClick={() => setSection("photos")}>Nuotraukos</button>
         <button type="button" aria-current={section === "specialists" ? "page" : undefined} onClick={() => setSection("specialists")}>Meistrai</button>
         <button type="button" aria-current={section === "add" ? "page" : undefined} onClick={() => { setSection("add"); setIsAddOpen(true); }}>Pridėti meistrą</button>
       </nav>
@@ -740,6 +742,7 @@ export default function AdminPage() {
       <AdminPrivacyRequests />
 
       {section === "reports" ? <AdminProfileReports /> : null}
+      {section === "photos" ? <AdminRecentPhotos /> : null}
 
       {section === "specialists" ? <div className="admin-toolbar">
         <label>

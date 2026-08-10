@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   }
 
   if (existingRecords?.length) {
-    return NextResponse.json({ ok: true, moderationStatus: "pending" });
+    return NextResponse.json({ ok: true, moderationStatus: "approved" });
   }
 
   const prefix = `${claims.profileId}/`;
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     url: null,
     label: claims.name,
     alt_text: null,
-    moderation_status: "pending",
+    moderation_status: "approved",
     sort_order: count ?? 0,
     removed_from_profile_at: null
   });
@@ -86,5 +86,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, moderationStatus: "pending" });
+  return NextResponse.json({ ok: true, moderationStatus: "approved" });
 }

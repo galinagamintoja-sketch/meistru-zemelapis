@@ -82,7 +82,7 @@ export async function GET(request: Request) {
     profile_category_assignments(service_categories(name, slug)),
     profile_services(service_categories(name, slug), service_subcategories(name, slug)),
     operating_areas(city, radius_km),
-    profile_photos(id, label, url, storage_path, moderation_status, sort_order, removed_from_profile_at),
+    profile_photos(id, label, url, storage_path, moderation_status, sort_order, removed_from_profile_at, created_at),
     reviews(client_name, rating, text, moderation_status),
     admin_actions(id, action, notes, created_at, created_by_role)
   `;
@@ -471,7 +471,7 @@ export async function PATCH(request: Request) {
     const { error: insertError } = await supabase.from("profile_photos").insert({
       tradesperson_profile_id: id, storage_path: storagePath, url: null,
       label: name || "Profilio nuotrauka",
-      moderation_status: "pending", sort_order: count ?? 0
+      moderation_status: "approved", sort_order: count ?? 0
     });
     if (insertError) {
       await supabase.storage.from("profile-photos").remove([storagePath]);

@@ -445,6 +445,7 @@
 .admin-upload-button { display: inline-flex !important; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; border-radius: 9px; background: var(--ink); color: #fff; cursor: pointer; }
 .admin-upload-button input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .admin-photo-row img, .admin-main-photo img, .admin-selected-photos img { width: 84px; height: 64px; max-width: 100%; object-fit: cover; border-radius: 8px; }
+.admin-recent-photo { width: 100%; max-height: 240px; object-fit: cover; border-radius: 8px; }
 .admin-main-photo { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .admin-main-photo div, .admin-photo-info { display: grid; gap: 4px; min-width: 0; }
 .admin-photo-info strong, .admin-selected-photos span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }

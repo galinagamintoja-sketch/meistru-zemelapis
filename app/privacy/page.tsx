@@ -16,7 +16,7 @@ export default function PrivacyPage() {
     <p>Duomenis tvarkome sutarčiai ir jūsų prašomai paslaugai vykdyti, gavę sutikimą viešinti pasirinktus kontaktus ar siųsti neprivalomą rinkodarą, vykdydami teisines prievoles ir siekdami teisėto intereso apsaugoti platformą nuo piktnaudžiavimo. Sutikimą dėl viešų kontaktų ar rinkodaros galite atšaukti bet kada.</p>
 
     <h2>Kas vieša</h2>
-    <p>Viešame patvirtintame profilyje gali būti rodomas vardas ar įmonė, paslaugos, miestas, aprašymas, patvirtintos nuotraukos ir tik tie kontaktai, kuriuos leidote viešinti. Tikslus adresas ir privačios koordinatės neviešinami. Žemėlapio žymeklis deterministiškai perkeliamas maždaug 0,5–1 km nuo saugomos vietos.</p>
+    <p>Viešame profilyje gali būti rodomas vardas ar įmonė, paslaugos, miestas, aprašymas, įkeltos nuotraukos ir tik tie kontaktai, kuriuos leidote viešinti. Viešame žemėlapyje rodoma apytikslė vieta. Tikslus adresas ir tikslios koordinatės viešai nerodomi.</p>
 
     <h2>Kam perduodame duomenis</h2>
     <p>Duomenis gali tvarkyti mūsų infrastruktūros, autentifikavimo, duomenų bazės, failų saugyklos, žemėlapių ir prieglobos paslaugų teikėjai tik tiek, kiek reikia jų paslaugoms. Duomenų neparduodame. Kai paslaugų teikėjas duomenis tvarko už Europos ekonominės erdvės ribų, taikomos teisės aktuose numatytos perdavimo apsaugos.</p>
