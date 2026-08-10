@@ -445,6 +445,7 @@
 .admin-upload-button { display: inline-flex !important; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; border-radius: 9px; background: var(--ink); color: #fff; cursor: pointer; }
 .admin-upload-button input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .admin-photo-row img, .admin-main-photo img, .admin-selected-photos img { width: 84px; height: 64px; max-width: 100%; object-fit: cover; border-radius: 8px; }
+.admin-recent-photo { width: 100%; max-height: 240px; object-fit: cover; border-radius: 8px; }
 .admin-main-photo { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .admin-main-photo div, .admin-photo-info { display: grid; gap: 4px; min-width: 0; }
 .admin-photo-info strong, .admin-selected-photos span { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
@@ -818,6 +819,17 @@
 
 .public-profile-actions .primary-action { background: var(--clay); }
 .public-profile-actions .secondary-action { background: var(--spruce); }
+
+.profile-report { display: grid; gap: 10px; margin-top: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.profile-report-toggle { min-height: 44px; border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
+.profile-report-form { display: grid; gap: 10px; }
+.profile-report-form label { display: grid; gap: 5px; color: var(--ink); font-size: .9rem; font-weight: 800; }
+.profile-report-form input,
+.profile-report-form select,
+.profile-report-form textarea { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--ink); font: inherit; }
+.profile-report-form button[type="submit"] { min-height: 44px; border: 0; border-radius: 8px; background: var(--ink); color: white; font: inherit; font-weight: 900; cursor: pointer; }
+.profile-report-form p { margin: 0; color: var(--muted); font-size: .9rem; }
+.report-honeypot { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; overflow: hidden !important; }
 
 .public-profile-gallery { margin-top: 42px; }
 .public-profile-photo { position: relative; min-height: 260px; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 10px; background: var(--soft); }

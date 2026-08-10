@@ -1,7 +1,7 @@
 import { categories, specialists as seedSpecialists } from "./seed-data";
 import { isObviousPublicTestProfile } from "./display";
 import { profileRowToSpecialist, toPublicSafeSpecialist, type ProfileRow } from "./db-mappers";
-import { approximatePublicCoordinates, cityCoordinates, distanceKm, isNationwideTravelRange } from "./geo";
+import { cityCoordinates, distanceKm, isNationwideTravelRange } from "./geo";
 import { createServerSupabase } from "./supabase";
 import { canonicalServiceSlug, categoriesFromAssignments, categoriesFromLegacy } from "./service-taxonomy";
 import type { Specialist } from "./types";
@@ -31,6 +31,8 @@ const SPECIALIST_SELECT = `
   radius_km,
   latitude,
   longitude,
+  public_latitude,
+  public_longitude,
   description,
   review_score,
   review_count,
@@ -49,6 +51,12 @@ const SPECIALIST_SELECT = `
   reviews(client_name, rating, text, moderation_status)
 `;
 const LEGACY_SPECIALIST_SELECT = SPECIALIST_SELECT.replace("  profile_category_assignments(service_categories(name, slug)),\n", "");
+const PRE_APPROXIMATE_LOCATION_SELECT = SPECIALIST_SELECT
+  .replace("  public_latitude,\n", "")
+  .replace("  public_longitude,\n", "");
+const LEGACY_PRE_APPROXIMATE_LOCATION_SELECT = LEGACY_SPECIALIST_SELECT
+  .replace("  public_latitude,\n", "")
+  .replace("  public_longitude,\n", "");
 
 export async function getCategories() {
   const supabase = createServerSupabase();
@@ -96,8 +104,16 @@ export async function getSpecialists(filters: SpecialistFilters = {}) {
   }
 
   let { data, error } = await runSpecialistQuery(SPECIALIST_SELECT, filters);
+  let usedPreApproximateLocationSelect = false;
+  if (error && /public_latitude|public_longitude/i.test(error.message)) {
+    usedPreApproximateLocationSelect = true;
+    ({ data, error } = await runSpecialistQuery(PRE_APPROXIMATE_LOCATION_SELECT, filters));
+  }
   if (error && /profile_category_assignments/i.test(error.message)) {
-    ({ data, error } = await runSpecialistQuery(LEGACY_SPECIALIST_SELECT, filters));
+    const select = usedPreApproximateLocationSelect
+      ? LEGACY_PRE_APPROXIMATE_LOCATION_SELECT
+      : LEGACY_SPECIALIST_SELECT;
+    ({ data, error } = await runSpecialistQuery(select, filters));
   }
 
   if (error) {
@@ -235,12 +251,10 @@ function getSearchPoint(filters: SpecialistFilters) {
 }
 
 function toPrivacySafeSeedSpecialist(specialist: Specialist) {
-  const publicCoordinates = approximatePublicCoordinates(specialist.id, { lat: specialist.lat, lng: specialist.lng });
-
   return {
     ...specialist,
-    lat: publicCoordinates.lat,
-    lng: publicCoordinates.lng,
+    lat: specialist.lat,
+    lng: specialist.lng,
     registeredLat: specialist.lat,
     registeredLng: specialist.lng,
     isAvailableSoon: specialist.isAvailableSoon ?? ["jonas", "darius", "asta"].includes(specialist.id),

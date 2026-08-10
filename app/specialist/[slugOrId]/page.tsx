@@ -4,6 +4,7 @@ import SafeProfileImage from "../../../components/SafeProfileImage";
 import { notFound } from "next/navigation";
 import { formatVerificationSummary } from "../../../lib/display";
 import { getSpecialist } from "../../../lib/specialists";
+import { ProfileReportForm } from "../../../components/profile-report-form";
 
 type PageProps = { params: Promise<{ slugOrId: string }> };
 
@@ -67,6 +68,7 @@ export default async function SpecialistPage({ params }: PageProps) {
             <a className="primary-action" href={`tel:${specialist.phone.replaceAll(" ", "")}`}>Skambinti</a>
             <a className="secondary-action" href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer">Rašyti per WhatsApp</a>
             <Link href="/#mapSection">Grįžti į žemėlapį</Link>
+            <ProfileReportForm profileId={specialist.id} />
           </aside>
         </section>
 

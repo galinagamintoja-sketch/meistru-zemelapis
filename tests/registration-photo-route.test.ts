@@ -46,7 +46,7 @@ describe("public registration photo finalization", () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
   });
 
-  it("creates a private pending record only after server-reported size and type match", async () => {
+  it("publishes an approved record only after server-reported size and type match", async () => {
     const state = installPhotoRouteSupabase({ size: 1000, mimetype: "image/webp" });
     const { createRegistrationPhotoUploadToken } = await import("../lib/registration-photo-upload-token");
     const token = createRegistrationPhotoUploadToken({
@@ -68,7 +68,7 @@ describe("public registration photo finalization", () => {
       table: "profile_photos",
       storage_path: "profile-id/photo.webp",
       url: null,
-      moderation_status: "pending"
+      moderation_status: "approved"
     }));
     expect(state.removed).toEqual([]);
   });

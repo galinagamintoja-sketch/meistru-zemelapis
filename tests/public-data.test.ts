@@ -102,8 +102,8 @@ describe("public specialist listing", () => {
     expect(specialist.serviceArea).toBe("Lentvaris, Kaunas + 35 km");
     expect(specialist.registeredLat).toBeCloseTo(54.6436);
     expect(specialist.registeredLng).toBeCloseTo(25.0486);
-    expect(specialist.lat).not.toBe(specialist.registeredLat);
-    expect(specialist.lng).not.toBe(specialist.registeredLng);
+    expect(specialist.lat).toBe(specialist.registeredLat);
+    expect(specialist.lng).toBe(specialist.registeredLng);
   });
 
   it("does not expose exact registered coordinates or street-level areas in public listings", async () => {
