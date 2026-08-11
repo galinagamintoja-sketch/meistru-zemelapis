@@ -1,0 +1,39 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound, permanentRedirect } from "next/navigation";
+import SafeProfileImage from "../../../components/SafeProfileImage";
+import { ProfileReportForm } from "../../../components/profile-report-form";
+import { formatVerificationSummary } from "../../../lib/display";
+import { getSeoSpecialist } from "../../../lib/specialists";
+import { categoryLocationPath, profileJsonLd, profileMetadata, profilePath, safeJsonLd } from "../../../lib/seo";
+
+type PageProps = { params: Promise<{ slug: string }> };
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const profile = await getSeoSpecialist((await params).slug);
+  return profile ? profileMetadata(profile) : { title: "Meistras nerastas | LocalPro", robots: { index: false, follow: false } };
+}
+
+export default async function PublicTradespersonPage({ params }: PageProps) {
+  const profile = await getSeoSpecialist((await params).slug);
+  if (!profile) notFound();
+  if ((await params).slug !== profilePath(profile).split("/").pop()) permanentRedirect(profilePath(profile));
+  const whatsapp = profile.whatsapp.replace(/[^\d]/g, "");
+  const landingLinks = profile.operatingCities.map((city) => ({ city, path: categoryLocationPath(profile, city) })).filter((item) => item.path);
+  return <main className="public-profile-shell">
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(profileJsonLd(profile)) }} />
+    <nav className="public-profile-nav" aria-label="Profilio navigacija"><Link className="brand" href="/">LocalPro</Link><Link href="/#mapSection">← Meistrų paieška</Link></nav>
+    <article className="public-profile-card">
+      <header className="public-profile-header"><p className="eyebrow">LocalPro meistro profilis</p><h1>{profile.companyName || profile.name} – {profile.trade} {profile.town}</h1>{profile.companyName ? <p>{profile.name}</p> : null}</header>
+      <section className="public-profile-grid"><div className="public-profile-main">
+        <section><h2>Apie meistrą</h2><p>{profile.description}</p></section>
+        <section><h2>Paslaugos</h2><ul>{(profile.subcategoryNames || []).map((service) => <li key={service}>{service}</li>)}</ul></section>
+        <section><h2>Aptarnaujama teritorija</h2><p>{profile.operatingCities.join(", ")} · iki {profile.radius} km</p></section>
+        {profile.verification.length ? <section><h2>Patvirtinta informacija</h2><p>{formatVerificationSummary(profile.verification)}</p></section> : null}
+        {profile.reviews.length ? <section><h2>Atsiliepimai</h2>{profile.reviews.map(([author, rating, text], index) => <blockquote key={`${author}-${index}`}><strong>{author} · {rating}/5</strong><p>{text}</p></blockquote>)}</section> : null}
+      </div><aside className="public-profile-actions" aria-label="Susisiekti"><a className="primary-action" href={`tel:${profile.phone.replaceAll(" ", "")}`}>Skambinti</a>{whatsapp ? <a className="secondary-action" href={`https://wa.me/${whatsapp}`} rel="noreferrer">WhatsApp</a> : null}<ProfileReportForm profileId={profile.id} /></aside></section>
+      {profile.photoUrls?.length ? <section className="public-profile-gallery"><h2>Darbų nuotraukos</h2><div className="photo-grid">{profile.photoUrls.map((url, index) => <SafeProfileImage key={url} src={url} alt={`${profile.name} darbų nuotrauka ${index + 1}`} specialistName={profile.name} trade={profile.trade} className="public-profile-photo" fallbackText="Nuotraukos nėra" />)}</div></section> : null}
+      {landingLinks.length ? <nav aria-label="Paslaugos ir vietovės"><h2>Raskite panašius meistrus</h2><ul>{landingLinks.map(({ city, path }) => <li key={`${city}-${path}`}><Link href={path!}>{profile.trade} – {city}</Link></li>)}</ul></nav> : null}
+    </article>
+  </main>;
+}
