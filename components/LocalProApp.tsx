@@ -20,6 +20,7 @@ import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, selectionCounter, uniqueS
 import { clampToLithuania, getResponsiveLithuaniaMinZoom, LITHUANIA_BOUNDS } from "../lib/lithuania-map";
 import { EmailAuthForm } from "./email-auth-form";
 import { ServiceSearchCombobox } from "./service-search-combobox";
+import { profileSeoSlug } from "../lib/seo";
 
 type Props = {
   initialSpecialists: Specialist[];
@@ -1398,7 +1399,7 @@ export default function LocalProApp({
                 </div>
                 {activeSpecialist.verification.length ? <div className="verification-list">{activeSpecialist.verification.map((label) => <span key={label}>{formatVerificationBadge(label)}</span>)}</div> : null}
                 <div className="contact-list">
-                  <a href={`/specialist/${activeSpecialist.id}`}><span>Viešas profilis</span><strong>Atidaryti</strong></a>
+                  <a href={`/meistrai/${profileSeoSlug(activeSpecialist)}`}><span>Viešas profilis</span><strong>Atidaryti</strong></a>
                   <a href={`tel:${activeSpecialist.phone.replaceAll(" ", "")}`} onClick={() => logEnquiry(activeSpecialist.id, "phone_click")}><span>Telefonas</span><strong>{activeSpecialist.phone}</strong></a>
                   <a href={`https://wa.me/${activeSpecialist.whatsapp}`} onClick={() => logEnquiry(activeSpecialist.id, "whatsapp_click")}><span>WhatsApp</span><strong>Rašyti dabar</strong></a>
                   <a href={`mailto:${activeSpecialist.email}`}><span>El. paštas</span><strong>{activeSpecialist.email}</strong></a>
