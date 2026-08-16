@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   addressNoResultsLabel,
+  googlePlacesAddressTypes,
   manualAddressValue,
+  nextAddressSuggestionIndex,
   normalizePlacesSuggestion,
   resolvePlacesSuggestionSelection,
   shouldRequestAddressSuggestions
@@ -64,6 +66,23 @@ describe("Google Places autocomplete helpers", () => {
       street: "",
       postcode: ""
     });
+  });
+
+  it("starts with no active result and preserves Arrow/Enter selection behaviour", async () => {
+    expect(nextAddressSuggestionIndex(-1, 3, "ArrowDown")).toBe(0);
+    expect(nextAddressSuggestionIndex(0, 3, "ArrowDown")).toBe(1);
+    expect(nextAddressSuggestionIndex(1, 3, "ArrowUp")).toBe(0);
+    expect(nextAddressSuggestionIndex(-1, 0, "ArrowDown")).toBe(-1);
+
+    const prediction = new ClassLikePlacePrediction();
+    const suggestions = [normalizePlacesSuggestion(new ClassLikeAutocompleteSuggestion(prediction))!];
+    const activeIndex = nextAddressSuggestionIndex(-1, suggestions.length, "ArrowDown");
+    const selected = await resolvePlacesSuggestionSelection(suggestions[activeIndex]);
+    expect(selected.placeId).toBe("google-place-123");
+  });
+
+  it("restricts predictions to Lithuanian address and locality result types", () => {
+    expect(googlePlacesAddressTypes).toEqual(["street_address", "route", "locality", "postal_code", "premise"]);
   });
 
   it("normalizes suggestions returned from a Google class-like object without spreading away placePrediction", () => {

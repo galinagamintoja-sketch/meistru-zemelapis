@@ -844,8 +844,8 @@
 .job-request-wide { grid-column: 1 / -1; }
 .consent-row { grid-template-columns: auto 1fr; align-items: start; }
 .consent-row input { width: 20px; min-height: 20px; }
-.address-suggestions { position: absolute; z-index: 30; top: 68px; width: 100%; margin: 0; padding: 6px; list-style: none; border: 1px solid var(--line); border-radius: 8px; background: white; box-shadow: var(--soft-shadow); }
-.address-suggestions button { width: 100%; padding: 10px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.address-suggestions { position: absolute; z-index: 30; top: 68px; width: 100%; max-height: min(320px, 50vh); margin: 0; padding: 6px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; -webkit-overflow-scrolling: touch; list-style: none; border: 1px solid var(--line); border-radius: 8px; background: white; box-shadow: var(--soft-shadow); }
+.address-suggestions button { width: 100%; padding: 10px; border: 0; background: white; color: var(--ink); line-height: 1.35; overflow-wrap: anywhere; text-align: left; cursor: pointer; }
 .confirmation-card { margin-top: 10vh; }
 .match-results { margin: 30px 0; }
 .match-card { display: grid; gap: 12px; margin: 12px 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: white; }
