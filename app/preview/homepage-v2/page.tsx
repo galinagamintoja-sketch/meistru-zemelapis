@@ -5,6 +5,7 @@ import { createSupabaseAuthClient } from "../../../lib/supabase-ssr";
 import { getLinkedTradespersonProfile } from "../../../lib/tradesperson-account";
 import { getHomepageAccountState } from "../../../lib/homepage-account-state";
 import { isAdminEmail } from "../../../lib/auth-session";
+import { categories as seedCategories, specialists as seedSpecialists } from "../../../lib/seed-data";
 
 export const dynamic = "force-dynamic";
 
@@ -15,9 +16,9 @@ export const metadata: Metadata = {
 };
 
 export default async function HomepagePreview() {
-  const [specialists, categories, auth] = await Promise.all([
-    getSpecialists(),
-    getCategories(),
+ const [specialists, categories, auth] = await Promise.all([
+ getSpecialists().catch(() => seedSpecialists.filter((specialist) => specialist.status === "approved")),
+ getCategories().catch(() => seedCategories),
     createSupabaseAuthClient().then((client) => client.auth.getUser()).catch(() => ({ data: { user: null } }))
   ]);
 
