@@ -111,6 +111,7 @@ type GooglePlacesLibrary = {
     fetchAutocompleteSuggestions: (options: {
       input: string;
       includedRegionCodes: string[];
+      includedPrimaryTypes?: string[];
       sessionToken: object | null;
     }) => Promise<{ suggestions?: GoogleAutocompleteSuggestion[] }>;
   };

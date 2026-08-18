@@ -37,6 +37,7 @@ type GooglePlacesLibrary = {
     fetchAutocompleteSuggestions: (options: {
       input: string;
       includedRegionCodes: string[];
+      includedPrimaryTypes?: string[];
       sessionToken: object | null;
     }) => Promise<{ suggestions?: GoogleAutocompleteSuggestion[] }>;
   };
@@ -89,6 +90,7 @@ type Props = {
 const googlePlacesApiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ?? "";
 const googlePlacesCountry = process.env.NEXT_PUBLIC_GOOGLE_PLACES_COUNTRY ?? "LT";
 const googlePlacesFields = ["formattedAddress", "id", "location"];
+export const googlePlacesAddressTypes = ["street_address", "route", "locality", "postal_code", "premise"];
 const googlePlacesCallbackName = "__localproGooglePlacesReady";
 const googlePlacesScriptTimeoutMs = 10_000;
 let googlePlacesScriptPromise: Promise<void> | null = null;
@@ -100,6 +102,11 @@ export function shouldRequestAddressSuggestions(address: string, placeId: string
 
 export function manualAddressValue(value: AddressValue, address: string): AddressValue {
   return { ...value, address, placeId: "", latitude: null, longitude: null, town: "", street: "", postcode: "" };
+}
+
+export function nextAddressSuggestionIndex(current: number, count: number, key: "ArrowDown" | "ArrowUp") {
+  if (count <= 0) return -1;
+  return key === "ArrowDown" ? Math.min(current + 1, count - 1) : Math.max(current - 1, 0);
 }
 
 export default function AddressAutocomplete({ label, value, onChange, required, placeholder, className = "", note }: Props) {
@@ -133,6 +140,7 @@ export default function AddressAutocomplete({ label, value, onChange, required, 
         const response = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
           input,
           includedRegionCodes: [googlePlacesCountry.toLowerCase()],
+          includedPrimaryTypes: googlePlacesAddressTypes,
           sessionToken: sessionTokenRef.current
         });
         const nextSuggestions = (response.suggestions ?? [])
@@ -142,7 +150,7 @@ export default function AddressAutocomplete({ label, value, onChange, required, 
         setSuggestions(nextSuggestions);
         setSearched(true);
         setOpen(true);
-        setActiveIndex(nextSuggestions.length ? 0 : -1);
+        setActiveIndex(-1);
       } catch {
         if (requestId !== requestIdRef.current) return;
         setSuggestions([]);
@@ -187,11 +195,11 @@ export default function AddressAutocomplete({ label, value, onChange, required, 
     if (event.key === "Escape") close();
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex((current) => Math.min(current + 1, suggestions.length - 1));
+      setActiveIndex((current) => nextAddressSuggestionIndex(current, suggestions.length, "ArrowDown"));
     }
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActiveIndex((current) => Math.max(current - 1, 0));
+      setActiveIndex((current) => nextAddressSuggestionIndex(current, suggestions.length, "ArrowUp"));
     }
     if (event.key === "Enter" && open && suggestions[activeIndex]) {
       event.preventDefault();
@@ -225,10 +233,6 @@ export default function AddressAutocomplete({ label, value, onChange, required, 
             <li aria-selected={index === activeIndex} id={`${listId}-${index}`} key={suggestion.id} role="option">
               <button
                 type="button"
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.currentTarget.click();
-                }}
                 onClick={() => void selectSuggestion(suggestion)}
               >
                 {suggestion.label}

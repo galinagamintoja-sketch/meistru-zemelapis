@@ -1313,7 +1313,12 @@ textarea {
 .address-suggestions {
   display: grid;
   gap: 0;
-  overflow: hidden;
+  max-height: min(320px, 50vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
   margin: -6px 0 0;
   padding: 0;
   border: 1px solid var(--line);
@@ -1331,6 +1336,9 @@ textarea {
   border-radius: 0;
   background: transparent;
   color: var(--ink);
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
   text-align: left;
 }
 
@@ -1368,6 +1376,21 @@ fieldset label {
   color: white;
   font-weight: 900;
   cursor: pointer;
+}
+
+.registration-form .address-suggestions button {
+  min-height: 0;
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.registration-form .address-suggestions li[aria-selected="true"] button,
+.registration-form .address-suggestions button:hover,
+.registration-form .address-suggestions button:focus-visible {
+  background: #e7eee9;
+  color: var(--ink);
 }
 
 .registration-form button[type="button"]:hover,
