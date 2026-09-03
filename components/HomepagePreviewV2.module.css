@@ -220,7 +220,7 @@
 .fieldIcon svg,
 .searchButton svg,
 .viewToggle svg,
-.reviewRail svg {
+.nearMeButton svg {
   width: 20px;
   height: 20px;
   fill: none;
@@ -228,6 +228,30 @@
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.nearMeButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  border: 0;
+  background: transparent;
+  color: var(--spruce);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.nearMeButton:disabled {
+  cursor: progress;
+  opacity: .65;
+}
+
+.nearbyMessage {
+  margin: 6px auto 0;
+  color: #777067;
+  font-size: 13px;
 }
 
 .searchButton {
@@ -432,6 +456,11 @@
   font-weight: 900;
 }
 
+.reviewCount {
+  color: #777067;
+  font-size: 12px;
+}
+
 .tags {
   display: flex;
   flex-wrap: wrap;
@@ -472,6 +501,14 @@
   gap: 4px;
   min-width: 180px;
   font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+.mapPopup img {
+  width: 100%;
+  height: 96px;
+  margin-bottom: 5px;
+  border-radius: 8px;
+  object-fit: cover;
 }
 
 .mapPopup strong {

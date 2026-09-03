@@ -210,8 +210,7 @@ const verificationOptions = [
   { value: "portfolio", label: "Yra darbų nuotraukų" },
   { value: "whatsapp", label: "Galima susisiekti per WhatsApp" }
 ];
-const nearbyInitialRadiusKm = 25;
-const nearbyExpandedRadiusKm = 50;
+const customerRadiusOptions = [5, 10, 20, 35, 50, 100];
 const travelRangeOptions = [
   { value: "10", label: "Iki 10 km" },
   { value: "25", label: "Iki 25 km" },
@@ -398,11 +397,11 @@ export default function LocalProApp({
   const [trade, setTrade] = useState("all");
   const [city, setCity] = useState("all");
   const [verification, setVerification] = useState("all");
-  const [customerRadiusKm, setCustomerRadiusKm] = useState(nearbyInitialRadiusKm);
+  const [customerRadiusKm, setCustomerRadiusKm] = useState(20);
   const [availableSoonOnly, setAvailableSoonOnly] = useState(false);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [minRating, setMinRating] = useState("0");
-  const [viewMode, setViewMode] = useState<"map" | "list">("list");
+  const [viewMode, setViewMode] = useState<"map" | "list">("map");
   const [mapNeedsSearch, setMapNeedsSearch] = useState(false);
   const [mapSearchPoint, setMapSearchPoint] = useState<{ lat: number; lng: number } | null>(null);
   const [specialists, setSpecialists] = useState(initialSpecialists);
@@ -412,8 +411,6 @@ export default function LocalProApp({
   const [mapZoom, setMapZoom] = useState(0);
   const [loading, setLoading] = useState(false);
   const [locationResolving, setLocationResolving] = useState(false);
-  const [nearbySearch, setNearbySearch] = useState(false);
-  const [nearbyMessage, setNearbyMessage] = useState("");
   const [formState, setFormState] = useState<RegistrationDraft>({
     name: "",
     phone: "",
@@ -489,7 +486,7 @@ export default function LocalProApp({
   const hasActiveFilters =
     trade !== "all" ||
     city !== "all" ||
-    customerRadiusKm !== nearbyInitialRadiusKm ||
+    customerRadiusKm !== 20 ||
     verification !== "all" ||
     availableSoonOnly ||
     verifiedOnly ||
@@ -577,20 +574,9 @@ export default function LocalProApp({
       if (availableSoonOnly) params.set("availableSoon", "true");
       if (minRating !== "0") params.set("minRating", minRating);
 
-      const loadAtRadius = async (radius: number) => {
-        params.set("customerRadiusKm", String(radius));
-        const response = await fetch(`/api/specialists?${params.toString()}`, { signal: controller.signal });
-        const data = await response.json();
-        return (data.specialists ?? []) as Specialist[];
-      };
-      let list = await loadAtRadius(customerRadiusKm);
-      if (nearbySearch && customerRadiusKm === nearbyInitialRadiusKm && list.length === 0) {
-        list = await loadAtRadius(nearbyExpandedRadiusKm);
-        setCustomerRadiusKm(nearbyExpandedRadiusKm);
-        setNearbyMessage(list.length
-          ? "25 km atstumu specialistų neradome, todėl paiešką išplėtėme iki 50 km."
-          : "Specialistų neradome ir automatiškai išplėtę paiešką iki 50 km.");
-      }
+      const response = await fetch(`/api/specialists?${params.toString()}`, { signal: controller.signal });
+      const data = await response.json();
+      const list = data.specialists ?? [];
       setSpecialists(list);
       setActiveId((current) => (list.some((specialist: Specialist) => specialist.id === current) ? current : ""));
       setLoading(false);
@@ -603,7 +589,7 @@ export default function LocalProApp({
     });
 
     return () => controller.abort();
-  }, [trade, city, customerRadiusKm, verification, verifiedOnly, availableSoonOnly, minRating, mapSearchPoint, nearbySearch]);
+  }, [trade, city, customerRadiusKm, verification, verifiedOnly, availableSoonOnly, minRating, mapSearchPoint]);
 
   useEffect(() => {
     const location = city === "all" ? "" : city.trim();
@@ -863,43 +849,14 @@ export default function LocalProApp({
   function clearDiscoveryFilters() {
     setTrade("all");
     setCity("all");
-    setCustomerRadiusKm(nearbyInitialRadiusKm);
+    setCustomerRadiusKm(20);
     setVerification("all");
     setAvailableSoonOnly(false);
     setVerifiedOnly(false);
     setMinRating("0");
     setMapSearchPoint(null);
-    setNearbySearch(false);
-    setNearbyMessage("");
     setMapNeedsSearch(false);
     setActiveId("");
-  }
-
-  function findSpecialistsNearMe() {
-    if (!navigator.geolocation) {
-      setNearbyMessage("Ši naršyklė negali nustatyti jūsų vietos. Įrašykite miestą ranka.");
-      return;
-    }
-
-    setLocationResolving(true);
-    setNearbyMessage("Nustatome jūsų vietą…");
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setCity("all");
-        setCustomerRadiusKm(nearbyInitialRadiusKm);
-        setMapSearchPoint({ lat: coords.latitude, lng: coords.longitude });
-        setNearbySearch(true);
-        setNearbyMessage("Rodomi specialistai iki 25 km nuo jūsų.");
-        setMapNeedsSearch(false);
-        setLocationResolving(false);
-      },
-      () => {
-        setNearbySearch(false);
-        setNearbyMessage("Vietos nustatyti nepavyko. Leiskite vietos prieigą arba įrašykite miestą ranka.");
-        setLocationResolving(false);
-      },
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 }
-    );
   }
 
   function searchCurrentMapArea() {
@@ -1238,9 +1195,7 @@ export default function LocalProApp({
       <main>
         <section className="hero" id="search">
           <div className="hero-copy">
-            <p className="eyebrow">LocalPro specialistams</p>
-            <h1>Dirbkite ten, kur jūsų ieško klientai.</h1>
-            <p>Aiškus profilis padeda klientams rasti jūsų paslaugas, peržiūrėti darbus ir susisiekti.</p>
+            <h1>Patikimi meistrai jūsų mieste.</h1>
           </div>
 
           <form className="search-panel" aria-label="Rasti specialistą">
@@ -1256,8 +1211,6 @@ export default function LocalProApp({
                 value={city === "all" ? "" : city}
                 onChange={(event) => {
                   setCity(event.target.value);
-                  setNearbySearch(false);
-                  setNearbyMessage("");
                   setMapSearchPoint(null);
                   setMapNeedsSearch(false);
                 }}
@@ -1268,10 +1221,14 @@ export default function LocalProApp({
                 {cities.map((item) => <option key={item} value={item} />)}
               </datalist>
             </label>
-            <button className="near-me-action" type="button" onClick={findSpecialistsNearMe} disabled={locationResolving}>
-              {locationResolving ? "Nustatoma vieta…" : "Rodyti specialistus netoli manęs"}
-            </button>
-            {nearbyMessage ? <p className="nearby-message" role="status">{nearbyMessage}</p> : null}
+            <label>
+              Paieškos spindulys
+              <select value={customerRadiusKm} onChange={(event) => setCustomerRadiusKm(Number(event.target.value))}>
+                {customerRadiusOptions.map((radius) => (
+                  <option key={radius} value={radius}>{radius} km</option>
+                ))}
+              </select>
+            </label>
             <details className="filter-drawer">
               <summary>Filtrai</summary>
               <label>
@@ -1313,8 +1270,8 @@ export default function LocalProApp({
               </label>
             </noscript>
             <div className="hero-actions" aria-label="Pagrindiniai veiksmai">
-              <a className="primary-action" href="#mapSection">Peržiūrėti specialistus</a>
-              {!accountState.hasProfile ? <a className="secondary-action" href="/meistro-registracija">Sukurti savo specialisto profilį</a> : null}
+              <a className="primary-action" href="#mapSection">Ieškoti žemėlapyje</a>
+              {!accountState.hasProfile ? <a className="secondary-action" href="/meistro-registracija">Meistro registracija</a> : null}
               {hasActiveFilters ? <button className="secondary-action action-button" type="button" onClick={clearDiscoveryFilters}>Išvalyti filtrus</button> : null}
             </div>
           </form>
@@ -1359,10 +1316,10 @@ export default function LocalProApp({
                     {specialist.verification.length ? <span className="tag">{formatVerificationSummary(specialist.verification)}</span> : null}
                   </span>
                   <span>
-                    {typeof specialist.distanceKm === "number" ? `Apie ${specialist.distanceKm.toFixed(1)} km nuo jūsų. ` : ""}
-                    {specialist.serviceArea}
+                    {formatReviewCount(specialist.reviewCount)}
+                    {typeof specialist.distanceKm === "number" ? ` - apie ${specialist.distanceKm.toFixed(1)} km nuo vietos` : ""}
+                    . {specialist.serviceArea}
                   </span>
-                  <span className="review-detail">{formatReviewCount(specialist.reviewCount)}</span>
                   <span className="open-profile-label">Atidaryti profilį</span>
                 </button>
               )) : (

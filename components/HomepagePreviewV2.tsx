@@ -5,6 +5,7 @@ import SafeProfileImage from "./SafeProfileImage";
 import type { Category, Specialist } from "../lib/types";
 import type { HomepageAccountState } from "../lib/homepage-account-state";
 import { profileSeoSlug } from "../lib/seo";
+import { distanceKm } from "../lib/geo";
 import styles from "./HomepagePreviewV2.module.css";
 
 type Props = {
@@ -16,6 +17,10 @@ type Props = {
 type ViewMode = "list" | "map";
 type LeafletMap = import("leaflet").Map;
 type LeafletLayerGroup = import("leaflet").LayerGroup;
+type SearchPoint = { lat: number; lng: number };
+
+const nearbyInitialRadiusKm = 25;
+const nearbyExpandedRadiusKm = 50;
 
 const fallbackAccountState: HomepageAccountState = {
   authenticated: false,
@@ -100,16 +105,12 @@ function MapIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Z" /><path d="M9 3v16M15 5v16" /></svg>;
 }
 
-function StarIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.8 2.8 5.8 6.4.9-4.6 4.5 1.1 6.3-5.7-3-5.7 3 1.1-6.3-4.6-4.5 6.4-.9L12 2.8Z" /></svg>;
-}
-
 function AccountLink({ accountState }: { accountState: HomepageAccountState }) {
   if (!accountState.authenticated) {
     return (
       <div className={styles.authActions}>
         <a className={styles.loginLink} href="/login">Prisijungti</a>
-        <a className={styles.registerButton} href="/meistro-registracija">Registruotis</a>
+        <a className={styles.registerButton} href="/meistro-registracija">Sukurti profilį</a>
       </div>
     );
   }
@@ -120,7 +121,7 @@ function AccountLink({ accountState }: { accountState: HomepageAccountState }) {
       <a className={styles.accountName} href={accountState.hasProfile ? "/meistras/uzklausos" : "/meistro-registracija"}>
         {accountLabel}
       </a>
-      {!accountState.hasProfile ? <a className={styles.registerButton} href="/meistro-registracija">Registruotis</a> : null}
+      {!accountState.hasProfile ? <a className={styles.registerButton} href="/meistro-registracija">Sukurti profilį</a> : null}
     </div>
   );
 }
@@ -135,6 +136,10 @@ export default function HomepagePreviewV2({
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [showAll, setShowAll] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+  const [searchPoint, setSearchPoint] = useState<SearchPoint | null>(null);
+  const [nearbyRadiusKm, setNearbyRadiusKm] = useState(nearbyInitialRadiusKm);
+  const [nearbyMessage, setNearbyMessage] = useState("");
+  const [locationPending, setLocationPending] = useState(false);
   const resultsRef = useRef<HTMLElement>(null);
   const mapElementRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -153,7 +158,40 @@ export default function HomepagePreviewV2({
   const filteredSpecialists = useMemo(() => initialSpecialists
     .filter((specialist) => specialistMatchesService(specialist, serviceQuery))
     .filter((specialist) => specialistMatchesLocation(specialist, locationQuery))
-    .sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount), [initialSpecialists, locationQuery, serviceQuery]);
+    .map((specialist) => searchPoint ? {
+      ...specialist,
+      distanceKm: distanceKm(searchPoint, {
+        lat: specialist.registeredLat ?? specialist.lat,
+        lng: specialist.registeredLng ?? specialist.lng
+      })
+    } : specialist)
+    .filter((specialist) => !searchPoint || (
+      (specialist.distanceKm ?? Number.POSITIVE_INFINITY) <= nearbyRadiusKm &&
+      (specialist.radius >= (specialist.distanceKm ?? Number.POSITIVE_INFINITY) || specialist.radius >= 150)
+    ))
+    .sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount ||
+      (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY)),
+  [initialSpecialists, locationQuery, nearbyRadiusKm, searchPoint, serviceQuery]);
+
+  const nearbyInitialMatches = useMemo(() => {
+    if (!searchPoint) return [];
+    return initialSpecialists
+      .filter((specialist) => specialistMatchesService(specialist, serviceQuery))
+      .map((specialist) => ({
+        specialist,
+        distance: distanceKm(searchPoint, {
+          lat: specialist.registeredLat ?? specialist.lat,
+          lng: specialist.registeredLng ?? specialist.lng
+        })
+      }))
+      .filter(({ specialist, distance }) => distance <= nearbyInitialRadiusKm && (specialist.radius >= distance || specialist.radius >= 150));
+  }, [initialSpecialists, searchPoint, serviceQuery]);
+
+  useEffect(() => {
+    if (!searchPoint || nearbyRadiusKm !== nearbyInitialRadiusKm || nearbyInitialMatches.length) return;
+    setNearbyRadiusKm(nearbyExpandedRadiusKm);
+    setNearbyMessage("25 km atstumu specialistų neradome, todėl paiešką automatiškai išplėtėme iki 50 km.");
+  }, [nearbyInitialMatches.length, nearbyRadiusKm, searchPoint]);
 
   const visibleSpecialists = useMemo(
     () => showAll ? filteredSpecialists : filteredSpecialists.slice(0, 8),
@@ -223,6 +261,13 @@ export default function HomepagePreviewV2({
 
         const popup = document.createElement("div");
         popup.className = styles.mapPopup;
+        const photoUrl = specialistPhoto(specialist);
+        if (photoUrl) {
+          const photo = document.createElement("img");
+          photo.src = photoUrl;
+          photo.alt = `${specialist.name} darbų nuotrauka`;
+          popup.append(photo);
+        }
         const name = document.createElement("strong");
         name.textContent = specialist.companyName || specialist.name;
         const trade = document.createElement("span");
@@ -258,6 +303,28 @@ export default function HomepagePreviewV2({
     resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function findSpecialistsNearMe() {
+    if (!navigator.geolocation) {
+      setNearbyMessage("Ši naršyklė negali nustatyti jūsų vietos. Įrašykite miestą ranka.");
+      return;
+    }
+
+    setLocationPending(true);
+    setNearbyMessage("Nustatome jūsų vietą…");
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
+      setLocationQuery("");
+      setSearchPoint({ lat: coords.latitude, lng: coords.longitude });
+      setNearbyRadiusKm(nearbyInitialRadiusKm);
+      setNearbyMessage("Rodomi specialistai iki 25 km nuo jūsų.");
+      setLocationPending(false);
+      setShowAll(false);
+      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, () => {
+      setNearbyMessage("Vietos nustatyti nepavyko. Leiskite vietos prieigą arba įrašykite miestą ranka.");
+      setLocationPending(false);
+    }, { enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 });
+  }
+
   return (
     <div className={styles.pageShell}>
       <header className={styles.header}>
@@ -271,9 +338,9 @@ export default function HomepagePreviewV2({
 
       <main>
         <section className={styles.hero}>
-          <p className={styles.eyebrow}>Patikimi vietos specialistai</p>
-          <h1>Gaukite gerų atsiliepimų<br />ir būkite <span>rodomi viršuje</span></h1>
-          <p className={styles.heroSubhead}>Greita registracija, tikri atsiliepimai ir daugiau matomumo specialistams. Klientams – greitas būdas rasti gerą meistrą netoliese.</p>
+          <p className={styles.eyebrow}>LocalPro specialistams</p>
+          <h1>Parodykite savo darbus<br />vietos <span>klientams</span></h1>
+          <p className={styles.heroSubhead}>Susikurkite aiškų profilį, nurodykite darbo zoną ir leiskite klientams lengviau jus rasti bei susisiekti.</p>
 
           <form className={styles.searchBar} onSubmit={submitSearch} aria-label="Rasti vietos specialistą">
             <label className={styles.searchField}>
@@ -296,7 +363,7 @@ export default function HomepagePreviewV2({
               <input
                 list="homepage-v2-locations"
                 value={locationQuery}
-                onChange={(event) => setLocationQuery(event.target.value)}
+                onChange={(event) => { setLocationQuery(event.target.value); setSearchPoint(null); setNearbyMessage(""); }}
                 placeholder="Miestas arba vietovė"
                 type="search"
               />
@@ -306,16 +373,10 @@ export default function HomepagePreviewV2({
             </label>
             <button className={styles.searchButton} type="submit"><SearchIcon />Ieškoti</button>
           </form>
-
-          <div className={styles.reviewRail}>
-            <StarIcon />
-            <strong>Daugiau gerų atsiliepimų</strong>
-            <span>→</span>
-            <span>aukštesnė pozicija</span>
-            <span>→</span>
-            <span>daugiau klientų</span>
-          </div>
-          <p className={styles.reviewPrompt}>Baigėte darbą? Palikite atsiliepimą – padėkite geriems meistrams būti matomiems ir kitiems lengviau pasirinkti.</p>
+          <button className={styles.nearMeButton} type="button" onClick={findSpecialistsNearMe} disabled={locationPending}>
+            <PinIcon />{locationPending ? "Nustatoma vieta…" : "Rodyti specialistus netoli manęs"}
+          </button>
+          {nearbyMessage ? <p className={styles.nearbyMessage} role="status">{nearbyMessage}</p> : null}
         </section>
 
         <section className={styles.resultsSection} ref={resultsRef}>
@@ -332,14 +393,13 @@ export default function HomepagePreviewV2({
           </div>
 
           <div className={`${styles.listView} ${viewMode !== "list" ? styles.hiddenView : ""}`} aria-hidden={viewMode !== "list"}>
-            {visibleSpecialists.length ? visibleSpecialists.map((specialist, index) => {
+            {visibleSpecialists.length ? visibleSpecialists.map((specialist) => {
               const photo = specialistPhoto(specialist);
               const location = specialist.approximateLocation || specialist.town;
               const services = specialist.subcategoryNames?.slice(0, 2) ?? specialist.categoryNames?.slice(0, 2) ?? [];
               return (
                 <a className={styles.specialistCard} href={`/meistrai/${profileSeoSlug(specialist)}`} key={specialist.id}>
                   <div className={styles.photoWrap}>
-                    {index === 0 && specialist.rating >= 4.8 ? <span className={styles.topBadge}>TOP</span> : null}
                     <SafeProfileImage
                       src={photo}
                       alt={`${specialist.name} darbų nuotrauka`}
@@ -359,7 +419,8 @@ export default function HomepagePreviewV2({
                     <div className={styles.cardMeta}>
                       <span>{location}</span>
                       {typeof specialist.distanceKm === "number" ? <span>~ {specialist.distanceKm.toFixed(1)} km</span> : null}
-                      <span className={styles.rating}>★ {specialist.rating ? specialist.rating.toFixed(1) : "Naujas"}{specialist.reviewCount ? ` (${specialist.reviewCount})` : ""}</span>
+                      <span className={styles.rating}>★ {specialist.rating ? specialist.rating.toFixed(1) : "Naujas"}</span>
+                      {specialist.reviewCount ? <span className={styles.reviewCount}>{specialist.reviewCount} atsiliep.</span> : null}
                     </div>
                     {services.length ? <div className={styles.tags}>{services.map((service) => <span key={service}>{service}</span>)}</div> : null}
                   </div>
@@ -390,10 +451,10 @@ export default function HomepagePreviewV2({
           <div className={styles.ctaIcon} aria-hidden="true">1</div>
           <div>
             <p className={styles.eyebrow}>Specialistams</p>
-            <h2>Registruokitės per 1 min.</h2>
-            <p>Sukurkite profilį, rinkite tikrus atsiliepimus ir kilkite aukščiau LocalPro paieškoje.</p>
+            <h2>Leiskite klientams jus atrasti.</h2>
+            <p>Susikurkite profilį su paslaugomis, darbo zona ir atliktų darbų nuotraukomis.</p>
           </div>
-          <a href="/meistro-registracija">Registruotis dabar <span>→</span></a>
+          <a href="/meistro-registracija">Sukurti profilį <span>→</span></a>
         </section>
       </main>
     </div>

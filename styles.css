@@ -164,25 +164,6 @@ summary:focus-visible,
   margin-top: 4px;
 }
 
-.near-me-action {
-  min-height: 46px;
-  border: 1px solid var(--spruce);
-  border-radius: 8px;
-  background: #fffdf7;
-  color: var(--spruce);
-  font-weight: 900;
-}
-
-.near-me-action:disabled {
-  cursor: progress;
-  opacity: 0.68;
-}
-
-.search-panel .nearby-message {
-  font-size: 14px;
-  line-height: 1.4;
-}
-
 .primary-action,
 .secondary-action {
   display: inline-flex;
@@ -564,11 +545,6 @@ textarea {
 .result-card > span:last-child {
   color: var(--muted);
   line-height: 1.4;
-}
-
-.result-card .review-detail {
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .open-profile-label {
