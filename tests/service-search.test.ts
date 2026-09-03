@@ -62,3 +62,22 @@ describe("service search", () => {
     expect(applyFilters([electrical, plumbing], { service: selectedSlug }).map((item) => item.id)).toEqual(["electrical"]);
   });
 });
+
+describe("homepage specialist ranking", () => {
+  it("orders by rating, then review count, then distance", () => {
+    const base = {
+      name: "QA", companyName: null, trade: "", categorySlug: "", categorySlugs: [], subcategorySlugs: [],
+      town: "Vilnius", operatingCities: ["Vilnius"], radius: 100, lat: 54.68, lng: 25.27,
+      verification: [], verificationLabel: "", rating: 4.8, reviewCount: 2, color: "#000", phone: "", email: "", whatsapp: "",
+      serviceArea: "Vilnius", description: "", photos: [], reviews: [], status: "approved", source: "admin-created"
+    } satisfies Omit<Specialist, "id">;
+    const ranked = applyFilters([
+      { ...base, id: "lower-rating", rating: 4.7, reviewCount: 100, lat: 54.681 },
+      { ...base, id: "fewer-reviews", reviewCount: 1, lat: 54.681 },
+      { ...base, id: "farther", reviewCount: 5, lat: 54.75 },
+      { ...base, id: "nearer", reviewCount: 5, lat: 54.69 }
+    ], { lat: 54.68, lng: 25.27, customerRadiusKm: 50 });
+
+    expect(ranked.map((item) => item.id)).toEqual(["nearer", "farther", "fewer-reviews", "lower-rating"]);
+  });
+});

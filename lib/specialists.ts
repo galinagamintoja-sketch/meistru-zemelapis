@@ -249,7 +249,20 @@ export function applyFilters(list: Specialist[], filters: SpecialistFilters) {
       ...specialist,
       distanceKm: distanceKm(searchPoint, { lat: specialist.registeredLat ?? specialist.lat, lng: specialist.registeredLng ?? specialist.lng })
     };
-  });
+  }).sort(rankSpecialists);
+}
+
+export function rankSpecialists(left: Specialist, right: Specialist) {
+  const ratingOrder = right.rating - left.rating;
+  if (ratingOrder) return ratingOrder;
+
+  const reviewOrder = right.reviewCount - left.reviewCount;
+  if (reviewOrder) return reviewOrder;
+
+  const distanceOrder = (left.distanceKm ?? Number.POSITIVE_INFINITY) - (right.distanceKm ?? Number.POSITIVE_INFINITY);
+  if (distanceOrder) return distanceOrder;
+
+  return left.name.localeCompare(right.name, "lt") || left.id.localeCompare(right.id);
 }
 
 function getSearchPoint(filters: SpecialistFilters) {
