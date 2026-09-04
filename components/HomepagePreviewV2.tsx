@@ -7,6 +7,7 @@ import type { HomepageAccountState } from "../lib/homepage-account-state";
 import { profileSeoSlug } from "../lib/seo";
 import { distanceKm } from "../lib/geo";
 import styles from "./HomepagePreviewV2.module.css";
+import LocalProPreviewBrand from "./LocalProPreviewBrand";
 
 type Props = {
   initialSpecialists: Specialist[];
@@ -70,19 +71,6 @@ function specialistMatchesLocation(specialist: Specialist, query: string) {
   ].map(normalized);
 
   return values.some((value) => value.includes(needle));
-}
-
-function Brand() {
-  return (
-    <span className={styles.brandLockup}>
-      <svg className={styles.brandIcon} viewBox="0 0 44 52" aria-hidden="true">
-        <path d="M22 2.8c-10.2 0-18.2 7.6-18.2 17.6 0 13.1 18.2 28.8 18.2 28.8s18.2-15.7 18.2-28.8C40.2 10.4 32.2 2.8 22 2.8Z" />
-        <path d="m13.7 21.8 8.3-8.1 8.3 8.1" />
-        <path d="m15.9 25.5 4.6 4.4 8.4-10" />
-      </svg>
-      <span className={styles.brandWord}>LocalPro<span>.lt</span></span>
-    </span>
-  );
 }
 
 function SearchIcon() {
@@ -261,15 +249,22 @@ export default function HomepagePreviewV2({
 
         const popup = document.createElement("div");
         popup.className = styles.mapPopup;
+        const name = document.createElement("strong");
+        name.textContent = specialist.companyName || specialist.name;
+        const photoWrap = document.createElement("div");
+        photoWrap.className = styles.mapPopupPhoto;
         const photoUrl = specialistPhoto(specialist);
         if (photoUrl) {
           const photo = document.createElement("img");
           photo.src = photoUrl;
           photo.alt = `${specialist.name} darbų nuotrauka`;
-          popup.append(photo);
+          photoWrap.append(photo);
+        } else {
+          const fallback = document.createElement("span");
+          fallback.textContent = (specialist.name.trim().charAt(0) || specialist.trade.trim().charAt(0) || "?").toLocaleUpperCase("lt");
+          fallback.setAttribute("aria-label", "Darbų nuotraukos nėra");
+          photoWrap.append(fallback);
         }
-        const name = document.createElement("strong");
-        name.textContent = specialist.companyName || specialist.name;
         const trade = document.createElement("span");
         trade.textContent = specialist.trade;
         const place = document.createElement("span");
@@ -279,7 +274,7 @@ export default function HomepagePreviewV2({
         const link = document.createElement("a");
         link.href = `/meistrai/${profileSeoSlug(specialist)}`;
         link.textContent = "Peržiūrėti profilį";
-        popup.append(name, trade, place, rating, link);
+        popup.append(name, photoWrap, trade, place, rating, link);
         marker.bindPopup(popup);
         marker.addTo(markerLayer);
       });
@@ -328,7 +323,7 @@ export default function HomepagePreviewV2({
   return (
     <div className={styles.pageShell}>
       <header className={styles.header}>
-        <a className={styles.brand} href="/" aria-label="LocalPro.lt pagrindinis puslapis"><Brand /></a>
+        <a className={styles.brand} href="/" aria-label="LocalPro.lt pagrindinis puslapis"><LocalProPreviewBrand /></a>
         <nav className={styles.nav} aria-label="Pagrindinė navigacija">
           <a href="#how-it-works">Kaip tai veikia?</a>
           <a href="/meistro-registracija">Specialistams</a>
@@ -379,7 +374,7 @@ export default function HomepagePreviewV2({
           {nearbyMessage ? <p className={styles.nearbyMessage} role="status">{nearbyMessage}</p> : null}
         </section>
 
-        <section className={styles.resultsSection} ref={resultsRef}>
+        <section className={styles.resultsSection} ref={resultsRef} id="results">
           <div className={styles.resultsHeader}>
             <div>
               <p className={styles.eyebrow}>Netoliese</p>

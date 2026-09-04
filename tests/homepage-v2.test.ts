@@ -18,7 +18,7 @@ describe("homepage v2 discovery flow", () => {
   });
 
   it("keeps the specialist photo in the map popup and profile-first actions", () => {
-    expect(source).toContain("popup.append(photo)");
+    expect(source).toContain("photoWrap.append(photo)");
     expect(source).toContain('link.textContent = "Peržiūrėti profilį"');
     expect(source).toContain('href={`/meistrai/${profileSeoSlug(specialist)}`}');
   });
