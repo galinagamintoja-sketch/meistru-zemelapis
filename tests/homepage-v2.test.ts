@@ -5,6 +5,11 @@ import { describe, expect, it } from "vitest";
 const source = fs.readFileSync(path.join(process.cwd(), "components/HomepagePreviewV2.tsx"), "utf8");
 
 describe("homepage v2 discovery flow", () => {
+  it("uses the agreed homepage message", () => {
+    expect(source).toContain("Patikimi meistrai");
+    expect(source).toContain("jūsų mieste");
+  });
+
   it("defaults to the list and offers near-me search without a manual radius control", () => {
     expect(source).toContain('useState<ViewMode>("list")');
     expect(source).toContain("Rodyti specialistus netoli manęs");

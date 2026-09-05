@@ -334,7 +334,7 @@ export default function HomepagePreviewV2({
       <main>
         <section className={styles.hero}>
           <p className={styles.eyebrow}>LocalPro specialistams</p>
-          <h1>Parodykite savo darbus<br />vietos <span>klientams</span></h1>
+          <h1>Patikimi meistrai<br /><span>jūsų mieste</span></h1>
           <p className={styles.heroSubhead}>Susikurkite aiškų profilį, nurodykite darbo zoną ir leiskite klientams lengviau jus rasti bei susisiekti.</p>
 
           <form className={styles.searchBar} onSubmit={submitSearch} aria-label="Rasti vietos specialistą">
