@@ -83,6 +83,9 @@ export async function getCategories() {
     .order("sort_order", { ascending: true });
 
   if (error) {
+    if (isVercelPreview()) {
+      return categories;
+    }
     throw new Error(error.message);
   }
 
@@ -118,6 +121,9 @@ export async function getSpecialists(filters: SpecialistFilters = {}) {
   }
 
   if (error) {
+    if (isVercelPreview()) {
+      return filterSeedSpecialists(filters);
+    }
     if (isMissingPhase1MigrationError(error.message)) {
       return [];
     }
@@ -297,4 +303,8 @@ function toPublicSpecialistList(list: Specialist[]) {
 
 function isMissingPhase1MigrationError(message: string) {
   return /public_contact_consent_at|is_demo|removed_from_profile_at/i.test(message) && /does not exist|schema cache/i.test(message);
+}
+
+function isVercelPreview() {
+  return process.env.VERCEL_ENV === "preview";
 }

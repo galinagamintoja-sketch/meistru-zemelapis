@@ -29,4 +29,9 @@ describe("homepage live release", () => {
     expect(source).toContain('process.env.NODE_ENV === "production"');
     expect(source).toContain('process.env.LOCALPRO_SEED_MODE !== "true"');
   });
+
+  it("limits database-error seed fallback to Vercel Preview", () => {
+    const source = read("lib/specialists.ts");
+    expect(source).toContain('process.env.VERCEL_ENV === "preview"');
+  });
 });
