@@ -16,5 +16,5 @@ export default async function Page() {
     const signed = !photo.url && photo.storage_path && supabase ? (await supabase.storage.from("profile-photos").createSignedUrl(photo.storage_path, 600)).data?.signedUrl ?? null : null;
     return { id: photo.id, name: photo.label ?? "Darbų nuotrauka", url: photo.url ?? signed, status: photo.moderation_status, rejectionReason: photo.rejection_reason, isPrimary: photo.is_primary };
   }));
-  return <div className="portal-page"><div className="portal-heading"><h1>Nuotraukos</h1><p>Naujos ir pakeistos nuotraukos viešinamos tik administratoriui patvirtinus. Dabartinė patvirtinta nuotrauka lieka vieša iki pakaitinės patvirtinimo.</p></div><PortalCard title="Darbų nuotraukos"><PhotoUploader photos={photos} /></PortalCard></div>;
+  return <div className="portal-page"><div className="portal-heading"><h1>Nuotraukos</h1><p>Naujos ir pakeistos nuotraukos paskelbiamos iškart. Netinkamą turinį administratorius gali pašalinti po paskelbimo.</p></div><PortalCard title="Darbų nuotraukos"><PhotoUploader photos={photos} /></PortalCard></div>;
 }

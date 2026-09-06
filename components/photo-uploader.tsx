@@ -76,10 +76,10 @@ export function PhotoUploader({ photos }: { photos: Photo[] }) {
       onProgress: (id, value) => setProgress((state) => ({ ...state, [id]: value }))
     });
     const succeeded = new Set(result.successes.map((photo) => photo.id));
-    setCurrent((items) => [...items, ...result.successes.map((photo) => ({ id: `pending-${photo.id}`, name: photo.name, url: photo.previewUrl, status: "pending" }))]);
+    setCurrent((items) => [...items, ...result.successes.map((photo) => ({ id: `published-${photo.id}`, name: photo.name, url: photo.previewUrl, status: "approved" }))]);
     setQueue((items) => items.filter((item) => !succeeded.has(item.id)));
     setReplacementId(null);
-    setMessage(result.complete ? "Nuotraukos laukia administratoriaus patvirtinimo." : `${result.successes.length} įkelta, ${result.failures.length} nepavyko. Galite bandyti dar kartą.`);
+    setMessage(result.complete ? "Nuotraukos paskelbtos." : `${result.successes.length} paskelbta, ${result.failures.length} nepavyko. Galite bandyti dar kartą.`);
     router.refresh();
     } finally {
       uploadingRef.current = false;

@@ -58,7 +58,11 @@ export async function POST(request: Request) {
   const { data: inserted } = await supabase.from("profile_photos").select("id").eq("storage_path", claims.storagePath).eq("tradesperson_profile_id", profile.id).maybeSingle();
   if (!inserted?.id) { await supabase.storage.from(bucket).remove([claims.storagePath]); return NextResponse.json({ error: "Nuotraukos įrašyti nepavyko." }, { status: 500 }); }
   const { error: approvalError } = await supabase.rpc("approve_profile_photo_replacement", { target_photo_id: inserted.id });
-  if (approvalError) { await supabase.storage.from(bucket).remove([claims.storagePath]); return NextResponse.json({ error: "Nuotraukos paskelbti nepavyko." }, { status: 500 }); }
+  if (approvalError) {
+    await supabase.from("profile_photos").delete().eq("id", inserted.id).eq("tradesperson_profile_id", profile.id);
+    await supabase.storage.from(bucket).remove([claims.storagePath]);
+    return NextResponse.json({ error: "Nuotraukos paskelbti nepavyko." }, { status: 500 });
+  }
   await supabase.from("admin_actions").insert({ tradesperson_profile_id: profile.id, action: "tradesperson_photo_published", notes: replacePhotoId ? `Replacement for ${replacePhotoId}` : "Gallery photo published immediately", created_by_role: "tradesperson" });
   return NextResponse.json({ ok: true, moderationStatus: "approved" });
 }

@@ -1,4 +1,4 @@
-import LocalProApp from "../components/LocalProApp";
+import HomepagePreviewV2 from "../components/HomepagePreviewV2";
 import { getCategories, getSpecialists } from "../lib/specialists";
 import { createSupabaseAuthClient } from "../lib/supabase-ssr";
 import { getLinkedTradespersonProfile } from "../lib/tradesperson-account";
@@ -22,5 +22,5 @@ export default async function Home() {
     email: user?.email,
     avatarUrl: user?.user_metadata?.avatar_url ?? user?.user_metadata?.picture
   };
-  return <LocalProApp initialSpecialists={specialists} categories={categories} accountState={accountState} />;
+  return <HomepagePreviewV2 initialSpecialists={specialists} categories={categories} accountState={accountState} />;
 }

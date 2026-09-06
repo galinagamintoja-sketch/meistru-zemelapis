@@ -25,9 +25,9 @@ describe("public tradesperson profile gallery", () => {
     expect(gallery).toContain('event.key === "Escape"');
   });
 
-  it("uses the shared preview logo and returns to preview search results", () => {
+  it("uses the shared logo and returns to live homepage search results", () => {
     expect(profile).toContain("<LocalProPreviewBrand />");
-    expect(profile).toContain('href="/preview/homepage-v2#results"');
+    expect(profile).toContain('href="/#results"');
   });
 
   it("lets visitors report a profile and exposes reports to administrators", () => {

@@ -959,8 +959,8 @@ export default function LocalProApp({
       window.location.assign(registration.data.dashboardUrl ?? "/meistras/uzklausos");
       setSubmitMessage(
         addressResolution.usedManualFallback
-          ? "Profilis aktyvus. Adresą prireikus peržiūrėsime rankiniu būdu, o nuotraukos bus rodomos po patvirtinimo."
-          : "Profilis aktyvus. Nuotraukos bus rodomos po administratoriaus patvirtinimo."
+          ? "Profilis aktyvus. Adresą prireikus peržiūrėsime rankiniu būdu, o tinkamos nuotraukos paskelbiamos iškart."
+          : "Profilis aktyvus. Tinkamos nuotraukos paskelbiamos iškart."
       );
     } catch {
       setSubmitTone("error");
@@ -1463,7 +1463,7 @@ export default function LocalProApp({
               <article className="registration-form success-panel" aria-live="polite">
                 <p className="eyebrow">Registracija gauta</p>
                 <h3>Profilis aktyvus.</h3>
-                <p>Profilis iškart matomas viešai. Įkeltos nuotraukos bus rodomos tik po administratoriaus patvirtinimo.</p>
+                <p>Profilis iškart matomas viešai. Tinkamos įkeltos nuotraukos taip pat paskelbiamos iškart ir gali būti peržiūrėtos administratoriaus.</p>
                 {submittedManualAddressReview ? <p>Adresas gautas kaip įrašytas ranka. Prieš publikavimą jį peržiūrėsime ir prireikus patikslinsime.</p> : null}
                 {submittedProfileId ? <p className="field-note">Registracijos numeris: {submittedProfileId}</p> : null}
                 <a className="primary-action" href="/">Grįžti į žemėlapį</a>

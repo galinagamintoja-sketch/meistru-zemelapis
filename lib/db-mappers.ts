@@ -37,7 +37,7 @@ export type ProfileRow = {
     service_subcategories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
   }>;
   operating_areas?: Array<{ city: string; radius_km: number | null }>;
-  profile_photos?: Array<{ id?: string | null; label: string | null; url: string | null; storage_path?: string | null; moderation_status?: "pending" | "approved" | "rejected" | null; sort_order: number | null; removed_from_profile_at?: string | null }>;
+  profile_photos?: Array<{ id?: string | null; label: string | null; url: string | null; storage_path?: string | null; moderation_status?: "pending" | "approved" | "rejected" | null; sort_order: number | null; is_primary?: boolean | null; removed_from_profile_at?: string | null }>;
   reviews?: Array<{ client_name: string; rating: number; text: string | null; moderation_status: string }>;
   admin_actions?: Array<{ id?: string | null; action: string; notes?: string | null; created_at: string; created_by_role?: string | null }>;
 };
@@ -79,7 +79,7 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
   const visiblePhotoRows = (row.profile_photos ?? [])
     .filter((photo) => options.includeRemovedPhotos || !photo.removed_from_profile_at)
     .filter((photo) => options.includeUnapprovedPhotos || (photo.moderation_status ?? "approved") === "approved")
-    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    .sort((a, b) => Number(Boolean(b.is_primary)) - Number(Boolean(a.is_primary)) || (a.sort_order ?? 0) - (b.sort_order ?? 0));
   const photos = visiblePhotoRows
     .map((photo) => photo.label || photo.url || "Darbu nuotrauka")
     .filter(Boolean);

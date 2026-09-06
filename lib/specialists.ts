@@ -48,7 +48,7 @@ const SPECIALIST_SELECT = `
   profile_category_assignments(service_categories(name, slug)),
   profile_services(service_categories(name, slug), service_subcategories(name, slug)),
   operating_areas(city, radius_km),
-  profile_photos(id, label, url, storage_path, moderation_status, sort_order, removed_from_profile_at),
+  profile_photos(id, label, url, storage_path, moderation_status, sort_order, is_primary, removed_from_profile_at),
   reviews(client_name, rating, text, moderation_status)
 `;
 const LEGACY_SPECIALIST_SELECT = SPECIALIST_SELECT.replace("  profile_category_assignments(service_categories(name, slug)),\n", "");
@@ -176,6 +176,11 @@ export async function getSeoSpecialists() {
 export async function getSeoSpecialist(slug: string) {
   const requested = decodeURIComponent(slug).toLowerCase();
   return (await getSeoSpecialists()).find((specialist) => profileSeoSlug(specialist) === requested) ?? null;
+}
+
+export async function getPublicSpecialistBySeoSlug(slug: string) {
+  const requested = decodeURIComponent(slug).toLowerCase();
+  return (await getSpecialists()).find((specialist) => profileSeoSlug(specialist) === requested) ?? null;
 }
 
 export function specialistSlug(specialist: Pick<Specialist, "id" | "name">) {

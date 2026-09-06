@@ -45,6 +45,15 @@ function specialistPhoto(specialist: Specialist) {
  return candidates.find((value) => value && /^(https?:\/\/|\/(?!\/))/.test(value.trim())) ?? null;
 }
 
+function specialistCountLabel(count: number) {
+  const lastTwo = count % 100;
+  const last = count % 10;
+  if (lastTwo >= 11 && lastTwo <= 19) return `${count} specialistų`;
+  if (last === 1) return `${count} specialistas`;
+  if (last >= 2 && last <= 9) return `${count} specialistai`;
+  return `${count} specialistų`;
+}
+
 function specialistMatchesService(specialist: Specialist, query: string) {
   const needle = normalized(query);
   if (!needle) return true;
@@ -258,6 +267,12 @@ export default function HomepagePreviewV2({
           const photo = document.createElement("img");
           photo.src = photoUrl;
           photo.alt = `${specialist.name} darbų nuotrauka`;
+          photo.addEventListener("error", () => {
+            photo.remove();
+            const fallback = document.createElement("span");
+            fallback.textContent = specialist.name.slice(0, 1).toUpperCase();
+            photoWrap.append(fallback);
+          }, { once: true });
           photoWrap.append(photo);
         } else {
           const fallback = document.createElement("span");
@@ -379,7 +394,7 @@ export default function HomepagePreviewV2({
             <div>
               <p className={styles.eyebrow}>Netoliese</p>
               <h2>Rekomenduojami specialistai</h2>
-              <p>{filteredSpecialists.length ? `${filteredSpecialists.length} specialistai pagal jūsų paiešką` : "Pagal šią paiešką specialistų kol kas nėra"}</p>
+              <p>{filteredSpecialists.length ? `${specialistCountLabel(filteredSpecialists.length)} pagal jūsų paiešką` : "Pagal šią paiešką specialistų kol kas nėra"}</p>
             </div>
             <div className={styles.viewToggle} role="group" aria-label="Pasirinkti rezultatų vaizdą">
               <button type="button" className={viewMode === "list" ? styles.activeView : ""} onClick={() => setViewMode("list")} aria-pressed={viewMode === "list"}><ListIcon />Sąrašas</button>
@@ -451,6 +466,11 @@ export default function HomepagePreviewV2({
           </div>
           <a href="/meistro-registracija">Sukurti profilį <span>→</span></a>
         </section>
+        <footer className={styles.footer}>
+          <a href="/privacy">Privatumo politika</a>
+          <a href="/terms">Naudojimosi sąlygos</a>
+          <a href="mailto:pagalba@localpro.lt">Pagalba</a>
+        </footer>
       </main>
     </div>
   );
