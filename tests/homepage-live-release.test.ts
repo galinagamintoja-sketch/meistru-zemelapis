@@ -42,4 +42,8 @@ describe("homepage live release", () => {
     expect(source).toContain("getResponsiveLithuaniaMinZoom(map)");
     expect(source).toContain("map.panInsideBounds(LITHUANIA_BOUNDS");
   });
+
+  it("does not expose temporary upload IDs as actionable photo records", () => {
+    expect(read("components/photo-uploader.tsx")).not.toContain("published-${photo.id}");
+  });
 });

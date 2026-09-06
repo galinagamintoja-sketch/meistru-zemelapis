@@ -76,7 +76,6 @@ export function PhotoUploader({ photos }: { photos: Photo[] }) {
       onProgress: (id, value) => setProgress((state) => ({ ...state, [id]: value }))
     });
     const succeeded = new Set(result.successes.map((photo) => photo.id));
-    setCurrent((items) => [...items, ...result.successes.map((photo) => ({ id: `published-${photo.id}`, name: photo.name, url: photo.previewUrl, status: "approved" }))]);
     setQueue((items) => items.filter((item) => !succeeded.has(item.id)));
     setReplacementId(null);
     setMessage(result.complete ? "Nuotraukos paskelbtos." : `${result.successes.length} paskelbta, ${result.failures.length} nepavyko. Galite bandyti dar kartą.`);
