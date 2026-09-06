@@ -34,4 +34,12 @@ describe("homepage live release", () => {
     const source = read("lib/specialists.ts");
     expect(source).toContain('process.env.VERCEL_ENV === "preview"');
   });
+
+  it("constrains the new homepage map to Lithuania", () => {
+    const source = read("components/HomepagePreviewV2.tsx");
+    expect(source).toContain("maxBounds: LITHUANIA_BOUNDS");
+    expect(source).toContain("maxBoundsViscosity: 1");
+    expect(source).toContain("getResponsiveLithuaniaMinZoom(map)");
+    expect(source).toContain("map.panInsideBounds(LITHUANIA_BOUNDS");
+  });
 });

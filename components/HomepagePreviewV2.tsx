@@ -6,6 +6,7 @@ import type { Category, Specialist } from "../lib/types";
 import type { HomepageAccountState } from "../lib/homepage-account-state";
 import { profileSeoSlug } from "../lib/seo";
 import { distanceKm } from "../lib/geo";
+import { clampToLithuania, getResponsiveLithuaniaMinZoom, LITHUANIA_BOUNDS } from "../lib/lithuania-map";
 import styles from "./HomepagePreviewV2.module.css";
 import LocalProPreviewBrand from "./LocalProPreviewBrand";
 
@@ -208,6 +209,9 @@ export default function HomepagePreviewV2({
       const map = leaflet.map(mapElementRef.current, {
         center: [55.18, 23.88],
         zoom: 7,
+        maxBounds: LITHUANIA_BOUNDS,
+        maxBoundsViscosity: 1,
+        maxZoom: 15,
         zoomControl: true,
         scrollWheelZoom: true
       });
@@ -219,13 +223,36 @@ export default function HomepagePreviewV2({
 
       mapRef.current = map;
       markerLayerRef.current = leaflet.layerGroup().addTo(map);
+      const keepLithuaniaVisible = () => {
+        if (!mapElementRef.current?.clientWidth || !mapElementRef.current.clientHeight) return;
+        map.invalidateSize({ pan: false });
+        const minZoom = getResponsiveLithuaniaMinZoom(map);
+        map.setMinZoom(minZoom);
+        if (map.getZoom() < minZoom) map.setZoom(minZoom, { animate: false });
+        map.panInsideBounds(LITHUANIA_BOUNDS, { animate: false });
+      };
+      const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(keepLithuaniaVisible);
+      resizeObserver?.observe(mapElementRef.current);
+      window.addEventListener("resize", keepLithuaniaVisible);
+      window.addEventListener("orientationchange", keepLithuaniaVisible);
+      window.setTimeout(keepLithuaniaVisible, 80);
       setMapReady(true);
+      return () => {
+        resizeObserver?.disconnect();
+        window.removeEventListener("resize", keepLithuaniaVisible);
+        window.removeEventListener("orientationchange", keepLithuaniaVisible);
+      };
     }
 
-    setupMap();
+    let cleanupMapSizing: (() => void) | undefined;
+    setupMap().then((cleanup) => {
+      if (cancelled) cleanup?.();
+      else cleanupMapSizing = cleanup;
+    });
 
     return () => {
       cancelled = true;
+      cleanupMapSizing?.();
       setMapReady(false);
       markerLayerRef.current?.clearLayers();
       markerLayerRef.current = null;
@@ -246,9 +273,10 @@ export default function HomepagePreviewV2({
       const points: [number, number][] = [];
       mapSpecialists.forEach((specialist) => {
         if (!Number.isFinite(specialist.lat) || !Number.isFinite(specialist.lng)) return;
-        points.push([specialist.lat, specialist.lng]);
+        const point = clampToLithuania({ lat: specialist.lat, lng: specialist.lng });
+        points.push([point.lat, point.lng]);
 
-        const marker = leaflet.circleMarker([specialist.lat, specialist.lng], {
+        const marker = leaflet.circleMarker([point.lat, point.lng], {
           radius: 9,
           weight: 3,
           color: "#fffaf0",
@@ -297,8 +325,9 @@ export default function HomepagePreviewV2({
       if (points.length) {
         const bounds = leaflet.latLngBounds(points);
         map.fitBounds(bounds.pad(0.2), { maxZoom: 10, animate: false });
+        map.panInsideBounds(LITHUANIA_BOUNDS, { animate: false });
       } else {
-        map.setView([55.18, 23.88], 7, { animate: false });
+        map.fitBounds(LITHUANIA_BOUNDS, { animate: false });
       }
 
       window.setTimeout(() => map.invalidateSize({ pan: false }), 80);
