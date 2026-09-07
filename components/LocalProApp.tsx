@@ -1707,11 +1707,6 @@ export default function LocalProApp({
           </div>
         </section> : null}
 
-        <footer className="site-footer">
-          <a href="/privacy">Privatumo politika</a>
-          <a href="/terms">Naudojimosi sąlygos</a>
-          <span>Privatumo ir naudojimosi informacija atnaujinta 2026-08-09.</span>
-        </footer>
       </main>
     </div>
   );
