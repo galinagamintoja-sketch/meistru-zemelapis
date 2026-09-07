@@ -4,6 +4,7 @@ import { requireAdminSession } from "../../../../lib/auth-session";
 import { profileRowToSpecialist, toPublicSafeSpecialist, type ProfileRow } from "../../../../lib/db-mappers";
 import { signManagedPhotoUrls } from "../../../../lib/specialists";
 import { REGISTRATION_PHOTO_MAX_BYTES, REGISTRATION_PHOTO_TYPES } from "../../../../lib/registration-photos";
+import { isPublicLocality } from "../../../../lib/validators";
 import {
   assignNullableText,
   assignText,
@@ -159,6 +160,7 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  if (![city, ...operatingCities].every(isPublicLocality)) return NextResponse.json({ error: "Public locality must be a city or settlement, not a street or address." }, { status: 400 });
 
   if (!isLithuanianPhone(phone)) {
     return NextResponse.json({ error: "Enter a valid Lithuanian phone number." }, { status: 400 });

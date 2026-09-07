@@ -5,6 +5,12 @@ const page = readFileSync(new URL("../app/admin/page.tsx", import.meta.url), "ut
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 
 describe("mobile admin photo UI regressions", () => {
+  it("keeps upload errors next to the picker with visible interaction states", () => {
+    expect(page).toContain('aria-live="polite">{uploadErrors');
+    expect(page).toContain("aria-describedby=");
+    expect(css).toContain(".admin-upload-button:focus-within");
+    expect(css).toContain("color: #fff !important");
+  });
   it("uses the gallery picker without a camera capture input", () => {
     expect(page).toContain("Pridėti nuotraukas");
     expect(page).toContain("accept={REGISTRATION_PHOTO_ACCEPT} multiple");

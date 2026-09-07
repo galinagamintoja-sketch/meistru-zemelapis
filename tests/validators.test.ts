@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isLithuanianPhone, jobRequestSchema, normalizeLithuanianPhone, registrationSchema } from "../lib/validators";
+import { isLithuanianPhone, isPublicLocality, jobRequestSchema, normalizeLithuanianPhone, registrationSchema } from "../lib/validators";
 
 const validRegistration = {
   name: "Test Meistras",
@@ -24,6 +24,14 @@ const validRegistration = {
   privacyAcknowledged: true,
   publicContactConsent: true
 };
+
+describe("public locality validation", () => {
+  it("rejects street-shaped public locality values", () => {
+    expect(isPublicLocality("Lentvaris")).toBe(true);
+    expect(isPublicLocality("bažnyčios g.23")).toBe(false);
+    expect(isPublicLocality("Vilniaus gatvė 10")).toBe(false);
+  });
+});
 
 describe("registration validation", () => {
   it("accepts a valid Lithuanian registration payload", () => {

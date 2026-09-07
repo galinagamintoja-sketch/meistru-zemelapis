@@ -1193,6 +1193,7 @@ export default function LocalProApp({
       </header>
 
       <main>
+        {!registrationOnly ? <>
         <section className="hero" id="search">
           <div className="hero-copy">
             <h1>Patikimi meistrai jūsų mieste.</h1>
@@ -1434,6 +1435,8 @@ export default function LocalProApp({
               </div>
             </article>
         </section> : null}
+
+        </> : null}
 
         {registrationOnly ? <section className="register-section" id="registration">
           <div className="section-heading">

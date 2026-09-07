@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import SafeProfileImage from "./SafeProfileImage";
 import type { Category, Specialist } from "../lib/types";
 import type { HomepageAccountState } from "../lib/homepage-account-state";
@@ -116,10 +117,9 @@ function AccountLink({ accountState }: { accountState: HomepageAccountState }) {
   const accountLabel = accountState.displayName || accountState.email || "Mano paskyra";
   return (
     <div className={styles.authActions}>
-      <a className={styles.accountName} href={accountState.hasProfile ? "/meistras/uzklausos" : "/meistro-registracija"}>
-        {accountLabel}
+      <a className={styles.accountName} aria-label={`Atidaryti paskyrą: ${accountLabel}`} title={accountLabel} href={accountState.hasProfile ? "/meistras/uzklausos" : "/meistro-registracija"}>
+        <span aria-hidden="true">{accountLabel.trim().charAt(0).toUpperCase()}</span><strong>Paskyra</strong>
       </a>
-      {!accountState.hasProfile ? <a className={styles.registerButton} href="/meistro-registracija">Sukurti profilį</a> : null}
     </div>
   );
 }
@@ -129,10 +129,12 @@ export default function HomepagePreviewV2({
   categories,
   accountState = fallbackAccountState
 }: Props) {
-  const [serviceQuery, setServiceQuery] = useState("");
-  const [locationQuery, setLocationQuery] = useState("");
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [showAll, setShowAll] = useState(false);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [serviceQuery, setServiceQuery] = useState(() => searchParams.get("service") ?? "");
+  const [locationQuery, setLocationQuery] = useState(() => searchParams.get("locality") ?? "");
+  const [viewMode, setViewMode] = useState<ViewMode>(() => searchParams.get("view") === "map" ? "map" : "list");
+  const [showAll, setShowAll] = useState(() => searchParams.get("all") === "1");
   const [mapReady, setMapReady] = useState(false);
   const [searchPoint, setSearchPoint] = useState<SearchPoint | null>(null);
   const [nearbyRadiusKm, setNearbyRadiusKm] = useState(nearbyInitialRadiusKm);
@@ -142,6 +144,25 @@ export default function HomepagePreviewV2({
   const mapElementRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const markerLayerRef = useRef<LeafletLayerGroup | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (serviceQuery.trim()) params.set("service", serviceQuery.trim());
+    if (locationQuery.trim()) params.set("locality", locationQuery.trim());
+    if (viewMode !== "list") params.set("view", viewMode);
+    if (showAll) params.set("all", "1");
+    const query = params.toString();
+    window.history.replaceState(window.history.state, "", `${pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+  }, [locationQuery, pathname, serviceQuery, showAll, viewMode]);
+
+  const returnHref = useMemo(() => {
+    const params = new URLSearchParams();
+    if (serviceQuery.trim()) params.set("service", serviceQuery.trim());
+    if (locationQuery.trim()) params.set("locality", locationQuery.trim());
+    if (viewMode !== "list") params.set("view", viewMode);
+    if (showAll) params.set("all", "1");
+    return `/${params.size ? `?${params.toString()}` : ""}#results`;
+  }, [locationQuery, serviceQuery, showAll, viewMode]);
 
   const serviceSuggestions = useMemo(() => {
     const names = categories.flatMap((category) => [category.name, ...category.subcategories.map((subcategory) => subcategory.name)]);
@@ -315,7 +336,7 @@ export default function HomepagePreviewV2({
         const rating = document.createElement("span");
         rating.textContent = specialist.rating ? `★ ${specialist.rating.toFixed(1)} (${specialist.reviewCount})` : "Naujas specialistas";
         const link = document.createElement("a");
-        link.href = `/meistrai/${profileSeoSlug(specialist)}`;
+        link.href = `/meistrai/${profileSeoSlug(specialist)}?return=${encodeURIComponent(returnHref)}`;
         link.textContent = "Peržiūrėti profilį";
         popup.append(name, photoWrap, trade, place, rating, link);
         marker.bindPopup(popup);
@@ -334,7 +355,7 @@ export default function HomepagePreviewV2({
     }
 
     renderMarkers();
-  }, [mapReady, mapSpecialists]);
+  }, [mapReady, mapSpecialists, returnHref]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -422,7 +443,7 @@ export default function HomepagePreviewV2({
           <div className={styles.resultsHeader}>
             <div>
               <p className={styles.eyebrow}>Netoliese</p>
-              <h2>Rekomenduojami specialistai</h2>
+              <h2>Specialistai pagal jūsų paiešką</h2>
               <p>{filteredSpecialists.length ? `${specialistCountLabel(filteredSpecialists.length)} pagal jūsų paiešką` : "Pagal šią paiešką specialistų kol kas nėra"}</p>
             </div>
             <div className={styles.viewToggle} role="group" aria-label="Pasirinkti rezultatų vaizdą">
@@ -437,7 +458,7 @@ export default function HomepagePreviewV2({
               const location = specialist.approximateLocation || specialist.town;
               const services = specialist.subcategoryNames?.slice(0, 2) ?? specialist.categoryNames?.slice(0, 2) ?? [];
               return (
-                <a className={styles.specialistCard} href={`/meistrai/${profileSeoSlug(specialist)}`} key={specialist.id}>
+                <a className={styles.specialistCard} href={`/meistrai/${profileSeoSlug(specialist)}?return=${encodeURIComponent(returnHref)}`} key={specialist.id}>
                   <div className={styles.photoWrap}>
                     <SafeProfileImage
                       src={photo}
@@ -445,6 +466,7 @@ export default function HomepagePreviewV2({
                       specialistName={specialist.name}
                       trade={specialist.trade}
                       className={styles.specialistPhoto}
+                      sizes="(max-width: 620px) 88px, 150px"
                     />
                   </div>
                   <div className={styles.cardBody}>
@@ -495,11 +517,6 @@ export default function HomepagePreviewV2({
           </div>
           <a href="/meistro-registracija">Sukurti profilį <span>→</span></a>
         </section>
-        <footer className={styles.footer}>
-          <a href="/privacy">Privatumo politika</a>
-          <a href="/terms">Naudojimosi sąlygos</a>
-          <a href="mailto:pagalba@localpro.lt">Pagalba</a>
-        </footer>
       </main>
     </div>
   );

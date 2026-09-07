@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isContactNumberConflict, SELF_REGISTRATION_PHONE_CONFLICT } from "../../../../lib/contact-number-conflict";
-import { registrationSchema, photoFieldMetadata, normalizeLithuanianPhone } from "../../../../lib/validators";
+import { registrationSchema, photoFieldMetadata, normalizeLithuanianPhone, isPublicLocality } from "../../../../lib/validators";
 import {
   deriveAddressParts,
   insertOperatingAreas,
@@ -121,6 +121,7 @@ export async function POST(request: Request) {
   const normalizedWhatsapp = payload.whatsapp ? normalizeLithuanianPhone(payload.whatsapp) || payload.whatsapp : normalizedPhone;
   const addressParts = deriveAddressParts(payload.address);
   const baseTown = payload.town || payload.city || addressParts.town || "Lietuva";
+  if (!isPublicLocality(baseTown)) return NextResponse.json({ error: "Viešai vietovei nurodykite miestą ar gyvenvietę, ne gatvę ar adresą." }, { status: 400 });
   const streetName = payload.street || addressParts.street || payload.address;
   const postcode = payload.postcode || addressParts.postcode;
   const travelRadiusKm = payload.travelRange === "lt" ? 150 : Number(payload.travelRange);

@@ -36,6 +36,12 @@ export const registrationPhotoUploadSchema = z.object({
 
 export const travelRangeSchema = z.enum(["10", "25", "50", "100", "lt"]);
 
+export function isPublicLocality(value: string) {
+  const locality = value.trim();
+  if (!locality) return false;
+  return !/\d/.test(locality) && !/\b(g\.?|gatvė|street|pr\.?|prospektas|al\.?|alėja|pl\.?|plentas|kelias)\b/iu.test(locality);
+}
+
 export const registrationSchema = z.object({
   name: z.string().trim().min(2).max(140),
   phone: lithuanianPhoneSchema,
@@ -66,6 +72,9 @@ export const registrationSchema = z.object({
   marketingConsent: z.boolean().optional().default(false),
   whatsappCommunicationConsent: z.boolean().optional().default(false)
 }).superRefine((payload, context) => {
+  for (const [path, locality] of [["town", payload.town || payload.city], ...payload.operatingCities.map((value) => ["operatingCities", value])] as const) {
+    if (locality && !isPublicLocality(locality)) context.addIssue({ code: z.ZodIssueCode.custom, message: "Viešai vietovei nurodykite miestą ar gyvenvietę, ne gatvę ar adresą.", path: [path] });
+  }
   const requiredConsents = [
     ["termsAccepted", payload.termsAccepted, "Patvirtinkite, kad sutinkate su naudojimosi sąlygomis."],
     ["privacyAcknowledged", payload.privacyAcknowledged, "Patvirtinkite, kad susipažinote su privatumo politika."],

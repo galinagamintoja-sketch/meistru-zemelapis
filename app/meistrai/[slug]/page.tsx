@@ -9,7 +9,7 @@ import { getPublicSpecialistBySeoSlug } from "../../../lib/specialists";
 import { categoryLocationPath, isSeoEligible, profileJsonLd, profileMetadata, profilePath, profileSeoSlug, safeJsonLd } from "../../../lib/seo";
 import { specialists as seedSpecialists } from "../../../lib/seed-data";
 
-type PageProps = { params: Promise<{ slug: string }> };
+type PageProps = { params: Promise<{ slug: string }>; searchParams: Promise<{ return?: string }> };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const profile = await getProfile((await params).slug);
@@ -18,15 +18,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return isSeoEligible(profile) ? metadata : { ...metadata, robots: { index: false, follow: true } };
 }
 
-export default async function PublicTradespersonPage({ params }: PageProps) {
+export default async function PublicTradespersonPage({ params, searchParams }: PageProps) {
   const profile = await getProfile((await params).slug);
   if (!profile) notFound();
   if ((await params).slug !== profilePath(profile).split("/").pop()) permanentRedirect(profilePath(profile));
   const whatsapp = profile.whatsapp.replace(/[^\d]/g, "");
   const landingLinks = profile.operatingCities.map((city) => ({ city, path: categoryLocationPath(profile, city) })).filter((item) => item.path);
+  const requestedReturn = (await searchParams).return;
+  const returnPath = requestedReturn?.startsWith("/") && !requestedReturn.startsWith("//") ? requestedReturn : "/#results";
   return <main className="public-profile-shell">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(profileJsonLd(profile)) }} />
-    <nav className="public-profile-nav" aria-label="Profilio navigacija"><Link className="public-profile-brand" href="/" aria-label="LocalPro.lt pagrindinis puslapis"><LocalProPreviewBrand /></Link><Link href="/#results">← Meistrų paieška</Link></nav>
+    <nav className="public-profile-nav" aria-label="Profilio navigacija"><Link className="public-profile-brand" href="/" aria-label="LocalPro.lt pagrindinis puslapis"><LocalProPreviewBrand /></Link><Link href={returnPath}>← Meistrų paieška</Link></nav>
     <article className="public-profile-card">
       <header className="public-profile-header"><p className="eyebrow">LocalPro meistro profilis</p><h1>{profile.companyName || profile.name} – {profile.trade} {profile.town}</h1>{profile.companyName ? <p>{profile.name}</p> : null}<PublicProfileGallery name={profile.name} trade={profile.trade} photoUrls={profile.photoUrls ?? []} /></header>
       <section className="public-profile-grid"><div className="public-profile-main">

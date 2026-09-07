@@ -6,6 +6,14 @@ import { getLinkedTradespersonProfile } from "../../lib/tradesperson-account";
 import { getHomepageAccountState } from "../../lib/homepage-account-state";
 import { isAdminEmail } from "../../lib/auth-session";
 import { inspectVerifiedEmailResolution } from "../../lib/verified-email-resolution";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Meistro registracija | LocalPro",
+  description: "Sukurkite LocalPro meistro profilį ir leiskite klientams Lietuvoje jus atrasti.",
+  alternates: { canonical: "/meistro-registracija" },
+  robots: { index: false, follow: true }
+};
 
 export const dynamic = "force-dynamic";
 
