@@ -3,9 +3,11 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 export type RegistrationPhotoUploadClaims = {
   profileId: string;
   storagePath: string;
+  cardStoragePath?: string;
   name: string;
   type: "image/jpeg" | "image/png" | "image/webp";
   size: number;
+  cardSize?: number;
   expiresAt: number;
 };
 

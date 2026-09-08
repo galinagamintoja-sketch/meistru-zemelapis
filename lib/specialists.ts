@@ -48,7 +48,7 @@ const SPECIALIST_SELECT = `
   profile_category_assignments(service_categories(name, slug)),
   profile_services(service_categories(name, slug), service_subcategories(name, slug)),
   operating_areas(city, radius_km),
-  profile_photos(id, label, url, storage_path, moderation_status, sort_order, is_primary, removed_from_profile_at),
+  profile_photos(id, label, url, storage_path, card_storage_path, moderation_status, sort_order, is_primary, removed_from_profile_at),
   reviews(client_name, rating, text, moderation_status)
 `;
 const LEGACY_SPECIALIST_SELECT = SPECIALIST_SELECT.replace("  profile_category_assignments(service_categories(name, slug)),\n", "");
@@ -147,6 +147,10 @@ export async function signManagedPhotoUrls(rows: ProfileRow[], includeUnapproved
     if (!includeUnapproved && photo.moderation_status !== "approved") return;
     const { data, error } = await supabase.storage.from("profile-photos").createSignedUrl(photo.storage_path, 600);
     if (!error) photo.url = data.signedUrl;
+    if (photo.card_storage_path) {
+      const { data: cardData, error: cardError } = await supabase.storage.from("profile-photos").createSignedUrl(photo.card_storage_path, 600);
+      if (!cardError) photo.card_url = cardData.signedUrl;
+    }
   })));
   return rows;
 }

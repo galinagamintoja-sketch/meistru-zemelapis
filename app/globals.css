@@ -1,5 +1,9 @@
 @import "../styles.css";
 
+.site-footer { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 22px; padding: 24px 18px 32px; border-top: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: .875rem; }
+.site-footer a { color: inherit; }
+.site-footer a:hover { color: var(--spruce); }
+
 .field-error {
   display: block;
   margin-top: 5px;
@@ -442,8 +446,12 @@
 .admin-card-compact div { display: flex; justify-content: space-between; gap: 12px; }
 .admin-card-compact dt { color: var(--muted); }
 .admin-card-compact dd { margin: 0; text-align: right; }
-.admin-upload-button { display: inline-flex !important; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; border-radius: 9px; background: var(--ink); color: #fff; cursor: pointer; }
+.admin-upload-button { position: relative; display: inline-flex !important; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; border: 2px solid var(--ink); border-radius: 9px; background: var(--ink) !important; color: #fff !important; cursor: pointer; }
 .admin-upload-button input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.admin-upload-button:focus-within { outline: 3px solid #d97720; outline-offset: 3px; }
+.admin-upload-button:active { transform: translateY(1px); background: #102e20 !important; }
+.admin-upload-error:empty { display: none; }
+.admin-quality-warning { color: #8a3f13 !important; font-weight: 700; }
 .admin-photo-row img, .admin-main-photo img, .admin-selected-photos img { width: 84px; height: 64px; max-width: 100%; object-fit: cover; border-radius: 8px; }
 .admin-recent-photo { width: 100%; max-height: 240px; object-fit: cover; border-radius: 8px; }
 .admin-main-photo { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -843,7 +851,9 @@
 .public-profile-gallery-button { display: block; width: 100%; border: 0; padding: 0; border-radius: 10px; background: transparent; cursor: zoom-in; }
 .public-profile-photo { position: relative; min-height: 260px; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 10px; background: var(--soft); }
 .public-profile-photo img { object-fit: cover; }
-.profile-lightbox { position: fixed; z-index: 3000; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(18, 24, 20, .88); }
+.profile-lightbox { position: fixed; z-index: 3000; inset: 0; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border: 0; place-items: center; padding: 20px; background: rgba(18, 24, 20, .88); }
+.profile-lightbox[open] { display: grid; }
+.profile-lightbox::backdrop { background: rgba(18, 24, 20, .55); }
 .profile-lightbox-content { position: relative; display: grid; gap: 12px; width: min(920px, 100%); max-height: calc(100vh - 40px); padding: 14px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow); }
 .profile-lightbox-content > .safe-profile-image { display: grid; width: 100%; max-height: calc(100vh - 150px); place-items: center; overflow: hidden; border-radius: 10px; background: var(--soft); }
 .profile-lightbox-content img { display: block; width: 100%; max-height: calc(100vh - 150px); object-fit: contain; }

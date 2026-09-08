@@ -36,6 +36,7 @@ export type Specialist = {
   description: string;
   photos: string[];
   photoUrls?: string[];
+  cardPhotoUrls?: string[];
   photoRecords?: Array<{
     id: string;
     url: string;

@@ -100,10 +100,21 @@
 }
 
 .accountName {
-  max-width: 210px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
+}
+
+.accountName > span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 50%;
+  background: #e7efe8;
+  color: var(--spruce);
+  font-size: 14px;
 }
 
 .registerButton,
@@ -761,7 +772,13 @@
   }
 
   .accountName {
-    max-width: 92px;
+    font-size: 0;
+  }
+
+  .accountName > span {
+    width: 42px;
+    height: 42px;
+    font-size: 14px;
   }
 
   .registerButton {

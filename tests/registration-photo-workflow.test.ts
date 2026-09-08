@@ -139,6 +139,8 @@ describe("registration direct upload behavior", () => {
   const plans: RegistrationPhotoUploadPlan[] = photos.map((photo) => ({
     storagePath: `profile/${photo.name}`,
     signedUrl: `https://storage.example/${photo.name}`,
+    cardStoragePath: `profile/card-${photo.name}`,
+    cardSignedUrl: `https://storage.example/card-${photo.name}`,
     uploadToken: `token-${photo.id}`
   }));
 

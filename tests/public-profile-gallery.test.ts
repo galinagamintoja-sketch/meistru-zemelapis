@@ -14,7 +14,7 @@ describe("public tradesperson profile gallery", () => {
   });
 
   it("keeps the compact hero placeholder when a profile has no image", () => {
-    expect(gallery).toContain("disabled={!photoUrls.length}");
+    expect(gallery).toContain("disabled={!photoUrls.length || !hydrated}");
     expect(gallery).not.toContain("if (!photoUrls.length) return null");
   });
 
@@ -27,7 +27,8 @@ describe("public tradesperson profile gallery", () => {
 
   it("uses the shared logo and returns to live homepage search results", () => {
     expect(profile).toContain("<LocalProPreviewBrand />");
-    expect(profile).toContain('href="/#results"');
+    expect(profile).toContain('const returnPath = requestedReturn?.startsWith("/")');
+    expect(profile).toContain('<Link href={returnPath}>');
   });
 
   it("lets visitors report a profile and exposes reports to administrators", () => {

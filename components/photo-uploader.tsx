@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { compressProfilePhoto, REGISTRATION_PHOTO_ACCEPT, REGISTRATION_PHOTO_MAX_ITEMS, mergeRegistrationPhotoSelections, uploadRegistrationPhotos, type RegistrationPhotoSelection } from "../lib/registration-photos";
+import { createProfilePhotoDerivatives, REGISTRATION_PHOTO_ACCEPT, REGISTRATION_PHOTO_MAX_ITEMS, mergeRegistrationPhotoSelections, uploadRegistrationPhotos, type RegistrationPhotoSelection } from "../lib/registration-photos";
 
 type Photo = { id: string; name: string; url: string | null; status: string; rejectionReason?: string | null; isPrimary?: boolean };
 
@@ -35,9 +35,9 @@ export function PhotoUploader({ photos }: { photos: Photo[] }) {
     try {
       const compressed = await Promise.all(accepted.map(async (photo) => {
         if (!photo.file) throw new Error("Failas nerastas.");
-        const file = await compressProfilePhoto(photo.file);
+        const { gallery: file, card } = await createProfilePhotoDerivatives(photo.file);
         URL.revokeObjectURL(photo.previewUrl);
-        return { ...photo, name: file.name, type: "image/webp" as const, size: file.size, previewUrl: URL.createObjectURL(file), file };
+        return { ...photo, name: file.name, type: "image/webp" as const, size: file.size, previewUrl: URL.createObjectURL(file), file, cardFile: card };
       }));
       setQueue((items) => [...items, ...compressed]);
       setMessage(result.message || `${compressed.length} nuotr. optimizuota ir paruošta peržiūrai.`);
@@ -66,11 +66,11 @@ export function PhotoUploader({ photos }: { photos: Photo[] }) {
     setMessage("Įkeliama...");
     try {
     const plans = await Promise.all(queue.map(async (photo, index) => {
-      const response = await fetch("/api/meistras/photos", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create", name: photo.name, type: photo.type, size: photo.size, replacePhotoId: index === 0 ? replacementId : null }) });
+      const response = await fetch("/api/meistras/photos", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "create", name: photo.name, type: photo.type, size: photo.size, cardSize: photo.cardFile?.size, replacePhotoId: index === 0 ? replacementId : null }) });
       return response.ok ? { ...(await response.json()), replacePhotoId: index === 0 ? replacementId : null } : undefined;
     }));
     const result = await uploadRegistrationPhotos(queue, plans as never, {
-      directUpload: async (plan, photo, onProgress) => { if (!photo.file) throw new Error("Failas nerastas."); onProgress(10); const response = await fetch(plan.signedUrl, { method: "PUT", headers: { "content-type": photo.type }, body: photo.file }); if (!response.ok) throw new Error("Įkelti nepavyko."); onProgress(85); },
+      directUpload: async (plan, photo, onProgress) => { if (!photo.file || !photo.cardFile) throw new Error("Failas nerastas."); onProgress(10); const [galleryResponse, cardResponse] = await Promise.all([fetch(plan.signedUrl, { method: "PUT", headers: { "content-type": photo.type }, body: photo.file }), fetch(plan.cardSignedUrl, { method: "PUT", headers: { "content-type": "image/webp" }, body: photo.cardFile })]); if (!galleryResponse.ok || !cardResponse.ok) throw new Error("Įkelti nepavyko."); onProgress(85); },
       finalize: async (plan) => { const extended = plan as typeof plan & { replacePhotoId?: string | null }; const response = await fetch("/api/meistras/photos", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "finalize", uploadToken: plan.uploadToken, replacePhotoId: extended.replacePhotoId }) }); if (!response.ok) throw new Error((await response.json()).error ?? "Patvirtinti nepavyko."); },
       abort: async (plan) => { await fetch("/api/meistras/photos", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "abort", uploadToken: plan.uploadToken }) }); },
       onProgress: (id, value) => setProgress((state) => ({ ...state, [id]: value }))

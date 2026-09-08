@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "../../../../../lib/supabase";
-import { REGISTRATION_PHOTO_MAX_BYTES, REGISTRATION_PHOTO_TYPES } from "../../../../../lib/registration-photos";
+import { PROFILE_CARD_PHOTO_MAX_BYTES, REGISTRATION_PHOTO_MAX_BYTES, REGISTRATION_PHOTO_TYPES } from "../../../../../lib/registration-photos";
 import { verifyRegistrationPhotoUploadToken } from "../../../../../lib/registration-photo-upload-token";
 
 const PROFILE_PHOTOS_BUCKET = "profile-photos";
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
   if (action === "abort") {
     if (!existingRecords?.length) {
-      await supabase.storage.from(PROFILE_PHOTOS_BUCKET).remove([claims.storagePath]);
+      await supabase.storage.from(PROFILE_PHOTOS_BUCKET).remove([claims.storagePath, claims.cardStoragePath].filter(Boolean) as string[]);
     }
     return NextResponse.json({ ok: true });
   }
@@ -45,19 +45,24 @@ export async function POST(request: Request) {
     limit: 2
   });
   const uploaded = objects?.find((item) => item.name === fileName);
+  const cardFileName = claims.cardStoragePath?.slice(prefix.length) ?? "";
+  const { data: cardObjects } = cardFileName ? await supabase.storage.from(PROFILE_PHOTOS_BUCKET).list(claims.profileId, { search: cardFileName, limit: 2 }) : { data: [] };
+  const cardUploaded = cardObjects?.find((item) => item.name === cardFileName);
   const reportedSize = Number(uploaded?.metadata?.size ?? 0);
   const reportedType = String(uploaded?.metadata?.mimetype ?? "");
   const valid =
     !listError &&
     uploaded &&
+    (!claims.cardStoragePath || cardUploaded) &&
     reportedSize >= 1 &&
     reportedSize <= REGISTRATION_PHOTO_MAX_BYTES &&
     reportedSize === claims.size &&
     REGISTRATION_PHOTO_TYPES.includes(reportedType as (typeof REGISTRATION_PHOTO_TYPES)[number]) &&
     reportedType === claims.type;
+  const validCard = !claims.cardStoragePath || (Number(cardUploaded?.metadata?.size ?? 0) === claims.cardSize && Number(cardUploaded?.metadata?.size ?? 0) <= PROFILE_CARD_PHOTO_MAX_BYTES && String(cardUploaded?.metadata?.mimetype ?? "") === "image/webp");
 
-  if (!valid) {
-    await supabase.storage.from(PROFILE_PHOTOS_BUCKET).remove([claims.storagePath]);
+  if (!valid || !validCard) {
+    await supabase.storage.from(PROFILE_PHOTOS_BUCKET).remove([claims.storagePath, claims.cardStoragePath].filter(Boolean) as string[]);
     return NextResponse.json({ error: "Įkeltas failas neatitiko nuotraukos tipo arba dydžio reikalavimų." }, { status: 400 });
   }
 
@@ -74,6 +79,7 @@ export async function POST(request: Request) {
   const { error: insertError } = await supabase.from("profile_photos").insert({
     tradesperson_profile_id: claims.profileId,
     storage_path: claims.storagePath,
+    card_storage_path: claims.cardStoragePath,
     url: null,
     label: claims.name,
     alt_text: null,

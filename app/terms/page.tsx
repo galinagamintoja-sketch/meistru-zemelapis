@@ -1,3 +1,7 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Naudojimosi sąlygos | LocalPro", description: "LocalPro platformos naudojimo sąlygos klientams ir specialistams.", alternates: { canonical: "/terms" } };
+
 export default function TermsPage() {
   return <main className="legal-page">
     <h1>Naudojimosi sąlygos</h1>

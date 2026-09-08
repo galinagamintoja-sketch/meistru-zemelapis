@@ -1,3 +1,7 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Privatumo politika | LocalPro", description: "Kaip LocalPro tvarko ir saugo asmens duomenis.", alternates: { canonical: "/privacy" } };
+
 export default function PrivacyPage() {
   return <main className="legal-page">
     <h1>Privatumo politika</h1>

@@ -11,7 +11,7 @@ describe("homepage v2 discovery flow", () => {
   });
 
   it("defaults to the list and offers near-me search without a manual radius control", () => {
-    expect(source).toContain('useState<ViewMode>("list")');
+    expect(source).toContain('searchParams.get("view") === "map" ? "map" : "list"');
     expect(source).toContain("Rodyti specialistus netoli manęs");
     expect(source).not.toContain("Paieškos spindulys");
   });
@@ -25,6 +25,6 @@ describe("homepage v2 discovery flow", () => {
   it("keeps the specialist photo in the map popup and profile-first actions", () => {
     expect(source).toContain("photoWrap.append(photo)");
     expect(source).toContain('link.textContent = "Peržiūrėti profilį"');
-    expect(source).toContain('href={`/meistrai/${profileSeoSlug(specialist)}`}');
+    expect(source).toContain('?return=${encodeURIComponent(returnHref)}');
   });
 });

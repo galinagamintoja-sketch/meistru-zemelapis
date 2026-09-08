@@ -1,6 +1,6 @@
 import type { createServerSupabase } from "./supabase";
 import { cleanText } from "./profile-write-service";
-import { isLithuanianPhone } from "./validators";
+import { isLithuanianPhone, isPublicLocality } from "./validators";
 
 type ServerSupabase = NonNullable<ReturnType<typeof createServerSupabase>>;
 
@@ -20,6 +20,7 @@ export async function validateProfileForPublication(
       display_name,
       company_name,
       phone,
+      base_city,
       service_category_id,
       description,
       public_contact_consent_at,
@@ -41,9 +42,12 @@ export async function validateProfileForPublication(
   if (!profile.service_category_id) {
     errors.push("Trūksta pagrindinės darbo srities.");
   }
+  if (cleanText(profile.base_city) && !isPublicLocality(cleanText(profile.base_city))) {
+    errors.push("Vieša vietovė turi būti miestas ar gyvenvietė, ne gatvė ar adresas.");
+  }
 
   const operatingAreas = (profile.operating_areas ?? []) as Array<{ city?: string | null; radius_km?: number | null }>;
-  if (!operatingAreas.some((area) => cleanText(area.city).length >= 2 && Number(area.radius_km) > 0)) {
+  if (!operatingAreas.some((area) => isPublicLocality(cleanText(area.city)) && Number(area.radius_km) > 0)) {
     errors.push("Trūksta aptarnavimo miesto ir spindulio.");
   }
 

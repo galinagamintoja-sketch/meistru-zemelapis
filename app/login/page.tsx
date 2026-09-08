@@ -2,6 +2,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { EmailAuthForm } from "../../components/email-auth-form";
 import { createSupabaseAuthClient } from "../../lib/supabase-ssr";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Prisijungimas | LocalPro",
+  description: "Saugiai prisijunkite prie savo LocalPro meistro paskyros.",
+  alternates: { canonical: "/login" },
+  robots: { index: false, follow: true }
+};
 
 const messages: Record<string, string> = {
   oauth_start: "Nepavyko pradėti „Google“ prisijungimo.",
@@ -22,6 +30,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <a className="google-primary-button" href={`/auth/google?next=${encodeURIComponent(next)}`}>Tęsti su Google</a>
     <div className="login-divider"><span>arba el. paštu</span></div>
     <EmailAuthForm next={next} />
-    <p className="login-privacy">Naudojame „Supabase Auth“ saugias slapukų sesijas ir PKCE patvirtinimą.</p>
+    <p className="login-privacy">Jūsų prisijungimas perduodamas užšifruotu ryšiu, o slaptažodžio LocalPro nemato ir nesaugo.</p>
   </section></main>;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
+import Image from "next/image";
 
 const failedImageUrls = new Set<string>();
 
@@ -11,6 +12,7 @@ type Props = {
   trade?: string;
   className?: string;
   loading?: "eager" | "lazy";
+  sizes?: string;
   fallbackText?: string;
   style?: CSSProperties;
 };
@@ -34,6 +36,7 @@ export default function SafeProfileImage({
   trade,
   className = "",
   loading = "lazy",
+  sizes = "(max-width: 620px) 88px, 150px",
   fallbackText,
   style
 }: Props) {
@@ -49,12 +52,12 @@ export default function SafeProfileImage({
           {fallbackText ? <small>{fallbackText}</small> : null}
         </span>
       ) : (
-        // Native image events are required so failed remote URLs can be replaced immediately.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <Image
           src={src}
           alt={alt}
-          loading={loading}
+          fill
+          sizes={sizes}
+          priority={loading === "eager"}
           onError={() => {
             rememberFailedProfileImage(src);
             setFailedSrc(src);

@@ -5,6 +5,7 @@ import type { Category, Specialist } from "../../lib/types";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../../lib/phone";
 import { compressProfilePhoto, isSupportedPhotoInput, REGISTRATION_PHOTO_ACCEPT, REGISTRATION_PHOTO_INPUT_MAX_BYTES } from "../../lib/registration-photos";
 import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, selectionCounter, uniqueServices } from "../../lib/service-taxonomy";
+import { profileQualityWarnings } from "../../lib/profile-quality";
 import { AdminPrivacyRequests } from "../../components/admin-privacy-requests";
 import { AdminProfileReports } from "../../components/admin-profile-reports";
 import { AdminRecentPhotos } from "../../components/admin-recent-photos";
@@ -98,6 +99,7 @@ export default function AdminPage() {
   const [addSelectedPhotos, setAddSelectedPhotos] = useState<SelectedPhoto[]>([]);
   const [addSucceeded, setAddSucceeded] = useState(false);
   const [message, setMessage] = useState("");
+  const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
   const [conflictingProfileId, setConflictingProfileId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingActions, setPendingActions] = useState<Record<string, boolean>>({});
@@ -281,13 +283,18 @@ export default function AdminPage() {
     const alreadySelected = profileId === "add" ? addSelectedPhotos : selectedPhotos[profileId] ?? [];
     if (!files.length) return;
     if (currentCount + alreadySelected.length + files.length > 8) {
-      setMessage("Galima turėti daugiausia 8 nuotraukas.");
+      const error = "Galima turėti daugiausia 8 nuotraukas.";
+      setUploadErrors((current) => ({ ...current, [profileId]: error }));
+      setMessage(error);
       return;
     }
     if (files.some((file) => !isSupportedPhotoInput(file) || file.size > REGISTRATION_PHOTO_INPUT_MAX_BYTES)) {
-      setMessage("Rinkitės JPG, PNG, WebP arba HEIC failus, iki 10 MB kiekvieną.");
+      const error = "Rinkitės JPG, PNG, WebP arba HEIC failus, iki 10 MB kiekvieną.";
+      setUploadErrors((current) => ({ ...current, [profileId]: error }));
+      setMessage(error);
       return;
     }
+    setUploadErrors((current) => ({ ...current, [profileId]: "" }));
     setMessage("Nuotraukos optimizuojamos…");
     let next: SelectedPhoto[];
     try {
@@ -901,8 +908,9 @@ export default function AdminPage() {
             <fieldset className="admin-wide">
               <legend>Nuotraukos</legend>
               <label className="admin-upload-button">Pridėti nuotraukas
-                <input type="file" accept={REGISTRATION_PHOTO_ACCEPT} multiple onChange={(event) => { void selectPhotos("add", event); }} />
+                <input type="file" aria-describedby="add-photo-error" accept={REGISTRATION_PHOTO_ACCEPT} multiple onChange={(event) => { void selectPhotos("add", event); }} />
               </label>
+              <p className="field-error admin-upload-error" id="add-photo-error" aria-live="polite">{uploadErrors.add}</p>
               <SelectedPhotoPreviews photos={addSelectedPhotos} onRemove={(id) => removeSelectedPhoto("add", id)} />
               <p className="field-note">JPG, PNG, WebP arba HEIC; iki 8 nuotraukų; originalas iki 10 MB. Prieš įkeliant automatiškai optimizuojama į WebP iki 1920 px ir 1 MB.</p>
               <details className="admin-advanced"><summary>Išplėstiniai nustatymai: nuotraukų URL</summary>
@@ -939,6 +947,7 @@ export default function AdminPage() {
           const canApprove = eligibility.filter((item) => !item.isState).every((item) => item.ok) && profile.status !== "approved";
           const approvedPhotos = profile.photoRecords?.filter((photo) => photo.moderationStatus === "approved" && !photo.removedAt) ?? [];
           const activePhotos = profile.photoRecords?.filter((photo) => !photo.removedAt) ?? [];
+          const qualityWarnings = profileQualityWarnings(profile, profiles);
 
           return (
             <article className="admin-card" key={profile.id}>
@@ -947,6 +956,7 @@ export default function AdminPage() {
                   <p className="eyebrow">{formatApprovalStatus(profile.status)} / {formatPublicStatus(profile)}</p>
                   <h2>{profile.name}</h2>
                   <p>{profile.trade} / {formatSubcategories(profile)}</p>
+                  {qualityWarnings.length ? <p className="admin-quality-warning">Kokybės patikra: {qualityWarnings.join(" · ")}</p> : null}
                 </div>
                 <button className="admin-secondary" type="button" onClick={() => setOpenProfileId((current) => current === profile.id ? null : profile.id)}>
                   {openProfileId === profile.id ? "Uždaryti" : "Peržiūrėti ir redaguoti"}
@@ -1201,8 +1211,9 @@ export default function AdminPage() {
                   <legend>Nuotraukos</legend>
                   <label className="admin-upload-button">
                     Pridėti nuotraukas
-                    <input type="file" accept={REGISTRATION_PHOTO_ACCEPT} multiple onChange={(event) => { void selectPhotos(profile.id, event); }} />
+                    <input type="file" aria-describedby={`photo-error-${profile.id}`} accept={REGISTRATION_PHOTO_ACCEPT} multiple onChange={(event) => { void selectPhotos(profile.id, event); }} />
                   </label>
+                  <p className="field-error admin-upload-error" id={`photo-error-${profile.id}`} aria-live="polite">{uploadErrors[profile.id]}</p>
                   <SelectedPhotoPreviews photos={selectedPhotos[profile.id] ?? []} onRemove={(id) => removeSelectedPhoto(profile.id, id)} />
                   {(selectedPhotos[profile.id]?.length ?? 0) > 0 ? <button type="button" onClick={() => uploadSelectedPhotos(profile.id, selectedPhotos[profile.id] ?? [])} disabled={pendingActions[`${profile.id}:upload`]}>Įkelti pasirinktas nuotraukas</button> : null}
                   {uploadProgress[profile.id] !== undefined ? <progress max="100" value={uploadProgress[profile.id]}>{uploadProgress[profile.id]}%</progress> : null}
