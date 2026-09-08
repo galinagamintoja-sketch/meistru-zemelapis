@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import SafeProfileImage from "./SafeProfileImage";
 import type { Category, Specialist } from "../lib/types";
@@ -39,6 +39,7 @@ const normalized = (value: string | null | undefined) => (value ?? "")
 
 function specialistPhoto(specialist: Specialist) {
  const candidates = [
+ specialist.cardPhotoUrls?.[0],
  specialist.photoRecords?.find((photo) => photo.moderationStatus === "approved" && !photo.removedAt)?.url,
  specialist.photoUrls?.[0],
  specialist.photos?.[0]
@@ -163,6 +164,19 @@ export default function HomepagePreviewV2({
     if (showAll) params.set("all", "1");
     return `/${params.size ? `?${params.toString()}` : ""}#results`;
   }, [locationQuery, serviceQuery, showAll, viewMode]);
+
+  const rememberReturnPosition = useCallback(() => {
+    sessionStorage.setItem(`localpro:return-scroll:${returnHref}`, String(window.scrollY));
+  }, [returnHref]);
+
+  useEffect(() => {
+    if (window.location.hash !== "#results") return;
+    const stored = sessionStorage.getItem(`localpro:return-scroll:${window.location.pathname}${window.location.search}#results`);
+    if (stored === null) return;
+    const y = Number(stored);
+    if (!Number.isFinite(y)) return;
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.scrollTo({ top: y, behavior: "instant" })));
+  }, []);
 
   const serviceSuggestions = useMemo(() => {
     const names = categories.flatMap((category) => [category.name, ...category.subcategories.map((subcategory) => subcategory.name)]);
@@ -337,6 +351,7 @@ export default function HomepagePreviewV2({
         rating.textContent = specialist.rating ? `★ ${specialist.rating.toFixed(1)} (${specialist.reviewCount})` : "Naujas specialistas";
         const link = document.createElement("a");
         link.href = `/meistrai/${profileSeoSlug(specialist)}?return=${encodeURIComponent(returnHref)}`;
+        link.addEventListener("click", rememberReturnPosition);
         link.textContent = "Peržiūrėti profilį";
         popup.append(name, photoWrap, trade, place, rating, link);
         marker.bindPopup(popup);
@@ -355,7 +370,7 @@ export default function HomepagePreviewV2({
     }
 
     renderMarkers();
-  }, [mapReady, mapSpecialists, returnHref]);
+  }, [mapReady, mapSpecialists, rememberReturnPosition, returnHref]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -458,7 +473,7 @@ export default function HomepagePreviewV2({
               const location = specialist.approximateLocation || specialist.town;
               const services = specialist.subcategoryNames?.slice(0, 2) ?? specialist.categoryNames?.slice(0, 2) ?? [];
               return (
-                <a className={styles.specialistCard} href={`/meistrai/${profileSeoSlug(specialist)}?return=${encodeURIComponent(returnHref)}`} key={specialist.id}>
+                <a className={styles.specialistCard} href={`/meistrai/${profileSeoSlug(specialist)}?return=${encodeURIComponent(returnHref)}`} onClick={rememberReturnPosition} key={specialist.id}>
                   <div className={styles.photoWrap}>
                     <SafeProfileImage
                       src={photo}

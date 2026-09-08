@@ -292,6 +292,14 @@ export async function PATCH(request: Request) {
     let selectedCategories: Array<{ id: string; slug?: string | null; name?: string | null }> = [];
     let selectedSubcategories: Array<{ id: string; service_category_id: string }> = [];
 
+    const proposedTown = updates.town === undefined ? null : cleanText(updates.town);
+    const proposedCities = Array.isArray(updates.operatingCities)
+      ? updates.operatingCities.map((city: unknown) => cleanText(city)).filter(Boolean)
+      : [];
+    if ((proposedTown !== null && !isPublicLocality(proposedTown)) || proposedCities.some((city: string) => !isPublicLocality(city))) {
+      return NextResponse.json({ error: "Public locality must be a city or settlement, not a street or address." }, { status: 400 });
+    }
+
     if (updates.phone && !isLithuanianPhone(String(updates.phone))) {
       return NextResponse.json({ error: "Enter a valid Lithuanian phone number." }, { status: 400 });
     }

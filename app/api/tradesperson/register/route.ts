@@ -273,7 +273,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Registracijos užbaigti nepavyko. Bandykite dar kartą." }, { status: 500 });
   }
 
-  const uploadPlans: Array<{ storagePath: string; signedUrl: string; uploadToken: string } | null> = [];
+  const uploadPlans: Array<{ storagePath: string; signedUrl: string; cardStoragePath: string; cardSignedUrl: string; uploadToken: string } | null> = [];
   if (payload.photoUploads.length) {
     const bucketError = await ensureProfilePhotosBucket(supabase);
     if (bucketError) {
@@ -281,21 +281,30 @@ export async function POST(request: Request) {
     } else {
       for (const photo of payload.photoUploads) {
         const extension = "webp";
-        const storagePath = `${profile.id}/${crypto.randomUUID()}.${extension}`;
-        const { data: signed, error: signError } = await supabase.storage.from(PROFILE_PHOTOS_BUCKET).createSignedUploadUrl(storagePath);
-        if (signError || !signed) {
+        const photoId = crypto.randomUUID();
+        const storagePath = `${profile.id}/${photoId}.${extension}`;
+        const cardStoragePath = `${profile.id}/${photoId}.card.${extension}`;
+        const [galleryUpload, cardUpload] = await Promise.all([
+          supabase.storage.from(PROFILE_PHOTOS_BUCKET).createSignedUploadUrl(storagePath),
+          supabase.storage.from(PROFILE_PHOTOS_BUCKET).createSignedUploadUrl(cardStoragePath)
+        ]);
+        if (galleryUpload.error || cardUpload.error || !galleryUpload.data || !cardUpload.data) {
           uploadPlans.push(null);
           continue;
         }
         uploadPlans.push({
           storagePath,
-          signedUrl: signed.signedUrl,
+          signedUrl: galleryUpload.data.signedUrl,
+          cardStoragePath,
+          cardSignedUrl: cardUpload.data.signedUrl,
           uploadToken: createRegistrationPhotoUploadToken({
             profileId: profile.id,
             storagePath,
+            cardStoragePath,
             name: photo.name,
             type: photo.type,
             size: photo.size,
+            cardSize: photo.cardSize,
             expiresAt: Date.now() + 15 * 60 * 1000
           })
         });

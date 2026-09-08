@@ -37,7 +37,7 @@ export type ProfileRow = {
     service_subcategories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
   }>;
   operating_areas?: Array<{ city: string; radius_km: number | null }>;
-  profile_photos?: Array<{ id?: string | null; label: string | null; url: string | null; storage_path?: string | null; moderation_status?: "pending" | "approved" | "rejected" | null; sort_order: number | null; is_primary?: boolean | null; removed_from_profile_at?: string | null }>;
+  profile_photos?: Array<{ id?: string | null; label: string | null; url: string | null; card_url?: string | null; storage_path?: string | null; card_storage_path?: string | null; moderation_status?: "pending" | "approved" | "rejected" | null; sort_order: number | null; is_primary?: boolean | null; removed_from_profile_at?: string | null }>;
   reviews?: Array<{ client_name: string; rating: number; text: string | null; moderation_status: string }>;
   admin_actions?: Array<{ id?: string | null; action: string; notes?: string | null; created_at: string; created_by_role?: string | null }>;
 };
@@ -86,6 +86,7 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
   const photoUrls = visiblePhotoRows
     .map((photo) => photo.url || "")
     .filter(Boolean);
+  const cardPhotoUrls = visiblePhotoRows.map((photo) => photo.card_url || photo.url || "").filter(Boolean);
   const photoRecords = visiblePhotoRows
     .filter((photo) => photo.id && photo.url)
     .map((photo) => ({
@@ -130,6 +131,7 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
     description: row.description ?? "",
     photos: photos?.length ? photos : ["Darbų pavyzdžiai laukiami"],
     photoUrls: photoUrls?.length ? photoUrls : undefined,
+    cardPhotoUrls: cardPhotoUrls.length ? cardPhotoUrls : undefined,
     photoRecords: photoRecords.length ? photoRecords : undefined,
     adminActions: (row.admin_actions ?? []).map((action) => ({
       id: String(action.id ?? `${action.action}-${action.created_at}`),

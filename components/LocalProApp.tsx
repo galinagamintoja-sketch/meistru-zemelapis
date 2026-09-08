@@ -7,7 +7,7 @@ import type { Category, Specialist } from "../lib/types";
 import { formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../lib/phone";
 import {
-  compressProfilePhoto,
+  createProfilePhotoDerivatives,
   countNonEmptyPhotoUrls,
   mergeRegistrationPhotoSelections,
   REGISTRATION_PHOTO_ACCEPT,
@@ -333,11 +333,12 @@ export async function submitRegistrationDraft(draft: RegistrationDraft, options:
     phone: isLithuanianPhone(normalizedPhone) ? normalizedPhone : addressResolution.draft.phone,
     trade: addressResolution.draft.trade || options.selectedCategoryNames?.[0] || addressResolution.draft.categorySlugs[0] || "",
     photoUrls: addressResolution.draft.photoUrls.map((url) => url.trim()).filter(Boolean),
-    photoUploads: addressResolution.draft.photoUploads.map(({ name, type, size, lastModified }) => ({
+    photoUploads: addressResolution.draft.photoUploads.map(({ name, type, size, lastModified, cardFile }) => ({
       name,
       type,
       size,
-      lastModified
+      lastModified,
+      cardSize: cardFile?.size
     }))
   };
   const fetcher = options.fetcher ?? fetch;
@@ -925,8 +926,11 @@ export default function LocalProApp({
         : [];
       const uploadResult = await uploadRegistrationPhotos(addressResolution.draft.photoUploads, uploadPlans, {
         directUpload: async (plan, photo, onProgress) => {
-          if (!photo.file) throw new Error("Pasirinktas nuotraukos failas nepasiekiamas.");
-          await directRegistrationPhotoUpload(plan.signedUrl, photo.file, onProgress);
+          if (!photo.file || !photo.cardFile) throw new Error("Pasirinktas nuotraukos failas nepasiekiamas.");
+          await Promise.all([
+            directRegistrationPhotoUpload(plan.signedUrl, photo.file, (percent) => onProgress(Math.round(percent * 0.7))),
+            directRegistrationPhotoUpload(plan.cardSignedUrl, photo.cardFile, (percent) => onProgress(70 + Math.round(percent * 0.3)))
+          ]);
         },
         finalize: async (plan) => {
           const response = await fetch("/api/tradesperson/register/photos", {
@@ -1108,9 +1112,9 @@ export default function LocalProApp({
     try {
       const compressed = await Promise.all(accepted.map(async (photo) => {
         if (!photo.file) throw new Error("Failas nepasiekiamas.");
-        const file = await compressProfilePhoto(photo.file);
+        const { gallery: file, card } = await createProfilePhotoDerivatives(photo.file);
         URL.revokeObjectURL(photo.previewUrl);
-        return { ...photo, name: file.name, type: "image/webp" as const, size: file.size, previewUrl: URL.createObjectURL(file), file };
+        return { ...photo, name: file.name, type: "image/webp" as const, size: file.size, previewUrl: URL.createObjectURL(file), file, cardFile: card };
       }));
       setFormState((current) => ({ ...current, photoUploads: [...current.photoUploads, ...compressed] }));
       setSubmitMessage(result.message || `${compressed.length} nuotraukos optimizuotos ir pridėtos.`);

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isLithuanianPhone } from "./phone";
-import { REGISTRATION_PHOTO_MAX_BYTES, REGISTRATION_PHOTO_MAX_ITEMS, REGISTRATION_PHOTO_TYPES } from "./registration-photos";
+import { PROFILE_CARD_PHOTO_MAX_BYTES, REGISTRATION_PHOTO_MAX_BYTES, REGISTRATION_PHOTO_MAX_ITEMS, REGISTRATION_PHOTO_TYPES } from "./registration-photos";
 import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, MIN_PROFILE_SERVICES } from "./service-taxonomy";
 
 export { isLithuanianPhone, normalizeLithuanianPhone } from "./phone";
@@ -31,7 +31,8 @@ export const registrationPhotoUploadSchema = z.object({
   name: z.string().trim().min(1).max(180),
   type: z.enum(photoFieldMetadata.acceptedTypes),
   size: z.number().int().min(1).max(photoFieldMetadata.maxSizeMb * 1024 * 1024),
-  lastModified: z.number().int().nonnegative()
+  lastModified: z.number().int().nonnegative(),
+  cardSize: z.number().int().min(1).max(PROFILE_CARD_PHOTO_MAX_BYTES).optional()
 });
 
 export const travelRangeSchema = z.enum(["10", "25", "50", "100", "lt"]);

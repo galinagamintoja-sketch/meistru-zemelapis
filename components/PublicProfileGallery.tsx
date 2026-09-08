@@ -39,21 +39,21 @@ export default function PublicProfileGallery({ name, trade, photoUrls }: Props) 
 
   return <>
     <button className="public-profile-hero-photo" type="button" onClick={(event) => photoUrls.length && openGallery(0, event.currentTarget)} aria-label={photoUrls.length ? `Atidaryti ${name} darbų galeriją` : `${name} darbų nuotraukos nėra`} disabled={!photoUrls.length}>
-      <SafeProfileImage src={photoUrls[0]} alt={`${name} pagrindinė darbų nuotrauka`} specialistName={name} trade={trade} loading="eager" fallbackText="Nuotraukos nėra" />
+      <SafeProfileImage src={photoUrls[0]} alt={`${name} pagrindinė darbų nuotrauka`} specialistName={name} trade={trade} loading="eager" sizes="(max-width: 620px) 58vw, 220px" fallbackText="Nuotraukos nėra" />
       {photoUrls.length ? <span>Peržiūrėti darbus</span> : null}
     </button>
     {photoUrls.length ? <section className="public-profile-gallery" aria-labelledby="public-profile-gallery-title">
       <h2 id="public-profile-gallery-title">Darbų nuotraukos</h2>
       <div className="photo-grid">
         {photoUrls.map((url, index) => <button type="button" className="public-profile-gallery-button" key={`${url}-${index}`} onClick={(event) => openGallery(index, event.currentTarget)} aria-label={`Atidaryti nuotrauką ${index + 1} iš ${photoUrls.length}`}>
-          <SafeProfileImage src={url} alt={`${name} darbų nuotrauka ${index + 1}`} specialistName={name} trade={trade} className="public-profile-photo" fallbackText="Nuotraukos nėra" />
+          <SafeProfileImage src={url} alt={`${name} darbų nuotrauka ${index + 1}`} specialistName={name} trade={trade} className="public-profile-photo" sizes="(max-width: 620px) 100vw, 50vw" fallbackText="Nuotraukos nėra" />
         </button>)}
       </div>
     </section> : null}
     {activeIndex !== null ? <dialog ref={dialogRef} className="profile-lightbox" role="dialog" aria-modal="true" aria-label={`${name} darbų galerija`} onCancel={(event) => { event.preventDefault(); closeGallery(); }} onClick={(event) => { if (event.target === event.currentTarget) closeGallery(); }}>
       <div className="profile-lightbox-content">
         <button className="profile-lightbox-close" type="button" onClick={closeGallery} aria-label="Uždaryti galeriją">×</button>
-        <SafeProfileImage src={photoUrls[activeIndex]} alt={`${name} darbų nuotrauka ${activeIndex + 1}`} specialistName={name} trade={trade} loading="eager" fallbackText="Nuotraukos nėra" />
+        <SafeProfileImage src={photoUrls[activeIndex]} alt={`${name} darbų nuotrauka ${activeIndex + 1}`} specialistName={name} trade={trade} loading="eager" sizes="100vw" fallbackText="Nuotraukos nėra" />
         <div className="profile-lightbox-controls">
           <button type="button" onClick={() => setActiveIndex((activeIndex - 1 + photoUrls.length) % photoUrls.length)} aria-label="Ankstesnė nuotrauka">←</button>
           <span>{activeIndex + 1} / {photoUrls.length}</span>

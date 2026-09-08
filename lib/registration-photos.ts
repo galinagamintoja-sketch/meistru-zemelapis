@@ -1,6 +1,8 @@
 export const REGISTRATION_PHOTO_MAX_ITEMS = 8;
 export const REGISTRATION_PHOTO_INPUT_MAX_BYTES = 10 * 1024 * 1024;
 export const REGISTRATION_PHOTO_MAX_BYTES = 1024 * 1024;
+export const PROFILE_CARD_PHOTO_MAX_BYTES = 150 * 1024;
+export const PROFILE_CARD_PHOTO_MAX_EDGE = 640;
 export const REGISTRATION_PHOTO_TYPES = ["image/webp"] as const;
 export const REGISTRATION_PHOTO_INPUT_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
 export const REGISTRATION_PHOTO_ACCEPT = [...REGISTRATION_PHOTO_INPUT_TYPES, ".heic", ".heif"].join(",");
@@ -23,11 +25,14 @@ export type RegistrationPhotoSelection = {
   lastModified: number;
   previewUrl: string;
   file?: File;
+  cardFile?: File;
 };
 
 export type RegistrationPhotoUploadPlan = {
   storagePath: string;
   signedUrl: string;
+  cardStoragePath: string;
+  cardSignedUrl: string;
   uploadToken: string;
 };
 
@@ -127,6 +132,29 @@ async function hasExpectedImageSignature(file: File) {
   return false;
 }
 
+async function renderProfilePhoto(bitmap: ImageBitmap, originalName: string, lastModified: number, maxEdge: number, maxBytes: number) {
+  let dimensions = fitPhotoDimensions(bitmap.width, bitmap.height, maxEdge);
+  let quality = maxBytes <= PROFILE_CARD_PHOTO_MAX_BYTES ? 0.76 : 0.8;
+  let blob: Blob | null = null;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const canvas = document.createElement("canvas");
+    canvas.width = dimensions.width;
+    canvas.height = dimensions.height;
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("Nuotraukos apdoroti nepavyko.");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, dimensions.width, dimensions.height);
+    context.drawImage(bitmap, 0, 0, dimensions.width, dimensions.height);
+    blob = await canvasToWebp(canvas, quality);
+    if (blob.size <= maxBytes) break;
+    quality = Math.max(0.58, quality - 0.04);
+    if (quality <= 0.62) dimensions = fitPhotoDimensions(Math.round(dimensions.width * 0.86), Math.round(dimensions.height * 0.86), maxEdge);
+  }
+  if (!blob || blob.size > maxBytes) throw new Error(`Nuotraukos nepavyko sumažinti iki ${Math.round(maxBytes / 1024)} KB.`);
+  const outputName = `${originalName.replace(/\.[^.]+$/, "") || "nuotrauka"}.webp`;
+  return new File([blob], outputName, { type: "image/webp", lastModified });
+}
+
 export async function compressProfilePhoto(file: File) {
   if (!isSupportedPhotoInput(file) || file.size < 1 || file.size > REGISTRATION_PHOTO_INPUT_MAX_BYTES) {
     throw new Error("Pasirinkite JPG, PNG, WebP arba HEIC nuotrauką iki 10 MB.");
@@ -143,33 +171,18 @@ export async function compressProfilePhoto(file: File) {
   }
 
   try {
-    let dimensions = fitPhotoDimensions(bitmap.width, bitmap.height);
-    let quality = 0.8;
-    let blob: Blob | null = null;
+    return renderProfilePhoto(bitmap, file.name, file.lastModified, REGISTRATION_PHOTO_MAX_EDGE, REGISTRATION_PHOTO_MAX_BYTES);
+  } finally {
+    bitmap.close();
+  }
+}
 
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      const canvas = document.createElement("canvas");
-      canvas.width = dimensions.width;
-      canvas.height = dimensions.height;
-      const context = canvas.getContext("2d", { alpha: false });
-      if (!context) throw new Error("Nuotraukos apdoroti nepavyko.");
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, dimensions.width, dimensions.height);
-      context.drawImage(bitmap, 0, 0, dimensions.width, dimensions.height);
-      blob = await canvasToWebp(canvas, quality);
-      if (blob.size <= REGISTRATION_PHOTO_MAX_BYTES) break;
-      quality = Math.max(0.72, quality - 0.03);
-      if (quality <= 0.72) {
-        dimensions = fitPhotoDimensions(Math.round(dimensions.width * 0.88), Math.round(dimensions.height * 0.88));
-      }
-    }
-
-    if (!blob || blob.size > REGISTRATION_PHOTO_MAX_BYTES) {
-      throw new Error("Nuotraukos nepavyko sumažinti iki 1 MB neprarandant per daug kokybės.");
-    }
-
-    const outputName = `${file.name.replace(/\.[^.]+$/, "") || "nuotrauka"}.webp`;
-    return new File([blob], outputName, { type: "image/webp", lastModified: file.lastModified });
+export async function createProfilePhotoDerivatives(file: File) {
+  const gallery = await compressProfilePhoto(file);
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  try {
+    const card = await renderProfilePhoto(bitmap, file.name, file.lastModified, PROFILE_CARD_PHOTO_MAX_EDGE, PROFILE_CARD_PHOTO_MAX_BYTES);
+    return { gallery, card };
   } finally {
     bitmap.close();
   }
