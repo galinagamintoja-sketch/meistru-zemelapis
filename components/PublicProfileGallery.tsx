@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import SafeProfileImage from "./SafeProfileImage";
 
 type Props = { name: string; trade: string; photoUrls: string[] };
@@ -8,6 +8,7 @@ type Props = { name: string; trade: string; photoUrls: string[] };
 export default function PublicProfileGallery({ name, trade, photoUrls }: Props) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
 
   function openGallery(index: number, opener: HTMLButtonElement) {
@@ -21,9 +22,15 @@ export default function PublicProfileGallery({ name, trade, photoUrls }: Props) 
     window.requestAnimationFrame(() => openerRef.current?.focus());
   }
 
+  const mountDialog = useCallback((dialog: HTMLDialogElement | null) => {
+    dialogRef.current = dialog;
+    if (!dialog || dialog.open) return;
+    dialog.showModal();
+    window.requestAnimationFrame(() => closeRef.current?.focus());
+  }, []);
+
   useEffect(() => {
     if (activeIndex === null) return;
-    dialogRef.current?.showModal();
     document.body.style.overflow = "hidden";
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") { event.preventDefault(); closeGallery(); }
@@ -50,9 +57,9 @@ export default function PublicProfileGallery({ name, trade, photoUrls }: Props) 
         </button>)}
       </div>
     </section> : null}
-    {activeIndex !== null ? <dialog ref={dialogRef} className="profile-lightbox" role="dialog" aria-modal="true" aria-label={`${name} darbų galerija`} onCancel={(event) => { event.preventDefault(); closeGallery(); }} onClick={(event) => { if (event.target === event.currentTarget) closeGallery(); }}>
+    {activeIndex !== null ? <dialog ref={mountDialog} className="profile-lightbox" role="dialog" aria-modal="true" aria-label={`${name} darbų galerija`} onCancel={(event) => { event.preventDefault(); closeGallery(); }} onClick={(event) => { if (event.target === event.currentTarget) closeGallery(); }}>
       <div className="profile-lightbox-content">
-        <button className="profile-lightbox-close" type="button" onClick={closeGallery} aria-label="Uždaryti galeriją">×</button>
+        <button ref={closeRef} className="profile-lightbox-close" type="button" onClick={closeGallery} aria-label="Uždaryti galeriją">×</button>
         <SafeProfileImage src={photoUrls[activeIndex]} alt={`${name} darbų nuotrauka ${activeIndex + 1}`} specialistName={name} trade={trade} loading="eager" sizes="100vw" fallbackText="Nuotraukos nėra" />
         <div className="profile-lightbox-controls">
           <button type="button" onClick={() => setActiveIndex((activeIndex - 1 + photoUrls.length) % photoUrls.length)} aria-label="Ankstesnė nuotrauka">←</button>

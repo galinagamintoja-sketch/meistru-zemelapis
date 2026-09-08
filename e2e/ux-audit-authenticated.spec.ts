@@ -75,7 +75,7 @@ test.describe.serial("authenticated UX audit completion", () => {
       await page.setViewportSize({ width, height: 844 });
       await page.goto("/");
       await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
-      await expect(page.locator(".mobile-account-identity")).toContainText(longName);
+      await expect(page.getByRole("link", { name: `Atidaryti paskyrą: ${longName}` })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     }
   });
