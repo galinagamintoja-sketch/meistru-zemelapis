@@ -6,10 +6,13 @@ import SafeProfileImage from "./SafeProfileImage";
 type Props = { name: string; trade: string; photoUrls: string[] };
 
 export default function PublicProfileGallery({ name, trade, photoUrls }: Props) {
+  const [hydrated, setHydrated] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => setHydrated(true), []);
 
   function openGallery(index: number, opener: HTMLButtonElement) {
     openerRef.current = opener;
@@ -45,14 +48,14 @@ export default function PublicProfileGallery({ name, trade, photoUrls }: Props) 
   }, [activeIndex, photoUrls.length]);
 
   return <>
-    <button className="public-profile-hero-photo" type="button" onClick={(event) => photoUrls.length && openGallery(0, event.currentTarget)} aria-label={photoUrls.length ? `Atidaryti ${name} darbų galeriją` : `${name} darbų nuotraukos nėra`} disabled={!photoUrls.length}>
+    <button className="public-profile-hero-photo" type="button" data-gallery-ready={hydrated || undefined} onClick={(event) => photoUrls.length && openGallery(0, event.currentTarget)} aria-label={photoUrls.length ? `Atidaryti ${name} darbų galeriją` : `${name} darbų nuotraukos nėra`} disabled={!photoUrls.length || !hydrated}>
       <SafeProfileImage src={photoUrls[0]} alt={`${name} pagrindinė darbų nuotrauka`} specialistName={name} trade={trade} loading="eager" sizes="(max-width: 620px) 58vw, 220px" fallbackText="Nuotraukos nėra" />
       {photoUrls.length ? <span>Peržiūrėti darbus</span> : null}
     </button>
     {photoUrls.length ? <section className="public-profile-gallery" aria-labelledby="public-profile-gallery-title">
       <h2 id="public-profile-gallery-title">Darbų nuotraukos</h2>
       <div className="photo-grid">
-        {photoUrls.map((url, index) => <button type="button" className="public-profile-gallery-button" key={`${url}-${index}`} onClick={(event) => openGallery(index, event.currentTarget)} aria-label={`Atidaryti nuotrauką ${index + 1} iš ${photoUrls.length}`}>
+        {photoUrls.map((url, index) => <button type="button" disabled={!hydrated} className="public-profile-gallery-button" key={`${url}-${index}`} onClick={(event) => openGallery(index, event.currentTarget)} aria-label={`Atidaryti nuotrauką ${index + 1} iš ${photoUrls.length}`}>
           <SafeProfileImage src={url} alt={`${name} darbų nuotrauka ${index + 1}`} specialistName={name} trade={trade} className="public-profile-photo" sizes="(max-width: 620px) 100vw, 50vw" fallbackText="Nuotraukos nėra" />
         </button>)}
       </div>
