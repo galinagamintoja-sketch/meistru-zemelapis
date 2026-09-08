@@ -14,7 +14,7 @@ describe("public tradesperson profile gallery", () => {
   });
 
   it("keeps the compact hero placeholder when a profile has no image", () => {
-    expect(gallery).toContain("disabled={!photoUrls.length}");
+    expect(gallery).toContain("disabled={!photoUrls.length || !hydrated}");
     expect(gallery).not.toContain("if (!photoUrls.length) return null");
   });
 

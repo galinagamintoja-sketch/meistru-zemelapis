@@ -17,11 +17,15 @@ test("homepage, registration and search return state stay usable across narrow v
   await expect(page).toHaveURL(/service=Apdaila.*locality=Vilnius/);
   const firstProfile = page.locator('a[href^="/meistrai/"]').first();
   await expect(firstProfile).toHaveAttribute("href", /return=/);
+  await firstProfile.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 73));
+  const previousScrollY = await page.evaluate(() => window.scrollY);
   await firstProfile.click();
   const returnLink = page.locator(".public-profile-nav a").last();
   await expect(returnLink).toHaveAttribute("href", /service=Apdaila.*locality=Vilnius.*#results/);
   await returnLink.click();
   await expect(page).toHaveURL(/service=Apdaila.*locality=Vilnius.*#results/, { timeout: 30_000 });
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(previousScrollY);
 
   await page.goto("/meistro-registracija");
   const registrationHeading = page.getByRole("heading", { name: "Meistro registracija", exact: true });
