@@ -47,6 +47,16 @@ describe("registration submit address fallback", () => {
     });
   });
 
+  it("requires a work area before validating specific services", () => {
+    expect(validateRegistrationDraftClient({ ...baseDraft, categorySlugs: [], subcategorySlugs: [] })).toMatchObject({
+      workAreas: "Pasirinkite bent vieną darbo sritį."
+    });
+    expect(validateRegistrationDraftClient({ ...baseDraft, categorySlugs: [], subcategorySlugs: [] })).not.toHaveProperty("services");
+    expect(validateRegistrationDraftClient({ ...baseDraft, categorySlugs: ["apdaila"], subcategorySlugs: [] })).toMatchObject({
+      services: "Pasirinkite bent 2 konkrečias paslaugas."
+    });
+  });
+
   it("normalizes a 06 number before submission", async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       void input;

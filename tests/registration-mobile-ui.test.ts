@@ -16,6 +16,13 @@ describe("registration mobile UI regressions", () => {
     expect(page).toContain("disabled={!formState.subcategorySlugs.includes(subcategory.slug) && formState.subcategorySlugs.length >= MAX_PROFILE_SERVICES}");
   });
 
+  it("gives work areas an inline error and reliable focus target", () => {
+    expect(page).toContain('name="workAreas"');
+    expect(page).toContain('aria-invalid={Boolean(registrationErrors.workAreas)}');
+    expect(page).toContain("registrationErrors.workAreas");
+    expect(page).toContain('errors.workAreas = "Pasirinkite bent vieną darbo sritį."');
+  });
+
   it("keeps manual URL import collapsed and starts without an empty URL row", () => {
     expect(page).toContain("photoUrls: []");
     expect(page).toContain("<summary>Išplėstiniai nustatymai: nuotraukų URL</summary>");

@@ -72,7 +72,7 @@ type RegistrationErrorResponse = {
   };
 };
 
-type RegistrationClientField = "name" | "phone" | "email" | "address" | "services" | "description" | "termsAccepted" | "publicContactConsent";
+type RegistrationClientField = "name" | "phone" | "email" | "address" | "workAreas" | "services" | "description" | "termsAccepted" | "publicContactConsent";
 export type RegistrationClientErrors = Partial<Record<RegistrationClientField, string>>;
 
 type LocationResolveResponse = {
@@ -362,7 +362,8 @@ export function validateRegistrationDraftClient(draft: RegistrationDraft): Regis
   if (!isLithuanianPhone(draft.phone)) errors.phone = "Įveskite lietuvišką numerį, pvz. 063601230 arba +37063601230.";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) errors.email = "Įveskite galiojantį el. pašto adresą.";
   if (draft.address.trim().length < 3) errors.address = "Įveskite registracijos adresą arba vietovę Lietuvoje.";
-  if (draft.subcategorySlugs.length < 2) errors.services = "Pasirinkite bent 2 konkrečias paslaugas.";
+  if (!draft.categorySlugs.length) errors.workAreas = "Pasirinkite bent vieną darbo sritį.";
+  else if (draft.subcategorySlugs.length < 2) errors.services = "Pasirinkite bent 2 konkrečias paslaugas.";
   if (draft.description.trim().length < 80) errors.description = "Aprašymas turi būti bent 80 simbolių.";
   if (!draft.termsAccepted || !draft.privacyAcknowledged) errors.termsAccepted = "Sutikite su sąlygomis ir patvirtinkite, kad susipažinote su privatumo politika.";
   if (!draft.publicContactConsent) errors.publicContactConsent = "Patvirtinkite viešų kontaktų rodymo sutikimą.";
@@ -1526,19 +1527,24 @@ export default function LocalProApp({
                 />
               </div>
               <p className="field-note">Klientams rodoma tik bendra vietovė ir aptarnavimo zona.</p>
-              <fieldset>
+              <fieldset aria-invalid={Boolean(registrationErrors.workAreas)} aria-describedby={registrationErrors.workAreas ? "work-areas-error" : undefined}>
                 <legend>{selectionCounter("Darbo sritys", formState.categorySlugs.length, MAX_PROFILE_CATEGORIES)}</legend>
                 {categories.map((category) => (
                   <label key={category.id}>
                     <input
                       type="checkbox"
+                      name="workAreas"
                       checked={formState.categorySlugs.includes(category.slug)}
                       disabled={!formState.categorySlugs.includes(category.slug) && formState.categorySlugs.length >= MAX_PROFILE_CATEGORIES}
-                      onChange={(event) => updateCategory(category.slug, event.target.checked)}
+                      onChange={(event) => {
+                        updateCategory(category.slug, event.target.checked);
+                        if (event.target.checked) setRegistrationErrors((current) => ({ ...current, workAreas: undefined }));
+                      }}
                     />
                     {category.name}
                   </label>
                 ))}
+                {registrationErrors.workAreas ? <span id="work-areas-error" className="field-error">{registrationErrors.workAreas}</span> : null}
               </fieldset>
               {formState.categorySlugs.length >= MAX_PROFILE_CATEGORIES ? <p role="status">Pasiekėte 8 darbo sričių limitą.</p> : null}
               {selectedSubcategories.length ? (
