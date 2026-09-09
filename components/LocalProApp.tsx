@@ -73,7 +73,7 @@ type RegistrationErrorResponse = {
   };
 };
 
-type RegistrationClientField = "phone" | "services" | "description" | "termsAccepted" | "publicContactConsent";
+type RegistrationClientField = "name" | "phone" | "email" | "address" | "services" | "description" | "termsAccepted" | "publicContactConsent";
 export type RegistrationClientErrors = Partial<Record<RegistrationClientField, string>>;
 
 type LocationResolveResponse = {
@@ -359,7 +359,10 @@ export async function submitRegistrationDraft(draft: RegistrationDraft, options:
 
 export function validateRegistrationDraftClient(draft: RegistrationDraft): RegistrationClientErrors {
   const errors: RegistrationClientErrors = {};
+  if (draft.name.trim().length < 2) errors.name = "Įveskite vardą arba įmonės pavadinimą.";
   if (!isLithuanianPhone(draft.phone)) errors.phone = "Įveskite lietuvišką numerį, pvz. 063601230 arba +37063601230.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) errors.email = "Įveskite galiojantį el. pašto adresą.";
+  if (draft.address.trim().length < 3) errors.address = "Įveskite registracijos adresą arba vietovę Lietuvoje.";
   if (draft.subcategorySlugs.length < 2) errors.services = "Pasirinkite bent 2 konkrečias paslaugas.";
   if (draft.description.trim().length < 80) errors.description = "Aprašymas turi būti bent 80 simbolių.";
   if (!draft.termsAccepted || !draft.privacyAcknowledged) errors.termsAccepted = "Sutikite su sąlygomis ir patvirtinkite, kad susipažinote su privatumo politika.";
@@ -1480,7 +1483,8 @@ export default function LocalProApp({
               <div className="form-row">
                 <label>
                   Vardas arba įmonės pavadinimas *
-                  <input value={formState.name} onChange={(event) => setFormState({ ...formState, name: event.target.value })} type="text" autoComplete="name" />
+                  <input name="name" value={formState.name} onChange={(event) => { setFormState({ ...formState, name: event.target.value }); setRegistrationErrors((current) => ({ ...current, name: undefined })); }} type="text" autoComplete="name" aria-invalid={Boolean(registrationErrors.name)} />
+                  {registrationErrors.name ? <span className="field-error">{registrationErrors.name}</span> : null}
                 </label>
                 <label>
                   Telefono numeris *
@@ -1502,11 +1506,14 @@ export default function LocalProApp({
               <div className="form-row">
                 <label>
                   El. paštas *
-                  <input value={formState.email} onChange={(event) => setFormState({ ...formState, email: event.target.value })} type="email" autoComplete="email" />
+                  <input name="email" value={formState.email} onChange={(event) => { setFormState({ ...formState, email: event.target.value }); setRegistrationErrors((current) => ({ ...current, email: undefined })); }} type="email" autoComplete="email" aria-invalid={Boolean(registrationErrors.email)} />
+                  {registrationErrors.email ? <span className="field-error">{registrationErrors.email}</span> : null}
                 </label>
                 <AddressAutocomplete
                   label="Registracijos adresas"
                   required
+                  name="address"
+                  error={registrationErrors.address}
                   value={{
                     address: formState.address,
                     placeId: formState.placeId,
@@ -1516,7 +1523,7 @@ export default function LocalProApp({
                     street: formState.street,
                     postcode: formState.postcode
                   }}
-                  onChange={(address) => setFormState((current) => ({ ...current, ...address, city: address.town || current.city }))}
+                  onChange={(address) => { setFormState((current) => ({ ...current, ...address, city: address.town || current.city })); setRegistrationErrors((current) => ({ ...current, address: undefined })); }}
                   placeholder="Pvz. Trakų g. 10, Lentvaris"
                 />
               </div>

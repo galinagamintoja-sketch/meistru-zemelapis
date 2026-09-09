@@ -532,13 +532,18 @@ export default function HomepagePreviewV2({
         </section>
 
         <section className={styles.registrationCta} id="how-it-works">
-          <div className={styles.ctaIcon} aria-hidden="true">1</div>
+          <div className={styles.ctaIcon} aria-hidden="true">3</div>
           <div>
-            <p className={styles.eyebrow}>Specialistams</p>
-            <h2>Leiskite klientams jus atrasti.</h2>
-            <p>Susikurkite profilį su paslaugomis, darbo zona ir atliktų darbų nuotraukomis.</p>
+            <p className={styles.eyebrow}>Kaip tai veikia klientams</p>
+            <h2>Raskite tinkamą meistrą trimis žingsniais.</h2>
+            <ol className={styles.customerSteps}>
+              <li><strong>Ieškokite</strong><span>Pasirinkite paslaugą ir vietovę.</span></li>
+              <li><strong>Palyginkite</strong><span>Peržiūrėkite darbus, paslaugas ir aptarnavimo zoną.</span></li>
+              <li><strong>Susisiekite</strong><span>Atidarykite profilį ir susitarkite tiesiogiai.</span></li>
+            </ol>
+            <p><strong>Teikiate paslaugas?</strong> Sukurkite atskirą specialisto profilį su savo darbo zona ir darbų nuotraukomis.</p>
           </div>
-          <a href="/meistro-registracija">Sukurti profilį <span>→</span></a>
+          <a href="/meistro-registracija">Registruotis specialistu <span>→</span></a>
         </section>
       </main>
     </div>

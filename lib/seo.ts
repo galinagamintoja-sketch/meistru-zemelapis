@@ -56,6 +56,10 @@ export function professionByLandingSlug(slug: string) {
   return Object.entries(professionSeo).find(([, value]) => value.slug === slug);
 }
 
+export function legacyProfileSeoSlug(profile: Specialist) {
+  return `${slugify(profile.companyName || profile.name)}-${slugify(profile.trade || "meistras")}-${slugify(profile.town)}-${stableSuffix(profile.id)}`;
+}
+
 function professionByCategorySlug(categorySlug: string) {
   const canonical = canonicalCategorySlug(categorySlug);
   return Object.entries(professionSeo).find(([legacySlug]) => canonicalCategorySlug(legacySlug) === canonical)?.[1];
