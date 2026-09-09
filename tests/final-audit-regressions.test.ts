@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { queuedPhotoStatus } from "../lib/photo-queue-status";
 import { resolveEditorCategoryId } from "../lib/profile-editor-category";
 import { categorySearchReturnPath } from "../lib/seo";
+import { specialistMatchesService } from "../components/HomepagePreviewV2";
+import type { Category, Specialist } from "../lib/types";
 
 describe("final audit regressions", () => {
   it("uses one clear normalized replacement for an inactive legacy primary category", () => {
@@ -52,6 +54,9 @@ describe("final audit regressions", () => {
     expect(source).toContain("categorySearchReturnPath");
     expect(source).not.toContain("/#mapSection");
     expect(categorySearchReturnPath("elektrikai", "Lentvaris")).toBe("/?service=Elektra+ir+apsaugos+sistemos&locality=Lentvaris#results");
+    const categories = [{ id: "electrical", slug: "elektra-ir-apsauga", name: "Elektra ir apsaugos sistemos", subcategories: [] }] satisfies Category[];
+    const legacyElectrical = { categorySlug: "elektra", categorySlugs: ["elektra"], trade: "Elektra", companyName: null, categoryNames: [], subcategoryNames: [] } as unknown as Specialist;
+    expect(specialistMatchesService(legacyElectrical, "Elektra ir apsaugos sistemos", categories)).toBe(true);
   });
 
   it("uses a keyboard-reachable photo chooser", () => {

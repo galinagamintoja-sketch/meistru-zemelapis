@@ -10,6 +10,7 @@ import { distanceKm } from "../lib/geo";
 import { clampToLithuania, getResponsiveLithuaniaMinZoom, LITHUANIA_BOUNDS } from "../lib/lithuania-map";
 import styles from "./HomepagePreviewV2.module.css";
 import LocalProPreviewBrand from "./LocalProPreviewBrand";
+import { canonicalCategorySlug } from "../lib/service-taxonomy";
 
 type Props = {
   initialSpecialists: Specialist[];
@@ -57,15 +58,22 @@ function specialistCountLabel(count: number) {
   return `${count} specialistų`;
 }
 
-function specialistMatchesService(specialist: Specialist, query: string) {
+export function specialistMatchesService(specialist: Specialist, query: string, categories: Category[] = []) {
   const needle = normalized(query);
   if (!needle) return true;
+
+  const specialistCategorySlugs = new Set(
+    [specialist.categorySlug, ...(specialist.categorySlugs ?? [])]
+      .map(canonicalCategorySlug)
+      .filter(Boolean)
+  );
 
   const values = [
     specialist.trade,
     specialist.companyName,
     ...(specialist.categoryNames ?? []),
-    ...(specialist.subcategoryNames ?? [])
+    ...(specialist.subcategoryNames ?? []),
+    ...categories.filter((category) => specialistCategorySlugs.has(category.slug)).map((category) => category.name)
   ].map(normalized);
 
   return values.some((value) => value.includes(needle));
@@ -189,7 +197,7 @@ export default function HomepagePreviewV2({
   }, [initialSpecialists]);
 
   const filteredSpecialists = useMemo(() => initialSpecialists
-    .filter((specialist) => specialistMatchesService(specialist, serviceQuery))
+    .filter((specialist) => specialistMatchesService(specialist, serviceQuery, categories))
     .filter((specialist) => specialistMatchesLocation(specialist, locationQuery))
     .map((specialist) => searchPoint ? {
       ...specialist,
@@ -204,12 +212,12 @@ export default function HomepagePreviewV2({
     ))
     .sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount ||
       (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY)),
-  [initialSpecialists, locationQuery, nearbyRadiusKm, searchPoint, serviceQuery]);
+  [categories, initialSpecialists, locationQuery, nearbyRadiusKm, searchPoint, serviceQuery]);
 
   const nearbyInitialMatches = useMemo(() => {
     if (!searchPoint) return [];
     return initialSpecialists
-      .filter((specialist) => specialistMatchesService(specialist, serviceQuery))
+      .filter((specialist) => specialistMatchesService(specialist, serviceQuery, categories))
       .map((specialist) => ({
         specialist,
         distance: distanceKm(searchPoint, {
@@ -218,7 +226,7 @@ export default function HomepagePreviewV2({
         })
       }))
       .filter(({ specialist, distance }) => distance <= nearbyInitialRadiusKm && (specialist.radius >= distance || specialist.radius >= 150));
-  }, [initialSpecialists, searchPoint, serviceQuery]);
+  }, [categories, initialSpecialists, searchPoint, serviceQuery]);
 
   useEffect(() => {
     if (!searchPoint || nearbyRadiusKm !== nearbyInitialRadiusKm || nearbyInitialMatches.length) return;
