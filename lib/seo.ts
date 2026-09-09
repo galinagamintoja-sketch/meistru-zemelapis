@@ -4,14 +4,14 @@ import type { Specialist } from "./types";
 
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://localpro.lt").replace(/\/$/, "");
 
-const professionSeo: Record<string, { slug: string; plural: string; singular: string }> = {
-  apdaila: { slug: "dazytojai", plural: "Dažytojai", singular: "Dažytojas" },
-  "staliaus-darbai": { slug: "staliai", plural: "Staliai", singular: "Stalius" },
-  santechnika: { slug: "santechnikai", plural: "Santechnikai", singular: "Santechnikas" },
-  elektra: { slug: "elektrikai", plural: "Elektrikai", singular: "Elektrikas" },
-  stogai: { slug: "stogdengiai", plural: "Stogdengiai", singular: "Stogdengys" },
-  "trinkeles-ir-aplinka": { slug: "trinkeliu-klojejai", plural: "Trinkelių klojėjai", singular: "Trinkelių klojėjas" },
-  "pilna-renovacija": { slug: "renovacijos-meistrai", plural: "Renovacijos meistrai", singular: "Renovacijos meistras" }
+const professionSeo: Record<string, { slug: string; plural: string; singular: string; searchName: string }> = {
+  apdaila: { slug: "dazytojai", plural: "Dažytojai", singular: "Dažytojas", searchName: "Vidaus apdaila" },
+  "staliaus-darbai": { slug: "staliai", plural: "Staliai", singular: "Stalius", searchName: "Medžio darbai ir baldai" },
+  santechnika: { slug: "santechnikai", plural: "Santechnikai", singular: "Santechnikas", searchName: "Santechnika" },
+  elektra: { slug: "elektrikai", plural: "Elektrikai", singular: "Elektrikas", searchName: "Elektra ir apsaugos sistemos" },
+  stogai: { slug: "stogdengiai", plural: "Stogdengiai", singular: "Stogdengys", searchName: "Stogai ir skardinimas" },
+  "trinkeles-ir-aplinka": { slug: "trinkeliu-klojejai", plural: "Trinkelių klojėjai", singular: "Trinkelių klojėjas", searchName: "Lauko ir sklypo darbai" },
+  "pilna-renovacija": { slug: "renovacijos-meistrai", plural: "Renovacijos meistrai", singular: "Renovacijos meistras", searchName: "Vidaus apdaila" }
 };
 
 const locationForms: Record<string, string> = {
@@ -53,6 +53,12 @@ export function profilePath(profile: Specialist) {
 
 export function professionByLandingSlug(slug: string) {
   return Object.entries(professionSeo).find(([, value]) => value.slug === slug);
+}
+
+export function categorySearchReturnPath(professionSlug: string, city: string) {
+  const searchName = professionByLandingSlug(professionSlug)?.[1].searchName;
+  const query = new URLSearchParams({ ...(searchName ? { service: searchName } : {}), locality: city });
+  return `/?${query.toString()}#results`;
 }
 
 export function categoryLocationPath(profile: Specialist, city: string) {

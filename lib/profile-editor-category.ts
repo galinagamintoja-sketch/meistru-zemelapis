@@ -7,7 +7,9 @@ type EditorCategoryResolution = {
 
 export function resolveEditorCategoryId({ activeCategoryIds, assignedCategoryIds, serviceCategoryIds, legacyCategoryId }: EditorCategoryResolution) {
   const active = new Set(activeCategoryIds);
-  return assignedCategoryIds.find((id) => active.has(id))
-    ?? serviceCategoryIds.find((id) => active.has(id))
-    ?? (legacyCategoryId && active.has(legacyCategoryId) ? legacyCategoryId : "");
+  if (legacyCategoryId && active.has(legacyCategoryId)) return legacyCategoryId;
+
+  const replacements = Array.from(new Set([...assignedCategoryIds, ...serviceCategoryIds]))
+    .filter((id) => active.has(id));
+  return replacements.length === 1 ? replacements[0] : "";
 }

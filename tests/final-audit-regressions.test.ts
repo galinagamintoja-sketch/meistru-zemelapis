@@ -3,15 +3,34 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { queuedPhotoStatus } from "../lib/photo-queue-status";
 import { resolveEditorCategoryId } from "../lib/profile-editor-category";
+import { categorySearchReturnPath } from "../lib/seo";
 
 describe("final audit regressions", () => {
-  it("uses the normalized assigned trade instead of a stale legacy primary category", () => {
+  it("uses one clear normalized replacement for an inactive legacy primary category", () => {
     expect(resolveEditorCategoryId({
-      activeCategoryIds: ["interior", "electrical"],
+      activeCategoryIds: ["electrical"],
       assignedCategoryIds: ["electrical"],
       serviceCategoryIds: ["electrical"],
       legacyCategoryId: "interior"
     })).toBe("electrical");
+  });
+
+  it("preserves a valid primary category for a multi-category specialist", () => {
+    expect(resolveEditorCategoryId({
+      activeCategoryIds: ["interior", "electrical", "plumbing"],
+      assignedCategoryIds: ["electrical", "plumbing"],
+      serviceCategoryIds: ["electrical", "plumbing"],
+      legacyCategoryId: "interior"
+    })).toBe("interior");
+  });
+
+  it("does not guess when an inactive primary has several possible replacements", () => {
+    expect(resolveEditorCategoryId({
+      activeCategoryIds: ["electrical", "plumbing"],
+      assignedCategoryIds: ["electrical", "plumbing"],
+      serviceCategoryIds: ["electrical", "plumbing"],
+      legacyCategoryId: "retired-category"
+    })).toBe("");
   });
 
   it("does not silently select the first option for an unmapped trade", () => {
@@ -31,8 +50,8 @@ describe("final audit regressions", () => {
   it("returns category visitors to URL-backed homepage results", () => {
     const source = fs.readFileSync(path.join(process.cwd(), "app/[profession]/[location]/page.tsx"), "utf8");
     expect(source).toContain("categorySearchReturnPath");
-    expect(source).toContain("#results");
     expect(source).not.toContain("/#mapSection");
+    expect(categorySearchReturnPath("elektrikai", "Lentvaris")).toBe("/?service=Elektra+ir+apsaugos+sistemos&locality=Lentvaris#results");
   });
 
   it("uses a keyboard-reachable photo chooser", () => {
@@ -40,5 +59,6 @@ describe("final audit regressions", () => {
     expect(source).toContain('type="button"');
     expect(source).toContain("pickerRef.current?.click()");
     expect(source).toContain('className="visually-hidden-file-input"');
+    expect(source).toContain("tabIndex={-1}");
   });
 });
