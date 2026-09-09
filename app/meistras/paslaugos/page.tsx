@@ -27,7 +27,7 @@ export default async function Page() {
     serviceCategoryIds: (current ?? []).map((item) => item.service_category_id).filter(Boolean),
     legacyCategoryId: profile.service_category_id
   });
-  return <div className="portal-page"><div className="portal-heading"><h1>Paslaugos</h1><p>Pasirinkite darbo sritis ir konkrečias paslaugas, privačią darbo bazę bei vieną bendrą aptarnavimo spindulį.</p></div><PortalCard title="Mano paslaugos">{categoryResolution.unresolved ? <p className="status-message error" role="alert">Ankstesnės darbo srities nepavyko saugiai priskirti. Pasirinkite tinkamą darbo sritį prieš išsaugodami.</p> : null}<ServicesForm groups={groups} selected={(current ?? []).map((item) => item.service_subcategory_id).filter(Boolean)} selectedCategories={categoryResolution.selectedCategoryIds} location={{
+  return <div className="portal-page"><div className="portal-heading"><h1>Paslaugos</h1><p>Pasirinkite darbo sritis ir konkrečias paslaugas, privačią darbo bazę bei vieną bendrą aptarnavimo spindulį.</p></div><PortalCard title="Mano paslaugos"><ServicesForm groups={groups} selected={(current ?? []).map((item) => item.service_subcategory_id).filter(Boolean)} selectedCategories={categoryResolution.selectedCategoryIds} location={{
     baseCity: profile.base_city ?? "", radiusKm: profile.radius_km ?? 20,
     address: profile.registered_address ?? "", placeId: profile.google_place_id ?? "",
     latitude: profile.latitude ?? null, longitude: profile.longitude ?? null, town: profile.base_city ?? ""

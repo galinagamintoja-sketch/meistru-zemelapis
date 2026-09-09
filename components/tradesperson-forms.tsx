@@ -3,6 +3,7 @@
 import { useState } from "react";
 import AddressAutocomplete, { type AddressValue } from "./AddressAutocomplete";
 import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, selectionCounter, uniqueServices } from "../lib/service-taxonomy";
+import { saveServicesAndArea } from "../lib/services-save";
 
 type ProfileValues = { displayName: string; companyName: string; primaryCategoryId: string; experienceYears: number; phone: string; whatsappNumber: string; publicEmail: string; description: string; languages: string[]; publicContactConsent: boolean };
 
@@ -83,16 +84,20 @@ export function ServicesForm({ groups, selected, selectedCategories, location }:
   }
 
   async function submit(formData: FormData) {
+    if (!selectedCategoryIds.length) {
+      setMessage("Pasirinkite bent vieną darbo sritį prieš išsaugodami.");
+      return;
+    }
     setMessage("Saugoma...");
-    const [servicesResponse, areaResponse] = await Promise.all([
-      fetch("/api/meistras/services", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ categoryIds: selectedCategoryIds, subcategoryIds: selectedIds }) }),
-      fetch("/api/meistras/areas", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({
+    const result = await saveServicesAndArea(fetch, {
+      categoryIds: selectedCategoryIds,
+      subcategoryIds: selectedIds,
+      area: {
         baseCity: formData.get("baseCity"), registeredAddress: address.address, googlePlaceId: address.placeId,
         latitude: address.latitude, longitude: address.longitude, radiusKm: formData.get("radiusKm")
-      }) })
-    ]);
-    const failed = !servicesResponse.ok ? await servicesResponse.json() : !areaResponse.ok ? await areaResponse.json() : null;
-    setMessage(failed ? failed.error ?? "Išsaugoti nepavyko." : "Paslaugos ir darbo zona išsaugotos.");
+      }
+    });
+    setMessage(result.ok ? result.message : result.error);
   }
 
   return <form className="portal-form services-editor" action={submit}>
@@ -107,6 +112,7 @@ export function ServicesForm({ groups, selected, selectedCategories, location }:
         <strong>{selectionCounter("Darbo sritys", selectedCategoryIds.length, MAX_PROFILE_CATEGORIES)}</strong>
         <strong>{selectionCounter("Paslaugos", selectedIds.length, MAX_PROFILE_SERVICES)}</strong>
       </div>
+      {!selectedCategoryIds.length ? <p className="status-message error" role="alert">Ankstesnės darbo srities nepavyko saugiai priskirti. Pasirinkite tinkamą darbo sritį prieš išsaugodami.</p> : null}
       {selectedIds.length >= MAX_PROFILE_SERVICES ? <p role="status">Pasiekėte 25 paslaugų limitą.</p> : null}
       <div className="service-accordions">{groups.filter((group) => selectedCategoryIds.includes(group.id)).map((group) => {
         const visible = group.items.filter((item) => item.name.toLocaleLowerCase("lt").includes(query.toLocaleLowerCase("lt")));
@@ -120,6 +126,6 @@ export function ServicesForm({ groups, selected, selectedCategories, location }:
       <small>Tikslus adresas ir koordinatės yra privatūs. Klientai mato tik bendrą vietovę ir aptarnavimo zoną.</small>
       <label>Vienas paslaugų spindulys<select name="radiusKm" defaultValue={location.radiusKm}>{[5,10,20,25,30,50,75,100].map((radius) => <option key={radius} value={radius}>{radius} km</option>)}<option value="150">Visa Lietuva</option></select></label>
     </section>
-    <button className="portal-primary" type="submit">Išsaugoti paslaugas</button><p role="status">{message}</p>
+    <button className="portal-primary" type="submit" disabled={!selectedCategoryIds.length}>Išsaugoti paslaugas</button><p role="status">{message}</p>
   </form>;
 }
