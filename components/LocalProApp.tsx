@@ -18,7 +18,6 @@ import {
 import type { HomepageAccountState } from "../lib/homepage-account-state";
 import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, selectionCounter, uniqueServices } from "../lib/service-taxonomy";
 import { clampToLithuania, getResponsiveLithuaniaMinZoom, LITHUANIA_BOUNDS } from "../lib/lithuania-map";
-import { EmailAuthForm } from "./email-auth-form";
 import { ServiceSearchCombobox } from "./service-search-combobox";
 import { profileSeoSlug } from "../lib/seo";
 
@@ -1459,8 +1458,6 @@ export default function LocalProApp({
                 <h3>Prisijunkite arba sukurkite paskyrą</h3>
                 <p>Po prisijungimo grįšite į šį puslapį ir galėsite užpildyti meistro registraciją.</p>
                 <a className="google-primary-button" href="/auth/google?next=%2Fmeistro-registracija">Tęsti su Google</a>
-                <div className="login-divider"><span>arba el. paštu</span></div>
-                <EmailAuthForm next="/meistro-registracija" />
               </article>
             ) : accountState.isAdmin && !adminRegistrationAllowed ? (
               <article className="registration-form success-panel">
@@ -1505,8 +1502,9 @@ export default function LocalProApp({
               </div>
               <div className="form-row">
                 <label>
-                  El. paštas *
+                  Viešas kontaktinis el. paštas *
                   <input name="email" value={formState.email} onChange={(event) => { setFormState({ ...formState, email: event.target.value }); setRegistrationErrors((current) => ({ ...current, email: undefined })); }} type="email" autoComplete="email" aria-invalid={Boolean(registrationErrors.email)} />
+                  <span className="field-note">Automatiškai užpildytą Google paskyros adresą galite pakeisti kitu klientams skirtu kontaktiniu adresu.</span>
                   {registrationErrors.email ? <span className="field-error">{registrationErrors.email}</span> : null}
                 </label>
                 <AddressAutocomplete

@@ -12,8 +12,7 @@ export type AccountResolution = {
 function verifiedEmail(user: User) {
   if (!user.email || !user.email_confirmed_at) return null;
   const verifiedIdentity = (user.identities ?? []).some((identity) =>
-    identity.provider === "email"
-    || (identity.provider === "google" && identity.identity_data?.email_verified === true)
+    identity.provider === "google" && identity.identity_data?.email_verified === true
   );
   return verifiedIdentity ? user.email.trim().toLowerCase() : null;
 }

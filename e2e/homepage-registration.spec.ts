@@ -28,7 +28,7 @@ for (const viewport of [
       await expect(page).toHaveURL(/\/meistro-registracija$/);
       await expect(page.getByRole("heading", { name: "Meistro registracija", level: 1 })).toBeVisible();
       await expect(page.getByRole("link", { name: "Tęsti su Google" })).toBeVisible();
-      await expect(page.getByRole("button", { name: "Prisijungti el. paštu" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Tęsti su Google" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Sukurti paskyrą" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Patikimi meistrai jūsų mieste." })).toBeHidden();
       await expect(page.getByRole("heading", { name: "Pasirinkite specialistą žemėlapyje arba sąraše." })).toBeHidden();

@@ -42,11 +42,7 @@ describe("verified-email account resolution", () => {
     });
   });
 
-  it.each([
-    ["Google", [{ provider: "google", identity_data: { email_verified: true } }]],
-    ["confirmed Supabase email", [{ provider: "email", identity_data: {} }]]
-  ])("allows a verified %s identity and canonicalizes the email", async (_label, identities) => {
-    authUser = { ...authUser, identities };
+  it("allows a verified Google identity and canonicalizes the email", async () => {
     const { inspectVerifiedEmailResolution } = await import("../lib/verified-email-resolution");
 
     await expect(inspectVerifiedEmailResolution()).resolves.toEqual({
@@ -59,6 +55,18 @@ describe("verified-email account resolution", () => {
       p_email: "owner@example.lt",
       p_confirm: false
     });
+  });
+
+  it("rejects a legacy email identity because Google is the only supported provider", async () => {
+    authUser = { ...authUser, identities: [{ provider: "email", identity_data: {} }] };
+    const { inspectVerifiedEmailResolution } = await import("../lib/verified-email-resolution");
+
+    await expect(inspectVerifiedEmailResolution()).resolves.toEqual({
+      outcome: "unverified_email",
+      candidateCount: 0,
+      linked: false
+    });
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("rejects an unverified authenticated email before database resolution", async () => {

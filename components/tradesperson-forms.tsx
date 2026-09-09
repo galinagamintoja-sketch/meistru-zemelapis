@@ -37,7 +37,6 @@ export function ProfileForm({ initial, categories }: { initial: ProfileValues; c
     <div className="profile-editor-actions"><button className="portal-primary" type="submit">Išsaugoti pakeitimus</button><p role="status">{message}</p></div>
   </form>;
 }
-
 function SectionIcon({ path }: { path: string }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={path} /></svg>;
 }
@@ -123,13 +122,4 @@ export function ServicesForm({ groups, selected, selectedCategories, location }:
     </section>
     <button className="portal-primary" type="submit">Išsaugoti paslaugas</button><p role="status">{message}</p>
   </form>;
-}
-
-export function LoginEmailForm({ email }: { email: string }) {
-  const [message, setMessage] = useState("");
-  async function submit(formData: FormData) {
-    const response = await fetch("/api/meistras/login-email", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: formData.get("email") }) });
-    const data = await response.json(); setMessage(response.ok ? data.message ?? "Pakeitimų nėra." : data.error ?? "Pakeisti nepavyko.");
-  }
-  return <form className="portal-form" action={submit}><label>Prisijungimo el. paštas<input type="email" name="email" defaultValue={email} required /><small>Pakeitimas įsigalios tik patvirtinus el. paštą per „Supabase Auth“.</small></label><button className="portal-secondary" type="submit">Keisti prisijungimo el. paštą</button><p role="status">{message}</p></form>;
 }

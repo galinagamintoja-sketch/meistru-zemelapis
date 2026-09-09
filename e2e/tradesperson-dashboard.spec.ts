@@ -5,7 +5,7 @@ test("logged-out mobile visitor is redirected from protected dashboard", async (
   await expect(page).toHaveURL(/\/login\?next=%2Fmeistras%2Fprofilis/);
   await expect(page.getByRole("link", { name: "Tęsti su Google" })).toBeVisible();
   await expect(page.getByText("Po pirmo prisijungimo užpildysite trumpą registraciją")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Prisijungti el. paštu" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Tęsti su Google" })).toBeVisible();
   await expect(page.viewportSize()).toEqual({ width: 390, height: 844 });
 });
 

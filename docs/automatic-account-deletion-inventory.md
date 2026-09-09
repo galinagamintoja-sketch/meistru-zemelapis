@@ -51,9 +51,9 @@ Storage and Auth are external to the PostgreSQL transaction. Therefore the job m
 - `POST /api/meistras/account-requests` currently requires a session through `requireOwnedProfile`, checks same-origin when an Origin header exists, inserts a pending request, and optionally writes an admin action. It neither hides nor schedules nor deletes anything.
 - Despite its name, `requireOwnedProfile` supports an authenticated account with no linked profile. Mutation routes then reject or no-op individually when `profile` is absent.
 - Every `/meistras` page is protected by the server layout, which calls Supabase `auth.getUser()` through `requireTradespersonUser`; unauthenticated users are redirected to `/login`. There is no repository middleware file.
-- Profile mutation routes (`profile`, `services`, `areas`, `photos`, `visibility`, and login-email) do not currently check for a pending deletion. A shared server-side guard is required; hiding UI controls alone is insufficient.
+- Profile mutation routes (`profile`, `services`, `areas`, `photos`, and `visibility`) do not currently check for a pending deletion. A shared server-side guard is required; hiding UI controls alone is insufficient.
 - The repository has no `vercel.json`, Vercel Cron route, Supabase `pg_cron` schedule, background worker, or job lease infrastructure.
-- The repository has no application transactional-email dependency. Supabase Auth email flows exist for sign-up, password recovery and email changes only.
+- The repository has no application transactional-email dependency. Authentication is handled exclusively through Google OAuth.
 - The `profile-photos` bucket is configured private by later migration hardening. Server routes create signed upload URLs. Current object paths use the profile UUID as the first path segment.
 - Enquiry photos live in a separate private `enquiry-photos` bucket and must not be removed by tradesperson account deletion.
 

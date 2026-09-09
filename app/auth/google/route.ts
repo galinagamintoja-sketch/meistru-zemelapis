@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAuthClient } from "../../../lib/supabase-ssr";
+import { safeAuthNext } from "../../../lib/safe-auth-next";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const requested = requestUrl.searchParams.get("next") ?? "/meistras";
-  const next = requested.startsWith("/") && !requested.startsWith("//") ? requested : "/meistras";
+  const next = safeAuthNext(requested);
   const supabase = await createSupabaseAuthClient();
   const callback = new URL("/auth/callback", requestUrl.origin);
   callback.searchParams.set("next", next);

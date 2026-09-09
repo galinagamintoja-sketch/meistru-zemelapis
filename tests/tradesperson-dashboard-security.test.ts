@@ -122,13 +122,8 @@ describe("tradesperson dashboard security", () => {
     for (const label of ["Visos", "Patvirtintos", "Laukia", "Atmestos"]) expect(photos).toContain(label);
   });
 
-  it("supports Supabase email auth without linking by public email", () => {
-    const emailRoute = read("app/api/auth/email/route.ts");
-    expect(emailRoute).toContain("signInWithPassword");
-    expect(emailRoute).toContain("signUp");
-    expect(emailRoute).toContain("resetPasswordForEmail");
-    expect(emailRoute).toContain("updateUser({ password })");
-    expect(emailRoute).not.toContain("tradesperson_profiles");
+  it("uses the Google OAuth callback without linking by public email", () => {
+    expect(read("app/auth/google/route.ts")).toContain('provider: "google"');
     expect(read("app/auth/callback/route.ts")).toContain("exchangeCodeForSession");
   });
 

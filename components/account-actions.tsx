@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 
 type Deletion = { status: string; scheduledDeletionAt: string | null } | null;
 
-export function AccountActions({ hasPassword, email, initialDeletion }: { hasPassword: boolean; email: string; initialDeletion: Deletion }) {
+export function AccountActions({ initialDeletion }: { initialDeletion: Deletion }) {
   const router = useRouter();
   const [message, setMessage] = useState("");
   const [deletion, setDeletion] = useState<Deletion>(initialDeletion);
@@ -45,14 +45,7 @@ export function AccountActions({ hasPassword, email, initialDeletion }: { hasPas
     setPending(false);
   }
 
-  async function recovery(formData: FormData) {
-    const response = await fetch("/api/auth/email", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "recovery", email: formData.get("email") }) });
-    const data = await response.json(); setMessage(response.ok ? data.message : data.error);
-  }
-
   return <div className="portal-form">
-    {!deletion && hasPassword ? <form action={recovery}><input type="hidden" name="email" value={email} /><button className="portal-secondary" type="submit">Keisti arba atkurti slaptažodį</button></form> : null}
-    {!deletion && !hasPassword ? <p>Slaptažodžio nėra – ši paskyra prijungta per išorinį teikėją.</p> : null}
     <button className="portal-secondary" type="button" disabled={pending} onClick={() => void requestExport()}>Prašyti savo duomenų kopijos</button>
     <section className="account-deletion-section" aria-labelledby="account-deletion-title">
       <h3 id="account-deletion-title">Visam laikui ištrinti paskyrą</h3>

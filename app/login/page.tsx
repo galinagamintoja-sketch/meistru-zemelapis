@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { EmailAuthForm } from "../../components/email-auth-form";
 import { createSupabaseAuthClient } from "../../lib/supabase-ssr";
+import { safeAuthNext } from "../../lib/safe-auth-next";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -19,7 +19,7 @@ const messages: Record<string, string> = {
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; next?: string }> }) {
   const params = await searchParams;
-  const next = params.next?.startsWith("/") && !params.next.startsWith("//") ? params.next : "/meistras";
+  const next = safeAuthNext(params.next);
   const supabase = await createSupabaseAuthClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (user) redirect(next);
@@ -28,8 +28,5 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <div className="login-copy"><p className="eyebrow">Meistro paskyra</p><h1>Prisijunkite arba registruokitės</h1><p>Po pirmo prisijungimo užpildysite trumpą registraciją. LocalPro sukurs naują specialisto profilį ir saugiai susies jį su jūsų paskyra.</p></div>
     {params.error ? <p className="admin-message" role="alert">{messages[params.error] ?? "Prisijungti nepavyko."}</p> : null}
     <a className="google-primary-button" href={`/auth/google?next=${encodeURIComponent(next)}`}>Tęsti su Google</a>
-    <div className="login-divider"><span>arba el. paštu</span></div>
-    <EmailAuthForm next={next} />
-    <p className="login-privacy">Jūsų prisijungimas perduodamas užšifruotu ryšiu, o slaptažodžio LocalPro nemato ir nesaugo.</p>
   </section></main>;
 }
