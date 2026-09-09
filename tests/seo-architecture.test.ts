@@ -49,6 +49,9 @@ describe("LocalPro SEO architecture", () => {
 
   it("matches eligible category/location profiles and excludes ineligible ones", () => {
     expect(matchesCategoryLocation(karolina, "dazytojai", "lentvaris")).toBe(true);
+    expect(matchesCategoryLocation({ ...karolina, categorySlug: "vidaus-apdaila", categorySlugs: ["vidaus-apdaila"] }, "dazytojai", "lentvaris")).toBe(true);
+    expect(matchesCategoryLocation({ ...karolina, categorySlug: "elektra-ir-apsauga", categorySlugs: ["elektra-ir-apsauga"] }, "elektrikai", "lentvaris")).toBe(true);
+    expect(matchesCategoryLocation({ ...karolina, categorySlug: "santechnika", categorySlugs: ["santechnika"] }, "dazytojai", "lentvaris")).toBe(false);
     expect(matchesCategoryLocation({ ...karolina, status: "pending" }, "dazytojai", "lentvaris")).toBe(false);
     expect(matchesCategoryLocation(karolina, "staliai", "trakai")).toBe(false);
   });
