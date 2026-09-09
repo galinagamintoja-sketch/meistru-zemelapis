@@ -29,3 +29,7 @@ export const tradespersonServicesUpdateSchema = z.object({
   categoryIds: z.array(z.string().uuid()).min(1).max(MAX_PROFILE_CATEGORIES).refine((ids) => new Set(ids).size === ids.length),
   subcategoryIds: z.array(z.string().uuid()).max(MAX_PROFILE_SERVICES).refine((ids) => new Set(ids).size === ids.length)
 });
+
+export const tradespersonServicesAndAreaUpdateSchema = tradespersonServicesUpdateSchema.extend({
+  area: tradespersonAreasUpdateSchema
+});

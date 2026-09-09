@@ -78,11 +78,29 @@ describe("PR 31 follow-up regressions", () => {
     expect(valid).not.toMatch(/<button[^>]*type="submit"[^>]*disabled=""/);
   });
 
-  it("sends both validated updates once a work area is selected", async () => {
+  it("sends one atomic validated update once a work area is selected", async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response("{}", { status: 200, headers: { "content-type": "application/json" } }));
     await expect(saveServicesAndArea(fetcher, {
       categoryIds: ["electrical"], subcategoryIds: [], area: { baseCity: "Vilnius", registeredAddress: "", googlePlaceId: "", latitude: null, longitude: null, radiusKm: 20 }
     })).resolves.toEqual({ ok: true, message: "Paslaugos ir darbo zona išsaugotos." });
-    expect(fetcher.mock.calls.map(([url]) => url)).toEqual(["/api/meistras/services", "/api/meistras/areas"]);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledWith("/api/meistras/services-and-area", expect.objectContaining({
+      method: "PUT",
+      body: JSON.stringify({
+        categoryIds: ["electrical"],
+        subcategoryIds: [],
+        area: { baseCity: "Vilnius", registeredAddress: "", googlePlaceId: "", latitude: null, longitude: null, radiusKm: 20 }
+      })
+    }));
+  });
+
+  it("does not report success when the atomic operation fails", async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "Patikrinkite darbo zoną." }), {
+      status: 400, headers: { "content-type": "application/json" }
+    }));
+    await expect(saveServicesAndArea(fetcher, {
+      categoryIds: ["electrical"], subcategoryIds: [], area: { baseCity: "Vilnius", registeredAddress: "Privatus adresas", googlePlaceId: "", latitude: null, longitude: null, radiusKm: 20 }
+    })).resolves.toEqual({ ok: false, error: "Patikrinkite darbo zoną." });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });

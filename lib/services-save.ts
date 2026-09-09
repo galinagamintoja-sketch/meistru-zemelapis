@@ -20,16 +20,12 @@ export async function saveServicesAndArea(fetcher: Fetcher, payload: SavePayload
     return { ok: false as const, error: "Pasirinkite bent vieną darbo sritį prieš išsaugodami." };
   }
 
-  const request = (url: string, body: unknown) => fetcher(url, {
+  const response = await fetcher("/api/meistras/services-and-area", {
     method: "PUT",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body)
+    body: JSON.stringify(payload)
   });
-  const [servicesResponse, areaResponse] = await Promise.all([
-    request("/api/meistras/services", { categoryIds: payload.categoryIds, subcategoryIds: payload.subcategoryIds }),
-    request("/api/meistras/areas", payload.area)
-  ]);
-  const failed = !servicesResponse.ok ? await servicesResponse.json() : !areaResponse.ok ? await areaResponse.json() : null;
+  const failed = !response.ok ? await response.json().catch(() => ({})) : null;
   return failed
     ? { ok: false as const, error: failed.error ?? "Išsaugoti nepavyko." }
     : { ok: true as const, message: "Paslaugos ir darbo zona išsaugotos." };
