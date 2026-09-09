@@ -31,6 +31,7 @@
 .google-primary-button,
 .portal-primary { background: var(--clay); color: #fff; border-color: var(--clay); }
 .portal-secondary { background: var(--panel); color: var(--spruce); border-color: var(--line); }
+.visually-hidden-file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; margin: -1px; padding: 0; border: 0; clip: rect(0 0 0 0); white-space: nowrap; }
 .login-privacy { color: var(--muted); font-size: .875rem; line-height: 1.5; }
 .tradesperson-shell { min-height: 100vh; color: var(--ink); background: #f6f2e9; }
 .tradesperson-sidebar {

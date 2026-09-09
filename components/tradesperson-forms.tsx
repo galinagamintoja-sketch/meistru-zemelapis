@@ -22,7 +22,7 @@ export function ProfileForm({ initial, categories }: { initial: ProfileValues; c
       <section><h3><SectionIcon path="M6 20v-2a6 6 0 0 1 12 0v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />Pagrindinė informacija</h3>
         <label>Vardas ir pavardė<input name="displayName" defaultValue={initial.displayName} required /></label>
         <label>Įmonės arba veiklos pavadinimas<input name="companyName" defaultValue={initial.companyName} /></label>
-        <label>Pagrindinė specialybė<select name="primaryCategoryId" defaultValue={initial.primaryCategoryId} required>{categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}</select></label>
+        <label>Pagrindinė specialybė<select name="primaryCategoryId" defaultValue={initial.primaryCategoryId} required><option value="" disabled>Pasirinkite specialybę</option>{categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}</select>{!initial.primaryCategoryId ? <small role="alert">Anksčiau išsaugotos specialybės nepavyko susieti su dabartiniu sąrašu. Pasirinkite ją iš naujo.</small> : null}</label>
         <label>Patirties metai<input name="experienceYears" type="number" min="0" max="80" defaultValue={initial.experienceYears} required /></label>
         <label>Trumpas aprašymas<textarea name="description" defaultValue={initial.description} minLength={40} rows={7} required /></label>
       </section>

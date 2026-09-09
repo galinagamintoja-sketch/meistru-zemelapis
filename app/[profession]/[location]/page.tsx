@@ -29,8 +29,13 @@ export default async function CategoryLocationPage({ params }: PageProps) {
   const heading = `${entry[1].plural} ${locationLocative(city)}`;
   return <main className="public-profile-shell">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(categoryJsonLd(profession, city, profiles)) }} />
-    <nav className="public-profile-nav"><Link className="brand" href="/">LocalPro</Link><Link href="/#mapSection">Meistrų paieška</Link></nav>
+    <nav className="public-profile-nav"><Link className="brand" href="/">LocalPro</Link><Link href={categorySearchReturnPath(entry[1].plural, city)}>Meistrų paieška</Link></nav>
     <header className="public-profile-card"><h1>{heading}</h1><p>Raskite patikimus meistrus {locationLocative(city)}. Peržiūrėkite profilius, paslaugas, darbų nuotraukas ir aptarnaujamas teritorijas.</p></header>
     <section aria-label={heading}>{profiles.map((profile) => <SeoProfileCard key={profile.id} profile={profile} />)}</section>
   </main>;
+}
+
+function categorySearchReturnPath(service: string, city: string) {
+  const query = new URLSearchParams({ service, locality: city });
+  return `/?${query.toString()}#results`;
 }
