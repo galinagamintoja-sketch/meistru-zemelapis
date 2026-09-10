@@ -54,7 +54,7 @@ begin
      or target_latitude is not null and (target_latitude < 53.8 or target_latitude > 56.5)
      or target_longitude is not null and (target_longitude < 20.5 or target_longitude > 27)
   then raise exception using errcode = '22023', message = 'Invalid coordinates'; end if;
-  if target_radius_km <> all(array[5,10,20,30,50,75,100,150])
+  if target_radius_km <> all(array[5,10,20,25,30,50,75,100,150])
   then raise exception using errcode = '22023', message = 'Invalid radius'; end if;
 
   select base_city, registered_address, radius_km

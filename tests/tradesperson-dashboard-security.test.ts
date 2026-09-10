@@ -64,7 +64,8 @@ describe("tradesperson dashboard security", () => {
     expect(tradespersonAreasUpdateSchema.safeParse({ baseCity: "Vilnius", cities: ["Vilnius"], radiusKm: 30 }).success).toBe(true);
     expect(tradespersonAreasUpdateSchema.safeParse({ baseCity: "Vilnius", cities: ["Vilnius"], radiusKm: 999 }).success).toBe(false);
     expect(tradespersonAreasUpdateSchema.safeParse({ baseCity: "Vilnius", registeredAddress: "Gedimino pr. 1, Vilnius", googlePlaceId: "place", latitude: 54.6872, longitude: 25.2797, radiusKm: 75 }).success).toBe(true);
-    expect(tradespersonAreasUpdateSchema.safeParse({ baseCity: "Vilnius", registeredAddress: "Gedimino pr. 1, Vilnius", latitude: 54.6872, longitude: 25.2797, radiusKm: 25 }).success).toBe(false);
+    expect(tradespersonAreasUpdateSchema.safeParse({ baseCity: "Vilnius", registeredAddress: "Gedimino pr. 1, Vilnius", latitude: 54.6872, longitude: 25.2797, radiusKm: 25 }).success).toBe(true);
+    expect(tradespersonAreasUpdateSchema.safeParse({ baseCity: "Vilnius", registeredAddress: "Gedimino pr. 1, Vilnius", latitude: 54.6872, longitude: 25.2797, radiusKm: 15 }).success).toBe(false);
   });
 
   it("requires moderation only for gallery photos", () => {
@@ -72,8 +73,6 @@ describe("tradesperson dashboard security", () => {
     expect(photos).toContain('rpc("submit_pending_profile_photo"');
     expect(read("supabase/migrations/017_dashboard_acceptance_hardening.sql")).toContain("'pending'");
     expect(read("app/api/meistras/profile/route.ts")).not.toContain("moderation_status");
-    expect(read("app/api/meistras/services/route.ts")).not.toContain("moderation_status");
-    expect(read("app/api/meistras/areas/route.ts")).not.toContain("moderation_status");
   });
 
   it("locks down and atomically handles dashboard replacement writes", () => {
@@ -83,8 +82,9 @@ describe("tradesperson dashboard security", () => {
     expect(migration).toContain("profile_photos_one_pending_replacement");
     expect(migration).toContain("pg_advisory_xact_lock");
     expect(migration).toContain("is_primary = replaced.is_primary");
-    expect(read("app/api/meistras/services/route.ts")).toContain('rpc("replace_tradesperson_services"');
-    expect(read("app/api/meistras/areas/route.ts")).toContain('rpc("replace_tradesperson_location"');
+    expect(fs.existsSync(path.join(root, "app/api/meistras/services/route.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(root, "app/api/meistras/areas/route.ts"))).toBe(false);
+    expect(read("app/api/meistras/services-and-area/route.ts")).toContain('rpc("replace_tradesperson_services_and_area"');
   });
 
   it("uses only the five approved dashboard sections", () => {

@@ -24,6 +24,7 @@ describe("atomic Services and Area save", () => {
     expect(migration).toContain("Invalid registered address");
     expect(migration).toContain("Invalid coordinates");
     expect(migration).toContain("Invalid radius");
+    expect(migration).toContain("array[5,10,20,25,30,50,75,100,150]");
     const firstWrite = migration.indexOf("delete from profile_category_assignments");
     for (const validationError of [
       "Invalid work area selection", "Invalid service selection", "Service outside selected work areas",

@@ -31,14 +31,16 @@ test("authenticated profile editing, ownership and photo moderation", async ({ p
   await page.goto("/meistras/nuotraukos");
   await expect(page.getByText("Pasirinkti nuotraukas", { exact: true })).toBeVisible();
 
-  if (process.env.E2E_SERVICE_ID && process.env.E2E_ENQUIRY_ID && process.env.E2E_FORBIDDEN_ENQUIRY_ID) {
-    const services = await page.request.put("/api/meistras/services", { data: { subcategoryIds: [process.env.E2E_SERVICE_ID] } });
-    expect(services.status()).toBe(200);
-    const location = await page.request.put("/api/meistras/areas", { data: {
-      baseCity: "Vilnius", registeredAddress: "Privatus g. 1, Vilnius", googlePlaceId: "preview-e2e",
-      latitude: 54.6872, longitude: 25.2797, radiusKm: 30
+  if (process.env.E2E_CATEGORY_ID && process.env.E2E_SERVICE_ID && process.env.E2E_ENQUIRY_ID && process.env.E2E_FORBIDDEN_ENQUIRY_ID) {
+    const servicesAndArea = await page.request.put("/api/meistras/services-and-area", { data: {
+      categoryIds: [process.env.E2E_CATEGORY_ID],
+      subcategoryIds: [process.env.E2E_SERVICE_ID],
+      area: {
+        baseCity: "Vilnius", registeredAddress: "Privatus g. 1, Vilnius", googlePlaceId: "preview-e2e",
+        latitude: 54.6872, longitude: 25.2797, radiusKm: 25
+      }
     } });
-    expect(location.status()).toBe(200);
+    expect(servicesAndArea.status()).toBe(200);
 
     const before = await page.request.get(`/api/meistras/requests/${process.env.E2E_ENQUIRY_ID}`);
     expect(before.status()).toBe(200);
