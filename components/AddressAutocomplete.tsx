@@ -85,6 +85,8 @@ type Props = {
   placeholder?: string;
   className?: string;
   note?: string;
+  name?: string;
+  error?: string;
 };
 
 const googlePlacesApiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ?? "";
@@ -109,7 +111,7 @@ export function nextAddressSuggestionIndex(current: number, count: number, key: 
   return key === "ArrowDown" ? Math.min(current + 1, count - 1) : Math.max(current - 1, 0);
 }
 
-export default function AddressAutocomplete({ label, value, onChange, required, placeholder, className = "", note }: Props) {
+export default function AddressAutocomplete({ label, value, onChange, required, placeholder, className = "", note, name, error }: Props) {
   const listId = `address-suggestions-${useId().replaceAll(":", "")}`;
   const [suggestions, setSuggestions] = useState<PlacesSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -211,6 +213,8 @@ export default function AddressAutocomplete({ label, value, onChange, required, 
     <label className={`address-autocomplete ${className}`.trim()}>
       {label}{required ? " *" : ""}
       <input
+        name={name}
+        aria-invalid={Boolean(error)}
         aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
         aria-autocomplete="list"
         aria-controls={listId}
@@ -242,6 +246,7 @@ export default function AddressAutocomplete({ label, value, onChange, required, 
         </ul>
       ) : null}
       {note ? <span className="field-note">{note}</span> : null}
+      {error ? <span className="field-error">{error}</span> : null}
       {status ? <span className="status-message error">{status}</span> : null}
     </label>
   );

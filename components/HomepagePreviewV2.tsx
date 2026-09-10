@@ -10,6 +10,7 @@ import { distanceKm } from "../lib/geo";
 import { clampToLithuania, getResponsiveLithuaniaMinZoom, LITHUANIA_BOUNDS } from "../lib/lithuania-map";
 import styles from "./HomepagePreviewV2.module.css";
 import LocalProPreviewBrand from "./LocalProPreviewBrand";
+import { canonicalCategorySlug } from "../lib/service-taxonomy";
 
 type Props = {
   initialSpecialists: Specialist[];
@@ -57,15 +58,22 @@ function specialistCountLabel(count: number) {
   return `${count} specialistų`;
 }
 
-function specialistMatchesService(specialist: Specialist, query: string) {
+export function specialistMatchesService(specialist: Specialist, query: string, categories: Category[] = []) {
   const needle = normalized(query);
   if (!needle) return true;
+
+  const specialistCategorySlugs = new Set(
+    [specialist.categorySlug, ...(specialist.categorySlugs ?? [])]
+      .map(canonicalCategorySlug)
+      .filter(Boolean)
+  );
 
   const values = [
     specialist.trade,
     specialist.companyName,
     ...(specialist.categoryNames ?? []),
-    ...(specialist.subcategoryNames ?? [])
+    ...(specialist.subcategoryNames ?? []),
+    ...categories.filter((category) => specialistCategorySlugs.has(category.slug)).map((category) => category.name)
   ].map(normalized);
 
   return values.some((value) => value.includes(needle));
@@ -189,7 +197,7 @@ export default function HomepagePreviewV2({
   }, [initialSpecialists]);
 
   const filteredSpecialists = useMemo(() => initialSpecialists
-    .filter((specialist) => specialistMatchesService(specialist, serviceQuery))
+    .filter((specialist) => specialistMatchesService(specialist, serviceQuery, categories))
     .filter((specialist) => specialistMatchesLocation(specialist, locationQuery))
     .map((specialist) => searchPoint ? {
       ...specialist,
@@ -204,12 +212,12 @@ export default function HomepagePreviewV2({
     ))
     .sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount ||
       (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY)),
-  [initialSpecialists, locationQuery, nearbyRadiusKm, searchPoint, serviceQuery]);
+  [categories, initialSpecialists, locationQuery, nearbyRadiusKm, searchPoint, serviceQuery]);
 
   const nearbyInitialMatches = useMemo(() => {
     if (!searchPoint) return [];
     return initialSpecialists
-      .filter((specialist) => specialistMatchesService(specialist, serviceQuery))
+      .filter((specialist) => specialistMatchesService(specialist, serviceQuery, categories))
       .map((specialist) => ({
         specialist,
         distance: distanceKm(searchPoint, {
@@ -218,7 +226,7 @@ export default function HomepagePreviewV2({
         })
       }))
       .filter(({ specialist, distance }) => distance <= nearbyInitialRadiusKm && (specialist.radius >= distance || specialist.radius >= 150));
-  }, [initialSpecialists, searchPoint, serviceQuery]);
+  }, [categories, initialSpecialists, searchPoint, serviceQuery]);
 
   useEffect(() => {
     if (!searchPoint || nearbyRadiusKm !== nearbyInitialRadiusKm || nearbyInitialMatches.length) return;
@@ -524,13 +532,18 @@ export default function HomepagePreviewV2({
         </section>
 
         <section className={styles.registrationCta} id="how-it-works">
-          <div className={styles.ctaIcon} aria-hidden="true">1</div>
+          <div className={styles.ctaIcon} aria-hidden="true">3</div>
           <div>
-            <p className={styles.eyebrow}>Specialistams</p>
-            <h2>Leiskite klientams jus atrasti.</h2>
-            <p>Susikurkite profilį su paslaugomis, darbo zona ir atliktų darbų nuotraukomis.</p>
+            <p className={styles.eyebrow}>Kaip tai veikia klientams</p>
+            <h2>Raskite tinkamą meistrą trimis žingsniais.</h2>
+            <ol className={styles.customerSteps}>
+              <li><strong>Ieškokite</strong><span>Pasirinkite paslaugą ir vietovę.</span></li>
+              <li><strong>Palyginkite</strong><span>Peržiūrėkite darbus, paslaugas ir aptarnavimo zoną.</span></li>
+              <li><strong>Susisiekite</strong><span>Atidarykite profilį ir susitarkite tiesiogiai.</span></li>
+            </ol>
+            <p><strong>Teikiate paslaugas?</strong> Sukurkite atskirą specialisto profilį su savo darbo zona ir darbų nuotraukomis.</p>
           </div>
-          <a href="/meistro-registracija">Sukurti profilį <span>→</span></a>
+          <a href="/meistro-registracija">Registruotis specialistu <span>→</span></a>
         </section>
       </main>
     </div>

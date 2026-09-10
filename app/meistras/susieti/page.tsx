@@ -20,7 +20,8 @@ export default async function ResolveAccountPage() {
     return <main className="portal-page"><section className="portal-card unlinked-account">
       <span className="status-badge status-warning">Reikia administratoriaus sprendimo</span>
       <h1>Paskyros automatiškai susieti negalime.</h1>
-      <p>Administratorius patikrins nuosavybę. Jokia privati profilio informacija šiame lange nerodoma.</p>
+      <p>Automatinis susiejimas sustabdytas, kad paskyra nebūtų perduota netinkamam asmeniui. Norėdami pradėti rankinę peržiūrą, parašykite pagalbai iš savo patvirtinto el. pašto ir trumpai nurodykite profilio pavadinimą.</p>
+      <a className="portal-primary" href="mailto:pagalba@localpro.lt?subject=LocalPro%20paskyros%20nuosavyb%C4%97s%20patikra">Kreiptis dėl nuosavybės patikros</a>
       <Link className="portal-secondary" href="/">Grįžti į pradžią</Link>
     </section></main>;
   }

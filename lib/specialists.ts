@@ -5,7 +5,7 @@ import { cityCoordinates, distanceKm, isNationwideTravelRange } from "./geo";
 import { createServerSupabase } from "./supabase";
 import { canonicalServiceSlug, categoriesFromAssignments, categoriesFromLegacy } from "./service-taxonomy";
 import type { Specialist } from "./types";
-import { isSeoEligible, profileSeoSlug } from "./seo";
+import { isSeoEligible, legacyProfileSeoSlug, profileSeoSlug } from "./seo";
 
 type SpecialistFilters = {
   service?: string | null;
@@ -190,7 +190,7 @@ export async function getSeoSpecialist(slug: string) {
 
 export async function getPublicSpecialistBySeoSlug(slug: string) {
   const requested = decodeURIComponent(slug).toLowerCase();
-  return (await getSpecialists()).find((specialist) => profileSeoSlug(specialist) === requested) ?? null;
+  return (await getSpecialists()).find((specialist) => profileSeoSlug(specialist) === requested || legacyProfileSeoSlug(specialist) === requested) ?? null;
 }
 
 export function specialistSlug(specialist: Pick<Specialist, "id" | "name">) {

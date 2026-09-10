@@ -22,10 +22,14 @@ export const tradespersonAreasUpdateSchema = z.object({
   latitude: z.number().min(53.8).max(56.5).nullable().optional().default(null),
   longitude: z.number().min(20.5).max(27).nullable().optional().default(null),
   cities: z.array(z.string().trim().min(2).max(100)).optional(),
-  radiusKm: z.coerce.number().int().refine((value) => [5, 10, 20, 30, 50, 75, 100, 150].includes(value))
+  radiusKm: z.coerce.number().int().refine((value) => [5, 10, 20, 25, 30, 50, 75, 100, 150].includes(value))
 });
 
 export const tradespersonServicesUpdateSchema = z.object({
   categoryIds: z.array(z.string().uuid()).min(1).max(MAX_PROFILE_CATEGORIES).refine((ids) => new Set(ids).size === ids.length),
   subcategoryIds: z.array(z.string().uuid()).max(MAX_PROFILE_SERVICES).refine((ids) => new Set(ids).size === ids.length)
+});
+
+export const tradespersonServicesAndAreaUpdateSchema = tradespersonServicesUpdateSchema.extend({
+  area: tradespersonAreasUpdateSchema
 });

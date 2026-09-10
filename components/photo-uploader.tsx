@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createProfilePhotoDerivatives, REGISTRATION_PHOTO_ACCEPT, REGISTRATION_PHOTO_MAX_ITEMS, mergeRegistrationPhotoSelections, uploadRegistrationPhotos, type RegistrationPhotoSelection } from "../lib/registration-photos";
+import { queuedPhotoStatus } from "../lib/photo-queue-status";
 
 type Photo = { id: string; name: string; url: string | null; status: string; rejectionReason?: string | null; isPrimary?: boolean };
 
@@ -17,6 +18,7 @@ export function PhotoUploader({ photos }: { photos: Photo[] }) {
   const [message, setMessage] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const uploadingRef = useRef(false);
+  const pickerRef = useRef<HTMLInputElement>(null);
   useEffect(() => setCurrent(photos), [photos]);
   const visible = filter === "all" ? current : current.filter((photo) => photo.status === filter);
   const approvedCount = current.filter((photo) => photo.status === "approved").length;
@@ -40,7 +42,7 @@ export function PhotoUploader({ photos }: { photos: Photo[] }) {
         return { ...photo, name: file.name, type: "image/webp" as const, size: file.size, previewUrl: URL.createObjectURL(file), file, cardFile: card };
       }));
       setQueue((items) => [...items, ...compressed]);
-      setMessage(result.message || `${compressed.length} nuotr. optimizuota ir paruošta peržiūrai.`);
+      setMessage(result.message || queuedPhotoStatus(queue.length + compressed.length));
     } catch (error) {
       accepted.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
       setMessage(error instanceof Error ? error.message : "Nuotraukų apdoroti nepavyko.");
@@ -92,8 +94,9 @@ export function PhotoUploader({ photos }: { photos: Photo[] }) {
       {([["all", "Visos", current.length], ["approved", "Patvirtintos", approvedCount], ["pending", "Laukia", pendingCount], ["rejected", "Atmestos", rejectedCount]] as const).map(([value, label, count]) => <button type="button" role="tab" aria-selected={filter === value} key={value} onClick={() => setFilter(value)}>{label} ({count})</button>)}
     </div>
     <div className="tradesperson-photo-grid">{visible.map((photo) => <figure key={photo.id}>{photo.url ? <img src={photo.url} alt={photo.name} /> : <div className="photo-placeholder">Tikrinama</div>}<figcaption><span>{photo.name}{photo.isPrimary ? " · Pagrindinė" : ""}</span><span className={`status-badge ${photo.status === "approved" ? "status-success" : photo.status === "rejected" ? "status-danger" : "status-warning"}`}>{photo.status === "approved" ? "Patvirtinta" : photo.status === "rejected" ? "Atmesta" : "Laukia patvirtinimo"}</span>{photo.rejectionReason ? <small>Priežastis: {photo.rejectionReason}</small> : null}<div className="photo-actions">{photo.status === "approved" ? <><button type="button" onClick={() => void mutate("primary", photo.id)}>Pagrindinė</button><button type="button" onClick={() => { setReplacementId(photo.id); setMessage("Pasirinkite pakaitinę nuotrauką. Dabartinė liks vieša iki patvirtinimo."); }}>Pakeisti</button></> : <button type="button" onClick={() => void mutate("remove", photo.id)}>Pašalinti</button>}</div></figcaption></figure>)}</div>
-    <label className="portal-secondary" aria-disabled={isUploading}>Pasirinkti nuotraukas<input hidden multiple type="file" disabled={isUploading} accept={REGISTRATION_PHOTO_ACCEPT} onChange={(event) => { void select(event.target.files); event.target.value = ""; }} /></label>
-    <div className="photo-preview-queue">{queue.map((photo, index) => <article key={photo.id}><img src={photo.previewUrl} alt="" /><strong>{photo.name}</strong><progress max="100" value={progress[photo.id] ?? 0} /><div className="photo-actions"><button type="button" onClick={() => move(photo.id, -1)} disabled={!index}>↑</button><button type="button" onClick={() => move(photo.id, 1)} disabled={index === queue.length - 1}>↓</button><button type="button" onClick={() => setQueue((items) => items.filter((item) => item.id !== photo.id))}>Pašalinti</button></div></article>)}</div>
+    <button className="portal-secondary" type="button" disabled={isUploading} onClick={() => pickerRef.current?.click()}>Pasirinkti nuotraukas</button>
+    <input ref={pickerRef} className="visually-hidden-file-input" tabIndex={-1} multiple type="file" disabled={isUploading} accept={REGISTRATION_PHOTO_ACCEPT} onChange={(event) => { void select(event.target.files); event.target.value = ""; }} />
+    <div className="photo-preview-queue">{queue.map((photo, index) => <article key={photo.id}><img src={photo.previewUrl} alt="" /><strong>{photo.name}</strong><progress max="100" value={progress[photo.id] ?? 0} /><div className="photo-actions"><button type="button" onClick={() => move(photo.id, -1)} disabled={!index}>↑</button><button type="button" onClick={() => move(photo.id, 1)} disabled={index === queue.length - 1}>↓</button><button type="button" onClick={() => setQueue((items) => { const next = items.filter((item) => item.id !== photo.id); URL.revokeObjectURL(photo.previewUrl); setMessage(queuedPhotoStatus(next.length)); return next; })}>Pašalinti</button></div></article>)}</div>
     <small>Iki {REGISTRATION_PHOTO_MAX_ITEMS} nuotraukų. JPG, PNG, WebP arba HEIC iki 10 MB automatiškai sumažinamos iki 1920 px ir 1 MB WebP. Originalai nesaugomi.</small>
     <button className="portal-primary" type="button" disabled={!queue.length || isUploading} onClick={() => void upload()}>{isUploading ? "Įkeliama…" : `Įkelti ${queue.length || ""} nuotr.`}</button><p role="status">{message}</p>
   </div>;

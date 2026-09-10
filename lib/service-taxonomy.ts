@@ -41,6 +41,17 @@ export const SERVICE_SLUG_ALIASES: Record<string, string> = {
 
 export const canonicalServiceSlug = (slug?: string | null) => slug ? SERVICE_SLUG_ALIASES[slug] ?? slug : slug;
 
+export const CATEGORY_SLUG_ALIASES: Record<string, string> = {
+  apdaila: "vidaus-apdaila",
+  "staliaus-darbai": "medzio-darbai-ir-baldai",
+  elektra: "elektra-ir-apsauga",
+  stogai: "stogai-ir-skardinimas",
+  "trinkeles-ir-aplinka": "lauko-ir-sklypo-darbai",
+  "pilna-renovacija": "vidaus-apdaila"
+};
+
+export const canonicalCategorySlug = (slug?: string | null) => slug ? CATEGORY_SLUG_ALIASES[slug] ?? slug : slug;
+
 export const CANONICAL_SERVICE_NAMES: Record<string, string> = {
   "vidaus-duru-montavimas": "Vidaus durų montavimas",
   "baldu-surinkimas": "Baldų surinkimas",

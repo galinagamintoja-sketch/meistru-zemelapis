@@ -6,6 +6,7 @@ import { requireOwnedProfile } from "../../../lib/tradesperson-account";
 import { categoriesFromAssignments, categoriesFromLegacy } from "../../../lib/service-taxonomy";
 import { getActiveAccountDeletion } from "../../../lib/account-deletion";
 import { DeletionPendingState } from "../../../components/deletion-pending-state";
+import { resolveServicesCategoryIds } from "../../../lib/services-category-resolution";
 export default async function Page() {
   const { user, profile } = await requireOwnedProfile();
   if (await getActiveAccountDeletion(user.id)) return <DeletionPendingState />;
@@ -20,10 +21,13 @@ export default async function Page() {
   const groups = !assignmentError && assignmentCategories?.length
     ? categoriesFromAssignments(assignmentCategories).map((category) => ({ id: category.id, name: category.name, items: category.subcategories }))
     : categoriesFromLegacy(legacyCategories ?? []).map((category) => ({ id: category.id, name: category.name, items: category.subcategories }));
-  const selectedCategories = !currentCategoriesError && currentCategories?.length
-    ? currentCategories.map((item) => item.service_category_id)
-    : Array.from(new Set([profile.service_category_id, ...(current ?? []).map((item) => item.service_category_id)].filter(Boolean))) as string[];
-  return <div className="portal-page"><div className="portal-heading"><h1>Paslaugos</h1><p>Pasirinkite darbo sritis ir konkrečias paslaugas, privačią darbo bazę bei vieną bendrą aptarnavimo spindulį.</p></div><PortalCard title="Mano paslaugos"><ServicesForm groups={groups} selected={(current ?? []).map((item) => item.service_subcategory_id).filter(Boolean)} selectedCategories={selectedCategories} location={{
+  const categoryResolution = resolveServicesCategoryIds({
+    activeCategoryIds: groups.map((group) => group.id),
+    assignedCategoryIds: currentCategoriesError ? [] : (currentCategories ?? []).map((item) => item.service_category_id),
+    serviceCategoryIds: (current ?? []).map((item) => item.service_category_id).filter(Boolean),
+    legacyCategoryId: profile.service_category_id
+  });
+  return <div className="portal-page"><div className="portal-heading"><h1>Paslaugos</h1><p>Pasirinkite darbo sritis ir konkrečias paslaugas, privačią darbo bazę bei vieną bendrą aptarnavimo spindulį.</p></div><PortalCard title="Mano paslaugos"><ServicesForm groups={groups} selected={(current ?? []).map((item) => item.service_subcategory_id).filter(Boolean)} selectedCategories={categoryResolution.selectedCategoryIds} location={{
     baseCity: profile.base_city ?? "", radiusKm: profile.radius_km ?? 20,
     address: profile.registered_address ?? "", placeId: profile.google_place_id ?? "",
     latitude: profile.latitude ?? null, longitude: profile.longitude ?? null, town: profile.base_city ?? ""

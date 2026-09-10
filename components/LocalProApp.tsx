@@ -18,7 +18,6 @@ import {
 import type { HomepageAccountState } from "../lib/homepage-account-state";
 import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, selectionCounter, uniqueServices } from "../lib/service-taxonomy";
 import { clampToLithuania, getResponsiveLithuaniaMinZoom, LITHUANIA_BOUNDS } from "../lib/lithuania-map";
-import { EmailAuthForm } from "./email-auth-form";
 import { ServiceSearchCombobox } from "./service-search-combobox";
 import { profileSeoSlug } from "../lib/seo";
 
@@ -73,7 +72,7 @@ type RegistrationErrorResponse = {
   };
 };
 
-type RegistrationClientField = "phone" | "services" | "description" | "termsAccepted" | "publicContactConsent";
+type RegistrationClientField = "name" | "phone" | "email" | "address" | "workAreas" | "services" | "description" | "termsAccepted" | "publicContactConsent";
 export type RegistrationClientErrors = Partial<Record<RegistrationClientField, string>>;
 
 type LocationResolveResponse = {
@@ -359,8 +358,12 @@ export async function submitRegistrationDraft(draft: RegistrationDraft, options:
 
 export function validateRegistrationDraftClient(draft: RegistrationDraft): RegistrationClientErrors {
   const errors: RegistrationClientErrors = {};
+  if (draft.name.trim().length < 2) errors.name = "Įveskite vardą arba įmonės pavadinimą.";
   if (!isLithuanianPhone(draft.phone)) errors.phone = "Įveskite lietuvišką numerį, pvz. 063601230 arba +37063601230.";
-  if (draft.subcategorySlugs.length < 2) errors.services = "Pasirinkite bent 2 konkrečias paslaugas.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) errors.email = "Įveskite galiojantį el. pašto adresą.";
+  if (draft.address.trim().length < 3) errors.address = "Įveskite registracijos adresą arba vietovę Lietuvoje.";
+  if (!draft.categorySlugs.length) errors.workAreas = "Pasirinkite bent vieną darbo sritį.";
+  else if (draft.subcategorySlugs.length < 2) errors.services = "Pasirinkite bent 2 konkrečias paslaugas.";
   if (draft.description.trim().length < 80) errors.description = "Aprašymas turi būti bent 80 simbolių.";
   if (!draft.termsAccepted || !draft.privacyAcknowledged) errors.termsAccepted = "Sutikite su sąlygomis ir patvirtinkite, kad susipažinote su privatumo politika.";
   if (!draft.publicContactConsent) errors.publicContactConsent = "Patvirtinkite viešų kontaktų rodymo sutikimą.";
@@ -1456,8 +1459,6 @@ export default function LocalProApp({
                 <h3>Prisijunkite arba sukurkite paskyrą</h3>
                 <p>Po prisijungimo grįšite į šį puslapį ir galėsite užpildyti meistro registraciją.</p>
                 <a className="google-primary-button" href="/auth/google?next=%2Fmeistro-registracija">Tęsti su Google</a>
-                <div className="login-divider"><span>arba el. paštu</span></div>
-                <EmailAuthForm next="/meistro-registracija" />
               </article>
             ) : accountState.isAdmin && !adminRegistrationAllowed ? (
               <article className="registration-form success-panel">
@@ -1480,7 +1481,8 @@ export default function LocalProApp({
               <div className="form-row">
                 <label>
                   Vardas arba įmonės pavadinimas *
-                  <input value={formState.name} onChange={(event) => setFormState({ ...formState, name: event.target.value })} type="text" autoComplete="name" />
+                  <input name="name" value={formState.name} onChange={(event) => { setFormState({ ...formState, name: event.target.value }); setRegistrationErrors((current) => ({ ...current, name: undefined })); }} type="text" autoComplete="name" aria-invalid={Boolean(registrationErrors.name)} />
+                  {registrationErrors.name ? <span className="field-error">{registrationErrors.name}</span> : null}
                 </label>
                 <label>
                   Telefono numeris *
@@ -1501,12 +1503,16 @@ export default function LocalProApp({
               </div>
               <div className="form-row">
                 <label>
-                  El. paštas *
-                  <input value={formState.email} onChange={(event) => setFormState({ ...formState, email: event.target.value })} type="email" autoComplete="email" />
+                  Viešas kontaktinis el. paštas *
+                  <input name="email" value={formState.email} onChange={(event) => { setFormState({ ...formState, email: event.target.value }); setRegistrationErrors((current) => ({ ...current, email: undefined })); }} type="email" autoComplete="email" aria-invalid={Boolean(registrationErrors.email)} />
+                  <span className="field-note">Automatiškai užpildytą Google paskyros adresą galite pakeisti kitu klientams skirtu kontaktiniu adresu.</span>
+                  {registrationErrors.email ? <span className="field-error">{registrationErrors.email}</span> : null}
                 </label>
                 <AddressAutocomplete
                   label="Registracijos adresas"
                   required
+                  name="address"
+                  error={registrationErrors.address}
                   value={{
                     address: formState.address,
                     placeId: formState.placeId,
@@ -1516,24 +1522,29 @@ export default function LocalProApp({
                     street: formState.street,
                     postcode: formState.postcode
                   }}
-                  onChange={(address) => setFormState((current) => ({ ...current, ...address, city: address.town || current.city }))}
+                  onChange={(address) => { setFormState((current) => ({ ...current, ...address, city: address.town || current.city })); setRegistrationErrors((current) => ({ ...current, address: undefined })); }}
                   placeholder="Pvz. Trakų g. 10, Lentvaris"
                 />
               </div>
               <p className="field-note">Klientams rodoma tik bendra vietovė ir aptarnavimo zona.</p>
-              <fieldset>
+              <fieldset aria-invalid={Boolean(registrationErrors.workAreas)} aria-describedby={registrationErrors.workAreas ? "work-areas-error" : undefined}>
                 <legend>{selectionCounter("Darbo sritys", formState.categorySlugs.length, MAX_PROFILE_CATEGORIES)}</legend>
                 {categories.map((category) => (
                   <label key={category.id}>
                     <input
                       type="checkbox"
+                      name="workAreas"
                       checked={formState.categorySlugs.includes(category.slug)}
                       disabled={!formState.categorySlugs.includes(category.slug) && formState.categorySlugs.length >= MAX_PROFILE_CATEGORIES}
-                      onChange={(event) => updateCategory(category.slug, event.target.checked)}
+                      onChange={(event) => {
+                        updateCategory(category.slug, event.target.checked);
+                        if (event.target.checked) setRegistrationErrors((current) => ({ ...current, workAreas: undefined }));
+                      }}
                     />
                     {category.name}
                   </label>
                 ))}
+                {registrationErrors.workAreas ? <span id="work-areas-error" className="field-error">{registrationErrors.workAreas}</span> : null}
               </fieldset>
               {formState.categorySlugs.length >= MAX_PROFILE_CATEGORIES ? <p role="status">Pasiekėte 8 darbo sričių limitą.</p> : null}
               {selectedSubcategories.length ? (

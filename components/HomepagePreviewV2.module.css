@@ -659,6 +659,29 @@
   font-size: 18px;
 }
 
+.customerSteps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+  padding: 0;
+  list-style-position: inside;
+}
+
+.customerSteps li {
+  display: grid;
+  gap: 3px;
+}
+
+.customerSteps span {
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+@media (max-width: 760px) {
+  .customerSteps { grid-template-columns: 1fr; }
+}
+
 .visuallyHidden {
   position: absolute;
   overflow: hidden;

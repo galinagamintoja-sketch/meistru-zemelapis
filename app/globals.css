@@ -31,7 +31,7 @@
 .google-primary-button,
 .portal-primary { background: var(--clay); color: #fff; border-color: var(--clay); }
 .portal-secondary { background: var(--panel); color: var(--spruce); border-color: var(--line); }
-.login-privacy { color: var(--muted); font-size: .875rem; line-height: 1.5; }
+.visually-hidden-file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; margin: -1px; padding: 0; border: 0; clip: rect(0 0 0 0); white-space: nowrap; }
 .tradesperson-shell { min-height: 100vh; color: var(--ink); background: #f6f2e9; }
 .tradesperson-sidebar {
   position: fixed; inset: 16px auto 16px 16px; z-index: 10; width: 216px; padding: 18px 14px;
@@ -178,8 +178,6 @@
 .service-accordions details { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .service-accordions summary { display: flex; justify-content: space-between; padding: 12px; font-weight: 800; cursor: pointer; }
 .service-accordions .portal-checks { padding: 0 12px 12px; }
-.login-divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: .75rem; }
-.login-divider::before, .login-divider::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
 .text-button { border: 0; background: transparent; color: var(--spruce); text-decoration: underline; cursor: pointer; }
 .danger-button { padding: 10px 12px; border: 1px solid #a7483f; border-radius: 8px; background: #fff5f3; color: #8f2f29; cursor: pointer; }
 .account-summary { display: grid; gap: 8px; }

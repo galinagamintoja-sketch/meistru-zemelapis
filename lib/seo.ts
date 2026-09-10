@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
 import { isObviousPublicTestProfile } from "./display";
 import type { Specialist } from "./types";
+import { canonicalCategorySlug } from "./service-taxonomy";
 
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://localpro.lt").replace(/\/$/, "");
 
-const professionSeo: Record<string, { slug: string; plural: string; singular: string }> = {
-  apdaila: { slug: "dazytojai", plural: "Dažytojai", singular: "Dažytojas" },
-  "staliaus-darbai": { slug: "staliai", plural: "Staliai", singular: "Stalius" },
-  santechnika: { slug: "santechnikai", plural: "Santechnikai", singular: "Santechnikas" },
-  elektra: { slug: "elektrikai", plural: "Elektrikai", singular: "Elektrikas" },
-  stogai: { slug: "stogdengiai", plural: "Stogdengiai", singular: "Stogdengys" },
-  "trinkeles-ir-aplinka": { slug: "trinkeliu-klojejai", plural: "Trinkelių klojėjai", singular: "Trinkelių klojėjas" },
-  "pilna-renovacija": { slug: "renovacijos-meistrai", plural: "Renovacijos meistrai", singular: "Renovacijos meistras" }
+const professionSeo: Record<string, { slug: string; plural: string; singular: string; searchName: string }> = {
+  apdaila: { slug: "dazytojai", plural: "Dažytojai", singular: "Dažytojas", searchName: "Vidaus apdaila" },
+  "staliaus-darbai": { slug: "staliai", plural: "Staliai", singular: "Stalius", searchName: "Medžio darbai ir baldai" },
+  santechnika: { slug: "santechnikai", plural: "Santechnikai", singular: "Santechnikas", searchName: "Santechnika" },
+  elektra: { slug: "elektrikai", plural: "Elektrikai", singular: "Elektrikas", searchName: "Elektra ir apsaugos sistemos" },
+  stogai: { slug: "stogdengiai", plural: "Stogdengiai", singular: "Stogdengys", searchName: "Stogai ir skardinimas" },
+  "trinkeles-ir-aplinka": { slug: "trinkeliu-klojejai", plural: "Trinkelių klojėjai", singular: "Trinkelių klojėjas", searchName: "Lauko ir sklypo darbai" },
+  "pilna-renovacija": { slug: "renovacijos-meistrai", plural: "Renovacijos meistrai", singular: "Renovacijos meistras", searchName: "Vidaus apdaila" }
 };
 
 const locationForms: Record<string, string> = {
@@ -43,7 +44,7 @@ function stableSuffix(id: string) {
 }
 
 export function profileSeoSlug(profile: Specialist) {
-  const profession = professionSeo[profile.categorySlug]?.singular || profile.trade || "meistras";
+  const profession = professionByCategorySlug(profile.categorySlug)?.singular || profile.trade || "meistras";
   return `${slugify(profile.companyName || profile.name)}-${slugify(profession)}-${slugify(profile.town)}-${stableSuffix(profile.id)}`;
 }
 
@@ -55,14 +56,29 @@ export function professionByLandingSlug(slug: string) {
   return Object.entries(professionSeo).find(([, value]) => value.slug === slug);
 }
 
+export function legacyProfileSeoSlug(profile: Specialist) {
+  return `${slugify(profile.companyName || profile.name)}-${slugify(profile.trade || "meistras")}-${slugify(profile.town)}-${stableSuffix(profile.id)}`;
+}
+
+function professionByCategorySlug(categorySlug: string) {
+  const canonical = canonicalCategorySlug(categorySlug);
+  return Object.entries(professionSeo).find(([legacySlug]) => canonicalCategorySlug(legacySlug) === canonical)?.[1];
+}
+
+export function categorySearchReturnPath(professionSlug: string, city: string) {
+  const searchName = professionByLandingSlug(professionSlug)?.[1].searchName;
+  const query = new URLSearchParams({ ...(searchName ? { service: searchName } : {}), locality: city });
+  return `/?${query.toString()}#results`;
+}
+
 export function categoryLocationPath(profile: Specialist, city: string) {
-  const profession = professionSeo[profile.categorySlug];
+  const profession = professionByCategorySlug(profile.categorySlug);
   return profession ? `/${profession.slug}/${slugify(city)}` : null;
 }
 
 export function matchesCategoryLocation(profile: Specialist, professionSlug: string, locationSlug: string) {
   const entry = professionByLandingSlug(professionSlug);
-  return Boolean(entry && isSeoEligible(profile) && profile.categorySlug === entry[0] &&
+  return Boolean(entry && isSeoEligible(profile) && canonicalCategorySlug(profile.categorySlug) === canonicalCategorySlug(entry[0]) &&
     profile.operatingCities.some((city) => slugify(city) === locationSlug));
 }
 
@@ -73,7 +89,7 @@ export function locationLocative(city: string) {
 
 export function profileMetadata(profile: Specialist): Metadata {
   const name = profile.companyName || profile.name;
-  const profession = professionSeo[profile.categorySlug]?.singular || profile.trade;
+  const profession = professionByCategorySlug(profile.categorySlug)?.singular || profile.trade;
   const place = locationLocative(profile.town);
   const canonical = `${SITE_URL}${profilePath(profile)}`;
   const services = (profile.subcategoryNames?.length ? profile.subcategoryNames : profile.subcategorySlugs).slice(0, 3).join(", ");
@@ -103,7 +119,7 @@ export function profileJsonLd(profile: Specialist) {
   const url = `${SITE_URL}${profilePath(profile)}`;
   const person: Record<string, unknown> = {
     "@type": "Person", name: profile.name,
-    jobTitle: professionSeo[profile.categorySlug]?.singular || profile.trade,
+    jobTitle: professionByCategorySlug(profile.categorySlug)?.singular || profile.trade,
     url, description: profile.description,
     areaServed: profile.operatingCities.map((name) => ({ "@type": "City", name })),
     knowsAbout: profile.subcategoryNames?.length ? profile.subcategoryNames : profile.subcategorySlugs
