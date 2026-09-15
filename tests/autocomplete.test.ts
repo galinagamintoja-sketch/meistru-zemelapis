@@ -32,6 +32,7 @@ class ClassLikePlacePrediction {
     return {
       id: "google-place-123",
       formattedAddress: "Trakų g. 10, 25112 Lentvaris, Lithuania",
+      addressComponents: [{ longText: "Lentvaris", types: ["locality", "political"] }],
       location: {
         lat: () => 54.6376,
         lng: () => 25.0512
@@ -101,6 +102,22 @@ describe("Google Places autocomplete helpers", () => {
     expect(normalized?.placePrediction).toBe(prediction);
   });
 
+  it("never exposes an internal place ID when Google omits human-readable prediction text", () => {
+    const prediction = new ClassLikePlacePrediction();
+    Object.defineProperty(prediction, "text", { value: undefined });
+
+    expect(normalizePlacesSuggestion(new ClassLikeAutocompleteSuggestion(prediction))).toBeNull();
+  });
+
+  it("reads the human-readable value from structured Google prediction text", () => {
+    const prediction = new ClassLikePlacePrediction();
+    Object.defineProperty(prediction, "text", {
+      value: { text: "Bažnyčios g., Vilnius", toString: () => "[object Object]" }
+    });
+
+    expect(normalizePlacesSuggestion(new ClassLikeAutocompleteSuggestion(prediction))?.label).toBe("Bažnyčios g., Vilnius");
+  });
+
   it("selecting a suggestion calls toPlace and fetchFields, then stores address, place ID and coordinates", async () => {
     const prediction = new ClassLikePlacePrediction();
     const normalized = normalizePlacesSuggestion(new ClassLikeAutocompleteSuggestion(prediction));
@@ -108,7 +125,7 @@ describe("Google Places autocomplete helpers", () => {
     expect(normalized).not.toBeNull();
     const selected = await resolvePlacesSuggestionSelection(normalized!);
 
-    expect(prediction.fetchFields).toHaveBeenCalledWith({ fields: ["formattedAddress", "id", "location"] });
+    expect(prediction.fetchFields).toHaveBeenCalledWith({ fields: ["formattedAddress", "id", "location", "addressComponents"] });
     expect(selected).toMatchObject({
       address: "Trakų g. 10, 25112 Lentvaris, Lithuania",
       placeId: "google-place-123",

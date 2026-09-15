@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseAuthClient } from "../../lib/supabase-ssr";
 import { safeAuthNext } from "../../lib/safe-auth-next";
 import type { Metadata } from "next";
+import LocalProBrand from "../../components/LocalProBrand";
 
 export const metadata: Metadata = {
   title: "Prisijungimas | LocalPro",
@@ -24,7 +25,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const { data: { user } } = await supabase.auth.getUser();
   if (user) redirect(next);
   return <main className="login-shell"><section className="login-panel">
-    <Link className="brand" href="/" aria-label="LocalPro.lt"><span className="brand-mark" aria-hidden="true">LP</span><span><strong>LocalPro.lt</strong><small>Meistro paskyra</small></span></Link>
+    <Link className="brand" href="/" aria-label="LocalPro.lt"><LocalProBrand priority /></Link>
     <div className="login-copy"><p className="eyebrow">Meistro paskyra</p><h1>Prisijunkite arba registruokitės</h1><p>Po pirmo prisijungimo užpildysite trumpą registraciją. LocalPro sukurs naują specialisto profilį ir saugiai susies jį su jūsų paskyra.</p></div>
     {params.error ? <p className="admin-message" role="alert">{messages[params.error] ?? "Prisijungti nepavyko."}</p> : null}
     <a className="google-primary-button" href={`/auth/google?next=${encodeURIComponent(next)}`}>Tęsti su Google</a>

@@ -9,6 +9,7 @@ import { profileQualityWarnings } from "../../lib/profile-quality";
 import { AdminPrivacyRequests } from "../../components/admin-privacy-requests";
 import { AdminProfileReports } from "../../components/admin-profile-reports";
 import { AdminRecentPhotos } from "../../components/admin-recent-photos";
+import LocalProBrand from "../../components/LocalProBrand";
 
 type StatusFilter = "pending" | "approved" | "rejected" | "suspended" | "all";
 type EditDraft = {
@@ -712,6 +713,7 @@ export default function AdminPage() {
     return (
       <main className="admin-shell">
         <section className="admin-login">
+          <a className="standalone-brand" href="/" aria-label="LocalPro.lt pagrindinis puslapis"><LocalProBrand priority /></a>
           <p className="eyebrow">LocalPro admin</p>
           <h1>Administratoriaus prisijungimas</h1>
           <p>Prisijunkite su Google paskyra, kuri yra administratorių sąraše.</p>
@@ -729,6 +731,7 @@ export default function AdminPage() {
     <main className="admin-shell">
       <section className="section-heading admin-heading">
         <div>
+          <a className="standalone-brand" href="/" aria-label="LocalPro.lt pagrindinis puslapis"><LocalProBrand /></a>
           <p className="eyebrow">LocalPro admin</p>
           <h1>Profilių patikros skydelis</h1>
           <p>Peržiūrėkite registracijas, pataisykite duomenis ir patvirtinkite arba atmeskite profilius.</p>

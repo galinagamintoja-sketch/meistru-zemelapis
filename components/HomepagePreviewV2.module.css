@@ -37,39 +37,6 @@
   text-decoration: none;
 }
 
-.brandLockup {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.brandIcon {
-  width: 34px;
-  height: 40px;
-  fill: none;
- stroke: var(--clay);
-  stroke-width: 3.1;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.brandIcon path:last-child {
- stroke: var(--spruce);
-  stroke-width: 3.4;
-}
-
-.brandWord {
- color: var(--spruce);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 25px;
-  font-weight: 700;
-  letter-spacing: -.02em;
-}
-
-.brandWord span {
- color: var(--clay);
-}
-
 .nav {
   display: flex;
   align-items: center;
@@ -706,15 +673,6 @@
     display: none;
   }
 
-  .brandWord {
-    font-size: 20px;
-  }
-
-  .brandIcon {
-    width: 27px;
-    height: 32px;
-  }
-
   .authActions {
     gap: 10px;
   }
@@ -776,14 +734,6 @@
 @media (max-width: 620px) {
   .header {
     grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .brandLockup {
-    gap: 7px;
-  }
-
-  .brandWord {
-    font-size: 18px;
   }
 
   .authActions {

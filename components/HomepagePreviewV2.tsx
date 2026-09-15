@@ -49,15 +49,6 @@ function specialistPhoto(specialist: Specialist) {
  return candidates.find((value) => value && /^(https?:\/\/|\/(?!\/))/.test(value.trim())) ?? null;
 }
 
-function specialistCountLabel(count: number) {
-  const lastTwo = count % 100;
-  const last = count % 10;
-  if (lastTwo >= 11 && lastTwo <= 19) return `${count} specialistų`;
-  if (last === 1) return `${count} specialistas`;
-  if (last >= 2 && last <= 9) return `${count} specialistai`;
-  return `${count} specialistų`;
-}
-
 export function specialistMatchesService(specialist: Specialist, query: string, categories: Category[] = []) {
   const needle = normalized(query);
   if (!needle) return true;
@@ -467,7 +458,7 @@ export default function HomepagePreviewV2({
             <div>
               <p className={styles.eyebrow}>Netoliese</p>
               <h2>Specialistai pagal jūsų paiešką</h2>
-              <p>{filteredSpecialists.length ? `${specialistCountLabel(filteredSpecialists.length)} pagal jūsų paiešką` : "Pagal šią paiešką specialistų kol kas nėra"}</p>
+              <p>{filteredSpecialists.length ? "Specialistai pagal jūsų paiešką" : "Pagal šią paiešką specialistų kol kas nėra"}</p>
             </div>
             <div className={styles.viewToggle} role="group" aria-label="Pasirinkti rezultatų vaizdą">
               <button type="button" className={viewMode === "list" ? styles.activeView : ""} onClick={() => setViewMode("list")} aria-pressed={viewMode === "list"}><ListIcon />Sąrašas</button>
@@ -526,7 +517,7 @@ export default function HomepagePreviewV2({
 
           {filteredSpecialists.length > 8 && viewMode === "list" ? (
             <button className={styles.moreButton} type="button" onClick={() => setShowAll((current) => !current)}>
-              {showAll ? "Rodyti mažiau" : `Rodyti daugiau (${filteredSpecialists.length - 8})`}
+              {showAll ? "Rodyti mažiau" : "Rodyti daugiau"}
             </button>
           ) : null}
         </section>

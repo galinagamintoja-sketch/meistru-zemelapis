@@ -17,10 +17,11 @@ export type PlacesSuggestion = {
   label: string;
   placePrediction: {
     placeId?: string;
-    text?: { toString: () => string };
+    text?: { text?: string; toString: () => string };
     toPlace: () => {
       id?: string;
       formattedAddress?: string;
+      addressComponents?: Array<{ longText?: string; types?: string[] }>;
       location?: { lat: () => number; lng: () => number };
       fetchFields: (options: { fields: string[] }) => Promise<void>;
     };
@@ -91,7 +92,7 @@ type Props = {
 
 const googlePlacesApiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ?? "";
 const googlePlacesCountry = process.env.NEXT_PUBLIC_GOOGLE_PLACES_COUNTRY ?? "LT";
-const googlePlacesFields = ["formattedAddress", "id", "location"];
+const googlePlacesFields = ["formattedAddress", "id", "location", "addressComponents"];
 export const googlePlacesAddressTypes = ["street_address", "route", "locality", "postal_code", "premise"];
 const googlePlacesCallbackName = "__localproGooglePlacesReady";
 const googlePlacesScriptTimeoutMs = 10_000;
@@ -254,9 +255,27 @@ export default function AddressAutocomplete({ label, value, onChange, required, 
 
 export function normalizePlacesSuggestion(suggestion: GoogleAutocompleteSuggestion): PlacesSuggestion | null {
   if (!suggestion.placePrediction) return null;
-  const label = suggestion.placePrediction.text?.toString() ?? suggestion.label ?? suggestion.placePrediction.placeId ?? "";
+  const label = humanReadablePredictionLabel(suggestion);
   if (!label) return null;
   return { id: suggestion.placePrediction.placeId ?? label, label, placePrediction: suggestion.placePrediction };
+}
+
+function humanReadablePredictionLabel(suggestion: GoogleAutocompleteSuggestion) {
+  const structuredText = suggestion.placePrediction?.text;
+  const candidates = [structuredText?.text, structuredText?.toString(), suggestion.label];
+
+  for (const candidate of candidates) {
+    const label = candidate?.trim() ?? "";
+    if (!label || label === "[object Object]" || looksLikeInternalPlaceValue(label)) continue;
+    return label;
+  }
+  return "";
+}
+
+function looksLikeInternalPlaceValue(value: string) {
+  return /^ChI[A-Za-z0-9_-]+$/.test(value)
+    || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(value)
+    || (/^[A-Za-z0-9_-]{20,}$/.test(value) && /\d/.test(value));
 }
 
 export async function resolvePlacesSuggestionSelection(suggestion: PlacesSuggestion): Promise<AddressValue> {
@@ -270,7 +289,7 @@ export async function resolvePlacesSuggestionSelection(suggestion: PlacesSuggest
     placeId: place.id ?? placeId,
     latitude: place.location?.lat() ?? null,
     longitude: place.location?.lng() ?? null,
-    town: derived.town,
+    town: localityFromAddressComponents(place.addressComponents) || derived.town,
     street: derived.street,
     postcode: derived.postcode
   };
@@ -355,4 +374,13 @@ function deriveAddressParts(address: string) {
   const postcode = townLine.match(postcodePattern)?.[0] ?? "";
   const town = townLine.replace(postcodePattern, "").trim() || parts[1] || "";
   return { street, postcode, town };
+}
+
+function localityFromAddressComponents(components?: Array<{ longText?: string; types?: string[] }>) {
+  const localityTypes = ["locality", "postal_town", "administrative_area_level_3", "administrative_area_level_2"];
+  for (const type of localityTypes) {
+    const value = components?.find((component) => component.types?.includes(type))?.longText?.trim();
+    if (value) return value;
+  }
+  return "";
 }

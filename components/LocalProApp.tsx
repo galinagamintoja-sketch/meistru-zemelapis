@@ -3,8 +3,9 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AddressAutocomplete, { geocodeLithuanianAddress } from "./AddressAutocomplete";
 import SafeProfileImage from "./SafeProfileImage";
+import LocalProBrand from "./LocalProBrand";
 import type { Category, Specialist } from "../lib/types";
-import { formatReviewCount, formatSpecialistCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
+import { formatReviewCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
 import { isLithuanianPhone, normalizeLithuanianPhone } from "../lib/phone";
 import {
   createProfilePhotoDerivatives,
@@ -87,10 +88,11 @@ export type PlacesSuggestion = {
   label: string;
   placePrediction: {
     placeId?: string;
-    text?: { toString: () => string };
+    text?: { text?: string; toString: () => string };
     toPlace: () => {
       id?: string;
       formattedAddress?: string;
+      addressComponents?: Array<{ longText?: string; types?: string[] }>;
       location?: {
         lat: () => number;
         lng: () => number;
@@ -230,7 +232,10 @@ export function normalizePlacesSuggestion(suggestion: GoogleAutocompleteSuggesti
     return null;
   }
 
-  const label = suggestion.placePrediction.text?.toString() ?? suggestion.label ?? suggestion.placePrediction.placeId ?? "";
+  const structuredText = suggestion.placePrediction.text;
+  const label = [structuredText?.text, structuredText?.toString(), suggestion.label]
+    .map((value) => value?.trim() ?? "")
+    .find((value) => value && value !== "[object Object]" && !/^ChI[A-Za-z0-9_-]+$/.test(value)) ?? "";
 
   if (!label) {
     return null;
@@ -742,7 +747,7 @@ export default function LocalProApp({
       createMapMarkerItems(specialists, map).forEach((item) => {
         if (item.type === "cluster") {
           const clusterIcon = leaflet.divIcon({
-            html: `<span>${item.count}</span>`,
+            html: "<span>•••</span>",
             className: "trade-cluster",
             iconSize: [44, 44],
             iconAnchor: [22, 22]
@@ -751,8 +756,8 @@ export default function LocalProApp({
             .marker([item.lat, item.lng], {
               icon: clusterIcon,
               keyboard: true,
-              title: `${formatSpecialistCount(item.count)} šioje žemėlapio vietoje`,
-              alt: `${formatSpecialistCount(item.count)} šioje žemėlapio vietoje`
+              title: "Keli specialistai šioje žemėlapio vietoje",
+              alt: "Keli specialistai šioje žemėlapio vietoje"
             })
             .bindPopup(createClusterPopup(item.points.map((point) => point.specialist)));
           clusterMarker.on("click", () => {
@@ -1145,11 +1150,7 @@ export default function LocalProApp({
     <div className={`app-shell ${registrationOnly ? "registration-only" : ""}`}>
       <header className="topbar">
         <a className="brand" href="/" aria-label="LocalPro.lt">
-          <span className="brand-mark" aria-hidden="true">LP</span>
-          <span>
-            <strong>LocalPro.lt</strong>
-            <small>Meistrų žemėlapis</small>
-          </span>
+          <LocalProBrand priority />
         </a>
         <nav className="stage-nav" aria-label="Puslapio skyriai">
           {!registrationOnly ? <a href="/request">Pateikti darbų užklausą</a> : <a href="/">Grįžti į pagrindinį puslapį</a>}
@@ -1348,7 +1349,7 @@ export default function LocalProApp({
           <section className={`map-board ${viewMode === "map" ? "mobile-active" : ""}`} aria-label="OpenStreetMap LocalPro specialistų žemėlapis">
             <div className="map-toolbar">
               <span>LocalPro žemėlapis</span>
-              <span>{specialists.length ? formatSpecialistCount(specialists.length) : "Nėra atitikmenų"}</span>
+              <span>{specialists.length ? "Specialistai pagal jūsų paiešką" : "Nėra atitikmenų"}</span>
             </div>
             <div className="real-map" ref={mapElementRef} aria-label="Interaktyvus OpenStreetMap su LocalPro specialistų žymekliais">
               {mapNeedsSearch ? (
@@ -1587,9 +1588,7 @@ export default function LocalProApp({
               </label>
               <fieldset>
                 <legend>Darbų nuotraukos nebūtinos</legend>
-                <p className="field-note">
-                  Galite pridėti darbų pavyzdžius dabar arba papildyti profilį vėliau. JPG, PNG, WebP arba HEIC; iki {photoFieldMetadata.maxItems} nuotraukų; iki {photoFieldMetadata.maxSizeMb} MB kiekviena. Jos automatiškai optimizuojamos į WebP iki 1920 px ir 1 MB.
-                </p>
+                <p className="field-note">Galite pridėti iki 8 darbų nuotraukų dabar arba papildyti profilį vėliau.</p>
                 <label>
                   {formState.photoUploads.length ? "Pridėti daugiau nuotraukų" : "Pridėti nuotraukas"}
                   <input
@@ -1864,7 +1863,7 @@ function createClusterPopup(specialists: Specialist[]) {
 
   return `
     <div class="map-popup map-cluster-popup">
-      <strong>${escapeHtml(formatSpecialistCount(specialists.length))} šioje vietoje</strong>
+      <strong>Keli specialistai šioje vietoje</strong>
       <ul>${items}</ul>
     </div>
   `;

@@ -6,6 +6,7 @@ import AddressAutocomplete from "../../components/AddressAutocomplete";
 import type { Category } from "../../lib/types";
 import type { Specialist } from "../../lib/types";
 import { profilePath } from "../../lib/seo";
+import LocalProBrand from "../../components/LocalProBrand";
 
 type Upload = { name: string; type: "image/jpeg" | "image/png" | "image/webp"; size: number; dataUrl: string };
 
@@ -68,7 +69,7 @@ export default function JobRequestPage() {
     }
   }
 
-  if (requestId) return <main className="job-request-shell"><section className="job-request-card confirmation-card"><p className="eyebrow">Užklausa gauta</p><h1>Ačiū — jūsų darbų užklausa išsaugota.</h1><p>Ji yra privati ir ją pirmiausia peržiūrės LocalPro administratorius.</p><p className="privacy-note">Užklausos numeris: {requestId}</p>
+  if (requestId) return <main className="job-request-shell"><section className="job-request-card confirmation-card"><Link className="standalone-brand" href="/" aria-label="LocalPro.lt pagrindinis puslapis"><LocalProBrand /></Link><p className="eyebrow">Užklausa gauta</p><h1>Ačiū — jūsų darbų užklausa išsaugota.</h1><p>Ji yra privati ir ją pirmiausia peržiūrės LocalPro administratorius.</p><p className="privacy-note">Užklausos numeris: {requestId}</p>
     <section className="match-results"><h2>Tinkami specialistai</h2>{matches.length ? <><p>Parinkta pagal paslaugą ir darbo zoną. Pasirinkimas žinučių automatiškai nesiunčia.</p>{matches.map(({ specialist, reason, distanceKm }) => <article className="match-card" key={specialist.id}>
       <label><input type="checkbox" checked={selectedMatches.includes(specialist.id)} onChange={(event) => setSelectedMatches((current) => event.target.checked ? [...current, specialist.id] : current.filter((id) => id !== specialist.id))} /><span><strong>{specialist.companyName || specialist.name}</strong><small>{specialist.trade} · apie {distanceKm} km · {reason === "matched_category_and_service" ? "atitinka paslaugą ir kategoriją" : "atitinka kategoriją"}</small></span></label>
       <div className="match-actions"><Link href={profilePath(specialist)}>Profilis</Link><a href={`tel:${specialist.phone.replaceAll(" ", "")}`}>Skambinti</a><a href={`https://wa.me/${specialist.whatsapp.replace(/[^\d]/g, "")}`} target="_blank" rel="noreferrer">WhatsApp</a></div>
@@ -76,7 +77,7 @@ export default function JobRequestPage() {
     <Link className="primary-action" href="/">Grįžti į LocalPro</Link></section></main>;
 
   return <main className="job-request-shell"><form className="job-request-card" onSubmit={submit}>
-    <p className="eyebrow">Namų savininkams</p><h1>Aprašykite reikalingą darbą</h1><p>Užklausa ir nuotraukos nebus viešinamos.</p>
+    <Link className="standalone-brand" href="/" aria-label="LocalPro.lt pagrindinis puslapis"><LocalProBrand priority /></Link><p className="eyebrow">Namų savininkams</p><h1>Aprašykite reikalingą darbą</h1><p>Užklausa ir nuotraukos nebus viešinamos.</p>
     <div className="job-request-grid">
       <label>Darbo sritis *<select required value={categorySlug} onChange={(event) => { setCategorySlug(event.target.value); setSubcategorySlug(""); }}><option value="">Pasirinkite</option>{categories.map((item) => <option key={item.id} value={item.slug}>{item.name}</option>)}</select></label>
       <label>Paslauga<select value={subcategorySlug} onChange={(event) => setSubcategorySlug(event.target.value)}><option value="">Nebūtina</option>{category?.subcategories.map((item) => <option key={item.id} value={item.slug}>{item.name}</option>)}</select></label>
