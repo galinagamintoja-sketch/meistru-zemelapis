@@ -9,7 +9,7 @@ describe("LocalPro brand assets", () => {
     expect(statSync("public/brand/localpro-icon.png").size).toBeGreaterThan(10_000);
     const layout = read("app/layout.tsx");
     expect(layout).toContain('/brand/localpro-icon.png');
-    expect(layout).toContain('/brand/localpro-logo-source.jpg');
+    expect(statSync("public/brand/localpro-social-v1.png").size).toBeGreaterThan(100_000);
   });
 
   it("uses the shared brand component across public, account, request and admin surfaces", () => {

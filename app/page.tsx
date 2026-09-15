@@ -4,6 +4,9 @@ import { createSupabaseAuthClient } from "../lib/supabase-ssr";
 import { getLinkedTradespersonProfile } from "../lib/tradesperson-account";
 import { getHomepageAccountState } from "../lib/homepage-account-state";
 import { isAdminEmail } from "../lib/auth-session";
+import { HOME_METADATA } from "../lib/seo";
+
+export const metadata = HOME_METADATA;
 
 export const dynamic = "force-dynamic";
 
