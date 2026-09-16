@@ -34,4 +34,5 @@ test("map pin popup shows the complete specialist hero image", async ({ page }) 
   const imageBox = await popupImage.boundingBox();
   expect(imageBox?.width).toBeGreaterThanOrEqual(180);
   expect(imageBox?.height).toBeGreaterThanOrEqual(120);
+  expect(imageBox?.height).toBeLessThanOrEqual(170);
 });
