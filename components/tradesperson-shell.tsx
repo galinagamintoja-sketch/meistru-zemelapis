@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TradespersonNavigation } from "./tradesperson-navigation";
+import LocalProBrand from "./LocalProBrand";
 
 type ShellProfile = { name: string; profession?: string | null; active: boolean; photoUrl?: string | null };
 
@@ -8,8 +9,7 @@ export function TradespersonShell({ children, profile, deletionPending = false }
   return <div className="tradesperson-shell">
     <aside className="tradesperson-sidebar">
       <Link className="brand" href="/">
-        <span className="brand-mark">LP</span>
-        <span><strong>LocalPro.lt</strong><small>Meistrų žemėlapis</small></span>
+        <LocalProBrand priority />
       </Link>
       <section className="tradesperson-summary" aria-label="Profilio santrauka">
         <span className="tradesperson-avatar" aria-hidden="true">
@@ -26,7 +26,7 @@ export function TradespersonShell({ children, profile, deletionPending = false }
     </aside>
     <div className="tradesperson-main">
       <header>
-        <Link className="brand" href="/"><span className="brand-mark">LP</span><strong>LocalPro.lt</strong></Link>
+        <Link className="brand" href="/"><LocalProBrand iconOnly /></Link>
         <strong>{profile.name}</strong><span className="mobile-header-action"><BellIcon /></span>
       </header>
       <main>{deletionPending ? <div className="deletion-pending-banner" role="status">Paskyros ištrynimas suplanuotas. Profilis paslėptas, o pakeitimai išjungti. Ištrynimą galite atšaukti paskyros puslapyje.</div> : null}{children}</main>

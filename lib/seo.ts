@@ -5,6 +5,31 @@ import { canonicalCategorySlug } from "./service-taxonomy";
 
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://localpro.lt").replace(/\/$/, "");
 
+export const SOCIAL_IMAGE_ALT = "LocalPro.lt logotipas, užrašas „Reikia meistro? Rask šalia.“ ir iliustruotas žemėlapis su meistrų paslaugų žymekliais.";
+export const PROFILE_SOCIAL_IMAGE = {
+  url: `${SITE_URL}/brand/localpro-social-v1.png`, width: 1200, height: 630,
+  type: "image/png", alt: SOCIAL_IMAGE_ALT
+} as const;
+export const CATEGORY_SOCIAL_IMAGE = PROFILE_SOCIAL_IMAGE;
+
+export const HOME_METADATA: Metadata = {
+  title: "Meistrai jūsų mieste – raskite specialistą | LocalPro.lt",
+  description: "Ieškote meistro? LocalPro.lt raskite elektrikus, santechnikus ir apdailos specialistus savo mieste. Peržiūrėkite profilius ir susisiekite tiesiogiai.",
+  alternates: { canonical: SITE_URL },
+  openGraph: {
+    title: "Reikia meistro? Rask šalia. | LocalPro.lt",
+    description: "Atrask elektrikus, santechnikus ir apdailos specialistus savo mieste. Rask meistrą su LocalPro.lt.",
+    type: "website", siteName: "LocalPro.lt", locale: "lt_LT", url: SITE_URL,
+    images: [PROFILE_SOCIAL_IMAGE]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Reikia meistro? Rask šalia. | LocalPro.lt",
+    description: "Atrask elektrikus, santechnikus ir apdailos specialistus savo mieste. Rask meistrą su LocalPro.lt.",
+    images: [{ url: PROFILE_SOCIAL_IMAGE.url, alt: SOCIAL_IMAGE_ALT }]
+  }
+};
+
 const professionSeo: Record<string, { slug: string; plural: string; singular: string; searchName: string }> = {
   apdaila: { slug: "dazytojai", plural: "Dažytojai", singular: "Dažytojas", searchName: "Vidaus apdaila" },
   "staliaus-darbai": { slug: "staliai", plural: "Staliai", singular: "Stalius", searchName: "Medžio darbai ir baldai" },
@@ -93,12 +118,16 @@ export function profileMetadata(profile: Specialist): Metadata {
   const place = locationLocative(profile.town);
   const canonical = `${SITE_URL}${profilePath(profile)}`;
   const services = (profile.subcategoryNames?.length ? profile.subcategoryNames : profile.subcategorySlugs).slice(0, 3).join(", ");
+  const title = `${name} – ${profession} ${place} | LocalPro`;
+  const description = `${name} teikia ${services} paslaugas ${place}. Peržiūrėkite darbus, aptarnaujamą teritoriją ir profilį LocalPro.`.slice(0, 160);
+  const socialDescription = profile.description.slice(0, 160);
   return {
-    title: `${name} – ${profession} ${place} | LocalPro`,
-    description: `${name} teikia ${services} paslaugas ${place}. Peržiūrėkite darbus, aptarnaujamą teritoriją ir profilį LocalPro.`.slice(0, 160),
+    title,
+    description,
     alternates: { canonical },
     robots: { index: true, follow: true },
-    openGraph: { title: `${name} – ${profession} ${place} | LocalPro`, description: profile.description.slice(0, 160), url: canonical, type: "profile" }
+    openGraph: { title, description: socialDescription, url: canonical, type: "profile", siteName: "LocalPro.lt", locale: "lt_LT", images: [PROFILE_SOCIAL_IMAGE] },
+    twitter: { card: "summary_large_image", title, description: socialDescription, images: [{ url: PROFILE_SOCIAL_IMAGE.url, alt: SOCIAL_IMAGE_ALT }] }
   };
 }
 
@@ -108,10 +137,14 @@ export function categoryMetadata(professionSlug: string, city: string, count: nu
   const [, profession] = entry;
   const place = locationLocative(city);
   const canonical = `${SITE_URL}/${professionSlug}/${slugify(city)}`;
+  const title = `${profession.plural} ${place} – patikimi meistrai | LocalPro`;
+  const description = `Raskite ${profession.plural.toLowerCase()} ${place}. Peržiūrėkite LocalPro meistrų profilius, paslaugas, darbų nuotraukas ir aptarnaujamas teritorijas.`;
   return {
-    title: `${profession.plural} ${place} – patikimi meistrai | LocalPro`,
-    description: `Raskite ${profession.plural.toLowerCase()} ${place}. Peržiūrėkite LocalPro meistrų profilius, paslaugas, darbų nuotraukas ir aptarnaujamas teritorijas.`,
-    alternates: { canonical }, robots: { index: true, follow: true }
+    title,
+    description,
+    alternates: { canonical }, robots: { index: true, follow: true },
+    openGraph: { title, description, url: canonical, type: "website", siteName: "LocalPro.lt", locale: "lt_LT", images: [CATEGORY_SOCIAL_IMAGE] },
+    twitter: { card: "summary_large_image", title, description, images: [{ url: CATEGORY_SOCIAL_IMAGE.url, alt: SOCIAL_IMAGE_ALT }] }
   };
 }
 

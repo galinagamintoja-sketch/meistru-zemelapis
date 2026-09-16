@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SeoProfileCard } from "../../../components/seo-profile-card";
+import LocalProBrand from "../../../components/LocalProBrand";
 import { getSeoSpecialists } from "../../../lib/specialists";
 import { categoryJsonLd, categoryMetadata, categorySearchReturnPath, locationLocative, matchesCategoryLocation, professionByLandingSlug, safeJsonLd, slugify } from "../../../lib/seo";
 
@@ -29,7 +30,7 @@ export default async function CategoryLocationPage({ params }: PageProps) {
   const heading = `${entry[1].plural} ${locationLocative(city)}`;
   return <main className="public-profile-shell">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(categoryJsonLd(profession, city, profiles)) }} />
-    <nav className="public-profile-nav"><Link className="brand" href="/">LocalPro</Link><Link href={categorySearchReturnPath(profession, city)}>Meistrų paieška</Link></nav>
+    <nav className="public-profile-nav"><Link className="public-profile-brand" href="/" aria-label="LocalPro.lt pagrindinis puslapis"><LocalProBrand /></Link><Link href={categorySearchReturnPath(profession, city)}>Meistrų paieška</Link></nav>
     <header className="public-profile-card"><h1>{heading}</h1><p>Raskite patikimus meistrus {locationLocative(city)}. Peržiūrėkite profilius, paslaugas, darbų nuotraukas ir aptarnaujamas teritorijas.</p></header>
     <section aria-label={heading}>{profiles.map((profile) => <SeoProfileCard key={profile.id} profile={profile} />)}</section>
   </main>;

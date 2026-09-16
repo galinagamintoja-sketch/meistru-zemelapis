@@ -42,13 +42,17 @@ describe("public specialist listing", () => {
     expect(formatReviewCount(2)).toBe("2 atsiliepimai");
   });
 
-  it("uses the same specialist terminology for every public result counter", async () => {
-    const source = await import("node:fs/promises").then(({ readFile }) =>
-      readFile(new URL("../components/LocalProApp.tsx", import.meta.url), "utf8")
-    );
+  it("does not render exact specialist totals on public search interfaces", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const [legacySource, homepageSource] = await Promise.all([
+      readFile(new URL("../components/LocalProApp.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../components/HomepagePreviewV2.tsx", import.meta.url), "utf8")
+    ]);
 
-    expect(source).not.toContain("formatMasterCount");
-    expect(source).toContain("formatSpecialistCount(specialists.length)");
+    expect(legacySource).not.toContain("formatSpecialistCount(specialists.length)");
+    expect(legacySource).not.toContain("${item.count}");
+    expect(homepageSource).not.toContain("specialistCountLabel");
+    expect(homepageSource).not.toContain("Rodyti daugiau (${filteredSpecialists.length - 8})");
   });
 
   it("recognizes obvious public test profiles without deleting records", () => {
