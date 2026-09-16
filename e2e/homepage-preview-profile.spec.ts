@@ -26,7 +26,7 @@ test("map pin popup shows the complete specialist hero image", async ({ page }) 
   const markerCount = await markers.count();
   const popupImage = map.locator(".leaflet-popup-content img");
   for (let index = 0; index < markerCount && await popupImage.count() === 0; index += 1) {
-    await markers.nth(index).click({ force: true });
+    await markers.nth(index).dispatchEvent("click");
   }
   await expect(popupImage).toBeVisible();
   await expect.poll(() => popupImage.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
