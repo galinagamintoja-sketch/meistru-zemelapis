@@ -490,13 +490,14 @@
   display: grid;
   gap: 4px;
   min-width: 180px;
+  width: min(220px, calc(100vw - 96px));
   font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
 }
 
 .mapPopupPhoto {
   display: grid;
   width: 100%;
-  height: 92px;
+  aspect-ratio: 4 / 3;
   place-items: center;
   margin: 3px 0 5px;
   overflow: hidden;
@@ -511,7 +512,7 @@
 .mapPopupPhoto img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .mapPopup strong {
