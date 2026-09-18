@@ -28,6 +28,12 @@ export type ProfileRow = {
   public_contact_consent_at?: string | null;
   source: "self-registration" | "whatsapp-onboarding" | "admin-created" | "imported-lead";
   service_area_label: string | null;
+  labour_rate_unit?: "hour" | "sqm" | "agreed" | null;
+  labour_rate_amount?: number | null;
+  profile_service_labour_rates?: Array<{
+    amount: number;
+    service_subcategories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
+  }>;
   service_categories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
   profile_category_assignments?: Array<{
     service_categories?: { name: string; slug: string } | Array<{ name: string; slug: string }> | null;
@@ -145,6 +151,12 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
     source: row.source,
     isDemo: Boolean(row.is_demo),
     publicContactConsentAt: row.public_contact_consent_at ?? null
+    ,labourRateUnit: row.labour_rate_unit ?? null
+    ,labourRateAmount: row.labour_rate_amount ?? null
+    ,serviceLabourRates: (row.profile_service_labour_rates ?? []).flatMap((rate) => {
+      const service = Array.isArray(rate.service_subcategories) ? rate.service_subcategories[0] : rate.service_subcategories;
+      return service ? [{ serviceSlug: service.slug, serviceName: service.name, amount: rate.amount }] : [];
+    })
   };
 }
 

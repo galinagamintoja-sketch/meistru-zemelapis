@@ -44,9 +44,12 @@ const SPECIALIST_SELECT = `
   public_contact_consent_at,
   source,
   service_area_label,
+  labour_rate_unit,
+  labour_rate_amount,
   service_categories!tradesperson_profiles_service_category_id_fkey(name, slug),
   profile_category_assignments(service_categories(name, slug)),
   profile_services(service_categories(name, slug), service_subcategories(name, slug)),
+  profile_service_labour_rates(amount, service_subcategories(name, slug)),
   operating_areas(city, radius_km),
   profile_photos(id, label, url, storage_path, card_storage_path, moderation_status, sort_order, is_primary, removed_from_profile_at),
   reviews(client_name, rating, text, moderation_status)
@@ -58,6 +61,10 @@ const PRE_APPROXIMATE_LOCATION_SELECT = SPECIALIST_SELECT
 const LEGACY_PRE_APPROXIMATE_LOCATION_SELECT = LEGACY_SPECIALIST_SELECT
   .replace("  public_latitude,\n", "")
   .replace("  public_longitude,\n", "");
+const LEGACY_PRICING_SELECT = LEGACY_SPECIALIST_SELECT
+  .replace("  labour_rate_unit,\n", "")
+  .replace("  labour_rate_amount,\n", "")
+  .replace("  profile_service_labour_rates(amount, service_subcategories(name, slug)),\n", "");
 
 export async function getCategories() {
   const supabase = createServerSupabase();
@@ -118,6 +125,9 @@ export async function getSpecialists(filters: SpecialistFilters = {}) {
       ? LEGACY_PRE_APPROXIMATE_LOCATION_SELECT
       : LEGACY_SPECIALIST_SELECT;
     ({ data, error } = await runSpecialistQuery(select, filters));
+  }
+  if (error && /labour_rate_|profile_service_labour_rates/i.test(error.message)) {
+    ({ data, error } = await runSpecialistQuery(LEGACY_PRICING_SELECT, filters));
   }
 
   if (error) {

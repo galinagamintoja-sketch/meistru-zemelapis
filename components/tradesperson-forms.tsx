@@ -5,15 +5,18 @@ import AddressAutocomplete, { type AddressValue } from "./AddressAutocomplete";
 import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, selectionCounter, uniqueServices } from "../lib/service-taxonomy";
 import { saveServicesAndArea } from "../lib/services-save";
 
-type ProfileValues = { displayName: string; companyName: string; primaryCategoryId: string; experienceYears: number; phone: string; whatsappNumber: string; publicEmail: string; description: string; languages: string[]; publicContactConsent: boolean };
+type ProfileValues = { displayName: string; companyName: string; primaryCategoryId: string; experienceYears: number; phone: string; whatsappNumber: string; publicEmail: string; description: string; languages: string[]; publicContactConsent: boolean; labourRateUnit: "hour" | "sqm" | "agreed"; labourRateAmount: number | null; serviceLabourRates: Array<{ serviceId: string; serviceName: string; amount: number }>; selectedServices: Array<{ id: string; name: string }> };
 
 export function ProfileForm({ initial, categories }: { initial: ProfileValues; categories: Array<{ id: string; name: string }> }) {
   const [message, setMessage] = useState("");
+  const [labourRateUnit, setLabourRateUnit] = useState(initial.labourRateUnit);
+  const [labourRateAmount, setLabourRateAmount] = useState(initial.labourRateAmount ?? 25);
+  const [serviceLabourRates, setServiceLabourRates] = useState(initial.serviceLabourRates);
   async function submit(formData: FormData) {
     setMessage("Saugoma...");
     const response = await fetch("/api/meistras/profile", {
       method: "PATCH", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...Object.fromEntries(formData), languages: String(formData.get("languages") ?? "").split(",").map((value) => value.trim()).filter(Boolean), publicContactConsent: formData.get("publicContactConsent") === "on" })
+      body: JSON.stringify({ ...Object.fromEntries(formData), languages: String(formData.get("languages") ?? "").split(",").map((value) => value.trim()).filter(Boolean), publicContactConsent: formData.get("publicContactConsent") === "on", labourRateUnit, labourRateAmount: labourRateUnit === "hour" ? labourRateAmount : null, serviceLabourRates: labourRateUnit === "sqm" ? serviceLabourRates : [] })
     });
     const data = await response.json();
     setMessage(response.ok ? "Profilis išsaugotas." : data.error ?? "Išsaugoti nepavyko.");
@@ -26,6 +29,13 @@ export function ProfileForm({ initial, categories }: { initial: ProfileValues; c
         <label>Pagrindinė specialybė<select name="primaryCategoryId" defaultValue={initial.primaryCategoryId} required><option value="" disabled>Pasirinkite specialybę</option>{categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}</select>{!initial.primaryCategoryId ? <small role="alert">Anksčiau išsaugotos specialybės nepavyko susieti su dabartiniu sąrašu. Pasirinkite ją iš naujo.</small> : null}</label>
         <label>Patirties metai<input name="experienceYears" type="number" min="0" max="80" defaultValue={initial.experienceYears} required /></label>
         <label>Trumpas aprašymas<textarea name="description" defaultValue={initial.description} minLength={40} rows={7} required /></label>
+      </section>
+      <section><h3>Kainodara</h3>
+        <p>Nurodykite orientacinę darbo kainą. Medžiagos neįskaičiuotos. Galutinė kaina gali priklausyti nuo darbų kiekio, sudėtingumo ir objekto būklės.</p>
+        {([['hour','Valandinis įkainis'],['sqm','Kaina už m²'],['agreed','Sutartinė / už visą darbą']] as const).map(([value,label]) => <label key={value}><input type="radio" checked={labourRateUnit === value} onChange={() => setLabourRateUnit(value)} />{label}</label>)}
+        {labourRateUnit === "hour" ? <label>nuo €{labourRateAmount}/val.<input type="range" min="10" max="100" step="1" value={labourRateAmount} onChange={(event) => setLabourRateAmount(Number(event.target.value))} /></label> : null}
+        {labourRateUnit === "sqm" ? serviceLabourRates.map((rate, index) => <div key={rate.serviceId}><label>{rate.serviceName} — nuo {rate.amount} €/m²<input type="range" min="5" max="200" step="1" value={rate.amount} onChange={(event) => setServiceLabourRates((rates) => rates.map((item, itemIndex) => itemIndex === index ? { ...item, amount: Number(event.target.value) } : item))} /></label><button type="button" onClick={() => setServiceLabourRates((rates) => rates.filter((_, itemIndex) => itemIndex !== index))}>Pašalinti</button></div>) : null}
+        {labourRateUnit === "sqm" ? <label>Pridėti paslaugos m² kainą<select value="" onChange={(event) => { const service = initial.selectedServices.find((item) => item.id === event.target.value); if (service) setServiceLabourRates((rates) => [...rates, { serviceId: service.id, serviceName: service.name, amount: 25 }]); }}><option value="">Pasirinkite paslaugą</option>{initial.selectedServices.filter((service) => !serviceLabourRates.some((rate) => rate.serviceId === service.id)).map((service) => <option value={service.id} key={service.id}>{service.name}</option>)}</select></label> : null}
       </section>
       <section><h3><SectionIcon path="M8 4H5a2 2 0 0 0-2 2c0 8.3 6.7 15 15 15a2 2 0 0 0 2-2v-3l-4-1-1.5 2a13 13 0 0 1-7.5-7.5L9 8z" />Kontaktai</h3>
         <label>Viešas telefono numeris<input name="phone" defaultValue={initial.phone} required /></label>

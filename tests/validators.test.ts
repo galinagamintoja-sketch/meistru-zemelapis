@@ -17,6 +17,9 @@ const validRegistration = {
   subcategorySlugs: ["dazymas", "glaistymas", "grindys"],
   description: "Testinis meistro profilio aprašymas, turintis daugiau nei aštuoniasdešimt simbolių patikimai publikavimo validacijai.",
   travelRange: "25",
+  labourRateUnit: "hour",
+  labourRateAmount: 25,
+  serviceLabourRates: [],
   photoUrls: [],
   photoUploads: [],
   consentAccepted: true,
@@ -59,6 +62,18 @@ describe("registration validation", () => {
     expect(registrationSchema.safeParse({ ...validRegistration, consentAccepted: false, termsAccepted: false }).success).toBe(false);
     expect(registrationSchema.safeParse({ ...validRegistration, consentAccepted: false, privacyAcknowledged: false }).success).toBe(false);
     expect(registrationSchema.safeParse({ ...validRegistration, consentAccepted: false, publicContactConsent: false }).success).toBe(false);
+  });
+
+  it("accepts realistic labour rates and rejects extreme prices", () => {
+    expect(registrationSchema.safeParse({ ...validRegistration, labourRateUnit: "hour", labourRateAmount: 10 }).success).toBe(true);
+    expect(registrationSchema.safeParse({ ...validRegistration, labourRateUnit: "hour", labourRateAmount: 1 }).success).toBe(false);
+    expect(registrationSchema.safeParse({ ...validRegistration, labourRateUnit: "hour", labourRateAmount: 10_000 }).success).toBe(false);
+    expect(registrationSchema.safeParse({ ...validRegistration, labourRateUnit: "sqm", labourRateAmount: null, serviceLabourRates: [{ serviceSlug: "dazymas", amount: 200 }, { serviceSlug: "glaistymas", amount: 9 }] }).success).toBe(true);
+    expect(registrationSchema.safeParse({ ...validRegistration, labourRateUnit: "sqm", labourRateAmount: null, serviceLabourRates: [{ serviceSlug: "dazymas", amount: 201 }] }).success).toBe(false);
+    expect(registrationSchema.safeParse({ ...validRegistration, labourRateUnit: "sqm", labourRateAmount: null, serviceLabourRates: [] }).success).toBe(false);
+    expect(registrationSchema.safeParse({ ...validRegistration, labourRateUnit: "sqm", labourRateAmount: null, serviceLabourRates: [{ serviceSlug: "dazymas", amount: 40 }, { serviceSlug: "dazymas", amount: 45 }] }).success).toBe(false);
+    expect(registrationSchema.safeParse({ ...validRegistration, labourRateUnit: "sqm", labourRateAmount: null, serviceLabourRates: [{ serviceSlug: "nepasirinkta", amount: 40 }] }).success).toBe(false);
+    expect(registrationSchema.safeParse({ ...validRegistration, labourRateUnit: "agreed", labourRateAmount: null }).success).toBe(true);
   });
 
   it("does not accept the legacy bundled consent as separate required consent", () => {

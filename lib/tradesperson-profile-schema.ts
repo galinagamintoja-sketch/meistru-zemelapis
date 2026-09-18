@@ -12,7 +12,17 @@ export const tradespersonProfileUpdateSchema = z.object({
   publicEmail: z.string().trim().email().max(254),
   description: z.string().trim().min(40).max(2500),
   languages: z.array(z.string().trim().min(2).max(40)).max(12),
-  publicContactConsent: z.boolean()
+  publicContactConsent: z.boolean(),
+  labourRateUnit: z.enum(["hour", "sqm", "agreed"]),
+  labourRateAmount: z.coerce.number().int().nullable(),
+  serviceLabourRates: z.array(z.object({ serviceId: z.string().uuid(), amount: z.coerce.number().int().min(5).max(200) })).max(MAX_PROFILE_SERVICES)
+}).superRefine((value, context) => {
+  if (value.labourRateUnit === "hour" && (value.labourRateAmount === null || value.labourRateAmount < 10 || value.labourRateAmount > 100)) context.addIssue({ code: z.ZodIssueCode.custom, path: ["labourRateAmount"], message: "Valandinis įkainis turi būti 10–100 €." });
+  if (value.labourRateUnit !== "hour" && value.labourRateAmount !== null) context.addIssue({ code: z.ZodIssueCode.custom, path: ["labourRateAmount"], message: "Šiam kainos tipui bendras skaitinis įkainis netaikomas." });
+  if (value.labourRateUnit === "sqm" && !value.serviceLabourRates.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["serviceLabourRates"], message: "Pridėkite bent vieną paslaugos m² kainą." });
+  if (value.labourRateUnit !== "sqm" && value.serviceLabourRates.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["serviceLabourRates"], message: "m² kainos taikomos tik pasirinkus kainą už m²." });
+  const ids = value.serviceLabourRates.map((rate) => rate.serviceId);
+  if (new Set(ids).size !== ids.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["serviceLabourRates"], message: "Paslaugų kainos negali kartotis." });
 });
 
 export const tradespersonAreasUpdateSchema = z.object({

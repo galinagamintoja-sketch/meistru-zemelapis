@@ -34,6 +34,12 @@ export default async function PublicTradespersonPage({ params, searchParams }: P
       <section className="public-profile-grid"><div className="public-profile-main">
         <section><h2>Apie meistrą</h2><p>{profile.description}</p></section>
         <section><h2>Paslaugos</h2><ul>{(profile.subcategoryNames || []).map((service) => <li key={service}>{service}</li>)}</ul></section>
+        {profile.labourRateUnit ? <section><h2>Darbo kainos</h2>
+          {profile.labourRateUnit === "hour" ? <p><strong>nuo €{profile.labourRateAmount}/val.</strong></p> : null}
+          {profile.labourRateUnit === "sqm" ? profile.serviceLabourRates?.map((rate) => <p key={rate.serviceSlug}><strong>{rate.serviceName} — nuo {rate.amount} €/m²</strong></p>) : null}
+          {profile.labourRateUnit === "agreed" ? <p><strong>Sutartinė / už visą darbą</strong></p> : null}
+          <p className="privacy-note">Nurodyta orientacinė darbo kaina. Medžiagos neįskaičiuotos. Galutinė kaina gali priklausyti nuo darbų kiekio, sudėtingumo ir objekto būklės.</p>
+        </section> : null}
         <section><h2>Aptarnaujama teritorija</h2><p>{profile.operatingCities.join(", ")} · iki {profile.radius} km</p></section>
         {profile.verification.length ? <section><h2>Patvirtinta informacija</h2><p>{formatVerificationSummary(profile.verification)}</p></section> : null}
         {profile.reviews.length ? <section><h2>Atsiliepimai</h2>{profile.reviews.map(([author, rating, text], index) => <blockquote key={`${author}-${index}`}><strong>{author} · {rating}/5</strong><p>{text}</p></blockquote>)}</section> : null}

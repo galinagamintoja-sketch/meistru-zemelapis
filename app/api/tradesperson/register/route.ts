@@ -7,6 +7,7 @@ import {
   insertPhotoRecords,
   insertProfileCategories,
   insertProfileServices,
+  insertServiceLabourRates,
   insertSelfRegistrationProfile,
   resolveSelectedCategories,
   resolveSelectedSubcategories,
@@ -164,6 +165,8 @@ export async function POST(request: Request) {
       house_number_private: payload.houseNumber || null,
       travel_range_label: payload.travelRange === "lt" ? "Visa Lietuva" : `Iki ${payload.travelRange} km`,
       radius_km: travelRadiusKm,
+      labour_rate_unit: payload.labourRateUnit,
+      labour_rate_amount: payload.labourRateAmount,
       latitude: coordinates?.lat ?? null,
       longitude: coordinates?.lng ?? null,
       description: payload.description,
@@ -198,6 +201,11 @@ export async function POST(request: Request) {
   if (serviceError) {
     await cleanupProfile(profile.id, supabase);
     return NextResponse.json({ error: "Paslaugų išsaugoti nepavyko. Bandykite dar kartą." }, { status: 500 });
+  }
+  const rateError = await insertServiceLabourRates(supabase, profile.id, subcategoryResult.selectedSubcategories, payload.serviceLabourRates);
+  if (rateError) {
+    await cleanupProfile(profile.id, supabase);
+    return NextResponse.json({ error: "Paslaugų kainų išsaugoti nepavyko. Bandykite dar kartą." }, { status: 500 });
   }
 
   const areaError = await insertOperatingAreas(supabase, profile.id, operatingCities, travelRadiusKm);

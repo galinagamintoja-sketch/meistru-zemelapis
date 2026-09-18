@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RegistrationDraft } from "../components/LocalProApp";
-import { normalizeGooglePlacesCountryCode, submitRegistrationDraft, validateRegistrationDraftClient } from "../components/LocalProApp";
+import { normalizeGooglePlacesCountryCode, retainRatesForSelectedServices, submitRegistrationDraft, validateRegistrationDraftClient } from "../components/LocalProApp";
 
 const baseDraft: RegistrationDraft = {
   name: "Test Meistras",
@@ -23,6 +23,9 @@ const baseDraft: RegistrationDraft = {
   description: "Testinis meistro profilio aprašymas, turintis daugiau nei aštuoniasdešimt simbolių patikimai publikavimo validacijai.",
   radiusKm: 25,
   travelRange: "25",
+  labourRateUnit: "hour",
+  labourRateAmount: 25,
+  serviceLabourRates: [],
   operatingCities: [],
   consentAccepted: true,
   termsAccepted: true,
@@ -55,6 +58,21 @@ describe("registration submit address fallback", () => {
     expect(validateRegistrationDraftClient({ ...baseDraft, categorySlugs: ["apdaila"], subcategorySlugs: [] })).toMatchObject({
       services: "Pasirinkite bent 2 konkrečias paslaugas."
     });
+  });
+
+  it("requires m² rates to identify selected, unique services", () => {
+    expect(validateRegistrationDraftClient({ ...baseDraft, labourRateUnit: "sqm", labourRateAmount: null, serviceLabourRates: [] })).toMatchObject({
+      serviceLabourRates: expect.any(String)
+    });
+    expect(validateRegistrationDraftClient({ ...baseDraft, labourRateUnit: "sqm", labourRateAmount: null, serviceLabourRates: [{ serviceSlug: "dazymas", amount: 9 }, { serviceSlug: "glaistymas", amount: 25 }] })).toEqual({});
+    expect(validateRegistrationDraftClient({ ...baseDraft, labourRateUnit: "sqm", labourRateAmount: null, serviceLabourRates: [{ serviceSlug: "dazymas", amount: 9 }, { serviceSlug: "dazymas", amount: 25 }] })).toMatchObject({ serviceLabourRates: expect.any(String) });
+  });
+
+  it("clears only the m² rate whose service was deselected", () => {
+    expect(retainRatesForSelectedServices([
+      { serviceSlug: "dazymas", amount: 9 },
+      { serviceSlug: "glaistymas", amount: 25 }
+    ], ["glaistymas"])).toEqual([{ serviceSlug: "glaistymas", amount: 25 }]);
   });
 
   it("normalizes a 06 number before submission", async () => {

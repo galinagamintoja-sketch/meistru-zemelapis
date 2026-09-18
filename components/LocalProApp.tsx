@@ -50,6 +50,9 @@ export type RegistrationDraft = {
   description: string;
   radiusKm: number;
   travelRange: "10" | "25" | "50" | "100" | "lt";
+  labourRateUnit: "hour" | "sqm" | "agreed";
+  labourRateAmount: number | null;
+  serviceLabourRates: Array<{ serviceSlug: string; amount: number }>;
   operatingCities: string[];
   consentAccepted: boolean;
   termsAccepted: boolean;
@@ -73,8 +76,12 @@ type RegistrationErrorResponse = {
   };
 };
 
-type RegistrationClientField = "name" | "phone" | "email" | "address" | "workAreas" | "services" | "description" | "termsAccepted" | "publicContactConsent";
+type RegistrationClientField = "name" | "phone" | "email" | "address" | "workAreas" | "services" | "description" | "labourRateAmount" | "serviceLabourRates" | "termsAccepted" | "publicContactConsent";
 export type RegistrationClientErrors = Partial<Record<RegistrationClientField, string>>;
+export function retainRatesForSelectedServices(rates: RegistrationDraft["serviceLabourRates"], selectedSlugs: string[]) {
+  const selected = new Set(selectedSlugs);
+  return rates.filter((rate) => selected.has(rate.serviceSlug));
+}
 
 type LocationResolveResponse = {
   coordinates?: {
@@ -219,6 +226,10 @@ const travelRangeOptions = [
   { value: "100", label: "Iki 100 km" },
   { value: "lt", label: "Visa Lietuva" }
 ] as const;
+const labourRateLimits = {
+  hour: { min: 10, max: 100, step: 1, defaultValue: 25 },
+  sqm: { min: 5, max: 200, step: 1, defaultValue: 25 }
+} as const;
 const googlePlacesApiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ?? "";
 const googlePlacesCountry = normalizeGooglePlacesCountryCode(process.env.NEXT_PUBLIC_GOOGLE_PLACES_COUNTRY);
 const googlePlacesFields = ["formattedAddress", "id", "location"];
@@ -370,6 +381,18 @@ export function validateRegistrationDraftClient(draft: RegistrationDraft): Regis
   if (!draft.categorySlugs.length) errors.workAreas = "Pasirinkite bent vieną darbo sritį.";
   else if (draft.subcategorySlugs.length < 2) errors.services = "Pasirinkite bent 2 konkrečias paslaugas.";
   if (draft.description.trim().length < 80) errors.description = "Aprašymas turi būti bent 80 simbolių.";
+  if (draft.labourRateUnit === "hour") {
+    const rateLimits = labourRateLimits.hour;
+    if (!Number.isInteger(draft.labourRateAmount) || Number(draft.labourRateAmount) < rateLimits.min || Number(draft.labourRateAmount) > rateLimits.max) {
+      errors.labourRateAmount = `Pasirinkite kainą nuo ${rateLimits.min} iki ${rateLimits.max} €.`;
+    }
+  }
+  if (draft.labourRateUnit === "sqm") {
+    const slugs = draft.serviceLabourRates.map((rate) => rate.serviceSlug);
+    if (!draft.serviceLabourRates.length || draft.serviceLabourRates.some((rate) => !draft.subcategorySlugs.includes(rate.serviceSlug) || !Number.isInteger(rate.amount) || rate.amount < 5 || rate.amount > 200) || new Set(slugs).size !== slugs.length) {
+      errors.serviceLabourRates = "Pridėkite galiojančias, nesikartojančias pasirinktų paslaugų m² kainas.";
+    }
+  }
   if (!draft.termsAccepted || !draft.privacyAcknowledged) errors.termsAccepted = "Sutikite su sąlygomis ir patvirtinkite, kad susipažinote su privatumo politika.";
   if (!draft.publicContactConsent) errors.publicContactConsent = "Patvirtinkite viešų kontaktų rodymo sutikimą.";
   return errors;
@@ -441,6 +464,9 @@ export default function LocalProApp({
     description: "",
     radiusKm: 25,
     travelRange: "25",
+    labourRateUnit: "hour",
+    labourRateAmount: 25,
+    serviceLabourRates: [],
     operatingCities: [] as string[],
     consentAccepted: false,
     termsAccepted: false,
@@ -1036,7 +1062,8 @@ export default function LocalProApp({
         trade: categories.find((category) => current.categorySlugs.includes(category.slug))?.name ?? current.trade,
         subcategorySlugs: checked
           ? Array.from(new Set([...current.subcategorySlugs, slug]))
-          : current.subcategorySlugs.filter((item) => item !== slug)
+          : current.subcategorySlugs.filter((item) => item !== slug),
+        serviceLabourRates: retainRatesForSelectedServices(current.serviceLabourRates, checked ? Array.from(new Set([...current.subcategorySlugs, slug])) : current.subcategorySlugs.filter((item) => item !== slug))
       };
     });
   }
@@ -1586,6 +1613,72 @@ export default function LocalProApp({
                 />
                 {registrationErrors.description ? <span className="field-error">{registrationErrors.description}</span> : null}
               </label>
+              <fieldset aria-invalid={Boolean(registrationErrors.labourRateAmount || registrationErrors.serviceLabourRates)}>
+                <legend>Kaip dažniausiai skaičiuojate savo darbą? *</legend>
+                {([
+                  ["hour", "Valandinis įkainis"],
+                  ["sqm", "Kaina už m²"],
+                  ["agreed", "Sutartinė / už visą darbą"]
+                ] as const).map(([value, label]) => (
+                  <label key={value}>
+                    <input
+                      type="radio"
+                      name="labourRateUnit"
+                      value={value}
+                      checked={formState.labourRateUnit === value}
+                      onChange={() => {
+                        const labourRateAmount = value === "hour" ? labourRateLimits.hour.defaultValue : null;
+                        setFormState({ ...formState, labourRateUnit: value, labourRateAmount, serviceLabourRates: value === "sqm" ? formState.serviceLabourRates : [] });
+                        setRegistrationErrors((current) => ({ ...current, labourRateAmount: undefined, serviceLabourRates: undefined }));
+                      }}
+                    />
+                    {label}
+                  </label>
+                ))}
+                {formState.labourRateUnit === "sqm" ? <div>
+                  {formState.serviceLabourRates.map((rate, index) => {
+                    const service = selectedSubcategories.find((item) => item.slug === rate.serviceSlug);
+                    return <div key={rate.serviceSlug} className="selected-service-tags">
+                      <span>{service?.name ?? rate.serviceSlug} — nuo {rate.amount} €/m²</span>
+                      <input type="range" min="5" max="200" step="1" value={rate.amount} aria-label={`${service?.name ?? rate.serviceSlug} kaina už m²`} onChange={(event) => setFormState((current) => ({ ...current, serviceLabourRates: current.serviceLabourRates.map((item, itemIndex) => itemIndex === index ? { ...item, amount: Number(event.target.value) } : item) }))} />
+                      <button type="button" onClick={() => setFormState((current) => ({ ...current, serviceLabourRates: current.serviceLabourRates.filter((_, itemIndex) => itemIndex !== index) }))}>Pašalinti</button>
+                    </div>;
+                  })}
+                  <label>Pridėti paslaugos m² kainą
+                    <select value="" onChange={(event) => {
+                      const serviceSlug = event.target.value;
+                      if (!serviceSlug) return;
+                      setFormState((current) => ({ ...current, serviceLabourRates: [...current.serviceLabourRates, { serviceSlug, amount: 25 }] }));
+                      setRegistrationErrors((current) => ({ ...current, serviceLabourRates: undefined }));
+                    }}>
+                      <option value="">Pasirinkite paslaugą</option>
+                      {selectedSubcategories.filter((service) => formState.subcategorySlugs.includes(service.slug) && !formState.serviceLabourRates.some((rate) => rate.serviceSlug === service.slug)).map((service) => <option key={service.slug} value={service.slug}>{service.name}</option>)}
+                    </select>
+                  </label>
+                  {registrationErrors.serviceLabourRates ? <span className="field-error">{registrationErrors.serviceLabourRates}</span> : null}
+                </div> : null}
+                {formState.labourRateUnit === "hour" ? (
+                  <label>
+                    Darbo kaina <strong>nuo {formState.labourRateAmount} €/val.</strong>
+                    <input
+                      type="range"
+                      name="labourRateAmount"
+                      min={labourRateLimits.hour.min}
+                      max={labourRateLimits.hour.max}
+                      step={labourRateLimits.hour.step}
+                      value={formState.labourRateAmount ?? labourRateLimits.hour.defaultValue}
+                      aria-describedby="labour-rate-range labour-rate-explanation"
+                      onChange={(event) => {
+                        setFormState({ ...formState, labourRateAmount: Number(event.target.value) });
+                        setRegistrationErrors((current) => ({ ...current, labourRateAmount: undefined }));
+                      }}
+                    />
+                    <span id="labour-rate-range" className="field-note">Leidžiama nuo 10 € iki 100 €</span>
+                  </label>
+                ) : formState.labourRateUnit === "agreed" ? <p className="field-note">Kainą sutarsite su klientu įvertinę visą darbą.</p> : null}
+                <p id="labour-rate-explanation" className="field-note">Nurodykite orientacinę darbo kainą. Medžiagos neįskaičiuotos. Galutinė kaina gali priklausyti nuo darbų kiekio, sudėtingumo ir objekto būklės.</p>
+                {registrationErrors.labourRateAmount ? <span className="field-error">{registrationErrors.labourRateAmount}</span> : null}
+              </fieldset>
               <fieldset>
                 <legend>Darbų nuotraukos nebūtinos</legend>
                 <p className="field-note">Galite pridėti iki 8 darbų nuotraukų dabar arba papildyti profilį vėliau.</p>

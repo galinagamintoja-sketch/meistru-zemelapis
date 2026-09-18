@@ -31,6 +31,8 @@ type ProfileInsert = {
   house_number_private: string | null;
   travel_range_label: string;
   radius_km: number;
+  labour_rate_unit: "hour" | "sqm" | "agreed";
+  labour_rate_amount: number | null;
   latitude: number | null;
   longitude: number | null;
   description: string;
@@ -247,6 +249,24 @@ export async function replaceProfileServices(
   }
 
   return insertProfileServices(supabase, profileId, selectedSubcategories);
+}
+
+export async function insertServiceLabourRates(
+  supabase: SupabaseClient,
+  profileId: string,
+  selectedSubcategories: ServiceSubcategoryRow[],
+  rates: Array<{ serviceSlug: string; amount: number }>
+) {
+  if (!rates.length) return null;
+  const serviceBySlug = new Map(selectedSubcategories.map((service) => [service.slug, service]));
+  const rows = rates.map((rate) => ({
+    tradesperson_profile_id: profileId,
+    service_subcategory_id: serviceBySlug.get(rate.serviceSlug)?.id,
+    amount: rate.amount
+  }));
+  if (rows.some((row) => !row.service_subcategory_id)) return "Rate references an unselected service";
+  const { error } = await supabase.from("profile_service_labour_rates").insert(rows);
+  return error?.message ?? null;
 }
 
 export async function insertProfileCategories(

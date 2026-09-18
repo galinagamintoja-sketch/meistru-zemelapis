@@ -36,6 +36,33 @@ export const registrationPhotoUploadSchema = z.object({
 });
 
 export const travelRangeSchema = z.enum(["10", "25", "50", "100", "lt"]);
+export const labourRateUnitSchema = z.enum(["hour", "sqm", "agreed"]);
+export const serviceLabourRateSchema = z.object({
+  serviceSlug: z.string().trim().min(2).max(80),
+  amount: z.coerce.number().int().min(5).max(200)
+});
+
+export const labourRateSchema = z.object({
+  labourRateUnit: labourRateUnitSchema,
+  labourRateAmount: z.coerce.number().int().nullable(),
+  serviceLabourRates: z.array(serviceLabourRateSchema).max(25).default([])
+}).superRefine((value, context) => {
+  if (value.labourRateUnit === "agreed") {
+    if (value.labourRateAmount !== null || value.serviceLabourRates.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["labourRateAmount"], message: "Sutartinei kainai fiksuoto įkainio nenurodykite." });
+    return;
+  }
+  if (value.labourRateUnit === "hour") {
+    if (value.labourRateAmount === null || value.labourRateAmount < 10 || value.labourRateAmount > 100) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["labourRateAmount"], message: "Pasirinkite kainą nuo 10 iki 100 €." });
+    }
+    if (value.serviceLabourRates.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["serviceLabourRates"], message: "Valandiniam įkainiui paslaugų m² kainos netaikomos." });
+    return;
+  }
+  if (value.labourRateAmount !== null) context.addIssue({ code: z.ZodIssueCode.custom, path: ["labourRateAmount"], message: "m² kainos nurodomos prie konkrečių paslaugų." });
+  if (!value.serviceLabourRates.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["serviceLabourRates"], message: "Pridėkite bent vienos pasirinktos paslaugos m² kainą." });
+  const slugs = value.serviceLabourRates.map((rate) => rate.serviceSlug);
+  if (new Set(slugs).size !== slugs.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ["serviceLabourRates"], message: "Tai pačiai paslaugai galima nurodyti tik vieną m² kainą." });
+});
 
 export function isPublicLocality(value: string) {
   const locality = value.trim();
@@ -63,6 +90,9 @@ export const registrationSchema = z.object({
   description: z.string().trim().min(80, "Aprašymas turi būti bent 80 simbolių.").max(1200),
   radiusKm: z.coerce.number().min(5).max(150).optional().default(25),
   travelRange: travelRangeSchema,
+  labourRateUnit: labourRateUnitSchema.optional().default("hour"),
+  labourRateAmount: z.coerce.number().int().nullable().optional().default(25),
+  serviceLabourRates: z.array(serviceLabourRateSchema).max(25).optional().default([]),
   operatingCities: z.array(z.string().trim().min(2).max(80)).max(20).optional().default([]),
   photoUrls: z.array(photoUrlSchema).max(photoFieldMetadata.maxItems).optional().default([]),
   photoUploads: z.array(registrationPhotoUploadSchema).max(photoFieldMetadata.maxItems).optional().default([]),
@@ -75,6 +105,13 @@ export const registrationSchema = z.object({
 }).superRefine((payload, context) => {
   for (const [path, locality] of [["town", payload.town || payload.city], ...payload.operatingCities.map((value) => ["operatingCities", value])] as const) {
     if (locality && !isPublicLocality(locality)) context.addIssue({ code: z.ZodIssueCode.custom, message: "Viešai vietovei nurodykite miestą ar gyvenvietę, ne gatvę ar adresą.", path: [path] });
+  }
+  const rateResult = labourRateSchema.safeParse(payload);
+  if (!rateResult.success) {
+    for (const issue of rateResult.error.issues) context.addIssue(issue);
+  }
+  if (payload.labourRateUnit === "sqm" && payload.serviceLabourRates.some((rate) => !payload.subcategorySlugs.includes(rate.serviceSlug))) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["serviceLabourRates"], message: "m² kainos gali būti susietos tik su pasirinktomis paslaugomis." });
   }
   const requiredConsents = [
     ["termsAccepted", payload.termsAccepted, "Patvirtinkite, kad sutinkate su naudojimosi sąlygomis."],

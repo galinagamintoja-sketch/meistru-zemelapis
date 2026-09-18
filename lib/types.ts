@@ -56,6 +56,9 @@ export type Specialist = {
   source: ProfileSource;
   isDemo?: boolean;
   publicContactConsentAt?: string | null;
+  labourRateUnit?: "hour" | "sqm" | "agreed" | null;
+  labourRateAmount?: number | null;
+  serviceLabourRates?: Array<{ serviceSlug: string; serviceName: string; amount: number }>;
 };
 
 export type Category = {
@@ -88,6 +91,9 @@ export type RegistrationPayload = {
   description: string;
   radiusKm: number;
   travelRange: "10" | "25" | "50" | "100" | "lt";
+  labourRateUnit: "hour" | "sqm" | "agreed";
+  labourRateAmount: number | null;
+  serviceLabourRates: Array<{ serviceSlug: string; amount: number }>;
   operatingCities?: string[];
   photoUrls?: string[];
   photoUploads?: Array<{

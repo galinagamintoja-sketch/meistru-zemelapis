@@ -17,7 +17,11 @@ describe("profile editor cleanup", () => {
         publicEmail: "test@example.lt",
         description: "Pakankamai ilgas bandomasis specialisto aprašymas.",
         languages: ["Lietuvių"],
-        publicContactConsent: true
+        publicContactConsent: true,
+        labourRateUnit: "agreed",
+        labourRateAmount: null,
+        serviceLabourRates: [],
+        selectedServices: []
       }
     }));
 
