@@ -1,9 +1,38 @@
 import { describe, expect, it } from "vitest";
 import { contactUpdatesFromImport, previewContactImport } from "../lib/marketing/import-service";
+import { normalizeMarketingEmail, normalizeMarketingPhone } from "../lib/marketing/normalization";
 
 const mapping = { name: "Name", phone: "Phone", email: "Email", trade: "Trade", area: "Area" };
 
 describe("marketing contact import", () => {
+  it.each([
+    ["+370 612 34567", "+37061234567"],
+    ["37061234567", "+37061234567"],
+    ["0 612 34567", "+37061234567"],
+    ["8 612 34567", "+37061234567"],
+    ["+44 7700 900123", "+447700900123"]
+  ])("normalizes %s without forcing foreign numbers to Lithuania", (input, expected) => {
+    expect(normalizeMarketingPhone(input)).toBe(expected);
+  });
+
+  it("normalizes email candidates without Gmail-specific rewriting", () => {
+    expect(normalizeMarketingEmail("  First.Last+work@EXAMPLE.LT  ")).toBe("first.last+work@example.lt");
+    expect(normalizeMarketingEmail("firstlast@example.lt")).not.toBe(normalizeMarketingEmail("first.last@example.lt"));
+    expect(normalizeMarketingEmail("first@example.lt")).not.toBe(normalizeMarketingEmail("first+work@example.lt"));
+  });
+
+  it("preserves original phone and email values alongside normalized candidates", () => {
+    const [row] = previewContactImport([
+      { Name: "A", Phone: " +370 612 34567 ", Email: " First.Last+work@EXAMPLE.LT " }
+    ], mapping);
+    expect(row.values).toMatchObject({
+      phoneRaw: "+370 612 34567",
+      phoneNormalized: "+37061234567",
+      emailRaw: "First.Last+work@EXAMPLE.LT",
+      emailNormalized: "first.last+work@example.lt"
+    });
+  });
+
   it("normalizes legacy and current Lithuanian phone formats", () => {
     const result = previewContactImport([
       { Name: "A", Phone: "8 612 34567" }, { Name: "B", Phone: "0 623 45678" }, { Name: "C", Phone: "+370 634 56789" }
@@ -51,4 +80,3 @@ describe("marketing contact import", () => {
       .toEqual({ company_name: "New Co" });
   });
 });
-
