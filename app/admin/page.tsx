@@ -742,6 +742,7 @@ export default function AdminPage() {
       </section>
 
       <nav className="admin-tabs" aria-label="Administravimo skyriai">
+        <a className="admin-marketing-link" href="/admin/marketing">Marketingas</a>
         <button type="button" aria-current={section === "requests" ? "page" : undefined} onClick={() => setSection("requests")}>Užklausos</button>
         <button type="button" aria-current={section === "reports" ? "page" : undefined} onClick={() => setSection("reports")}>Pranešimai</button>
         <button type="button" aria-current={section === "photos" ? "page" : undefined} onClick={() => setSection("photos")}>Nuotraukos</button>

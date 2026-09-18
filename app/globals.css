@@ -438,6 +438,7 @@
   border-radius: 12px;
 }
 .admin-tabs button { min-height: 44px; border-radius: 9px; }
+.admin-marketing-link { display: flex; min-height: 44px; align-items: center; justify-content: center; padding: 0 12px; border-radius: 9px; background: var(--spruce); color: #fff; font-weight: 900; text-decoration: none; }
 .admin-tabs button[aria-current="page"] { background: var(--ink); color: #fff; }
 .admin-card-compact { display: grid; gap: 8px; margin: 14px 0 0; }
 .admin-card-compact div { display: flex; justify-content: space-between; gap: 12px; }
