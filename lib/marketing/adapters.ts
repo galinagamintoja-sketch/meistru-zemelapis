@@ -28,4 +28,3 @@ export class UnconfiguredAdapter implements MarketingChannelAdapter {
     return { state: "failed", error: `${this.channel}_adapter_not_configured` };
   }
 }
-

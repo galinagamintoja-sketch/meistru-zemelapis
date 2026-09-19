@@ -1,3 +1,5 @@
+import { parsePhoneNumberFromString } from "libphonenumber-js";
+
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function textValue(value: unknown) {
@@ -16,15 +18,26 @@ export function normalizeMarketingEmail(value: unknown) {
 export function normalizeMarketingPhone(value: unknown) {
   const raw = textValue(value);
   if (!raw) return null;
-  const leadingPlus = raw.trim().startsWith("+");
-  const digits = raw.replace(/\D/g, "");
-  if (/^370\d{8}$/.test(digits)) return `+${digits}`;
-  if (/^[08]\d{8}$/.test(digits)) return `+370${digits.slice(1)}`;
-  if (leadingPlus && /^\d{8,15}$/.test(digits)) return `+${digits}`;
-  return null;
+  const compact = raw.replace(/[\s().-]/g, "");
+  const lithuanianCandidate = /^370\d+$/.test(compact)
+    ? `+${compact}`
+    : /^[08]\d+$/.test(compact)
+      ? `+370${compact.slice(1)}`
+      : compact;
+  const phone = parsePhoneNumberFromString(lithuanianCandidate, "LT");
+  return phone?.isValid() ? phone.number : null;
+}
+
+export function phoneInvalidReason(value: unknown) {
+  const raw = textValue(value);
+  return raw && !normalizeMarketingPhone(raw) ? "invalid_phone_number" : null;
+}
+
+export function emailInvalidReason(value: unknown) {
+  const raw = textValue(value);
+  return raw && !normalizeMarketingEmail(raw) ? "invalid_email_address" : null;
 }
 
 export function normalizedIdentityKey(type: "phone" | "email", value: string) {
   return `${type}:${value}`;
 }
-

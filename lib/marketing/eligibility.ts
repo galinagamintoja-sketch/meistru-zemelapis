@@ -7,6 +7,7 @@ export type DispatchFacts = {
   channelAvailable: boolean;
   dailyAllowanceRemaining: boolean;
   insideSendingWindow: boolean;
+  contactabilityPermitted: boolean;
 };
 
 export function dispatchEligibility(facts: DispatchFacts) {
@@ -18,7 +19,10 @@ export function dispatchEligibility(facts: DispatchFacts) {
     campaign_paused: facts.campaignPaused,
     channel_unavailable: !facts.channelAvailable,
     daily_limit_reached: !facts.dailyAllowanceRemaining,
-    outside_sending_window: !facts.insideSendingWindow
-  }).filter(([, failed]) => failed).map(([reason]) => reason);
+    outside_sending_window: !facts.insideSendingWindow,
+    contactability_not_permitted: !facts.contactabilityPermitted,
+  })
+    .filter(([, failed]) => failed)
+    .map(([reason]) => reason);
   return { eligible: failures.length === 0, failures };
 }

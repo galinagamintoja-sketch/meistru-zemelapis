@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { dispatchEligibility } from "../lib/marketing/eligibility";
 
-const safeFacts = { approvedRevisionMatches: true, suppressed: false, registered: false, hasNewReply: false, campaignPaused: false, channelAvailable: true, dailyAllowanceRemaining: true, insideSendingWindow: true };
+const safeFacts = { approvedRevisionMatches: true, suppressed: false, registered: false, hasNewReply: false, campaignPaused: false, channelAvailable: true, dailyAllowanceRemaining: true, insideSendingWindow: true, contactabilityPermitted: true };
 
 describe("marketing outreach safety", () => {
   it("excludes registered and suppressed contacts", () => {
@@ -19,7 +19,7 @@ describe("marketing outreach safety", () => {
     expect(sql).toContain("marketing_pause_on_inbound_message");
     expect(sql).toContain("pause_reason = 'reply_received'");
     expect(sql).toContain("status = 'registered'");
-    expect(sql).toContain("last_error = 'registered'");
+    expect(sql).toContain("cancellation_reason = 'registered'");
     expect(sql).not.toMatch(/update marketing_suppressions set revoked_at/i);
   });
 
@@ -34,8 +34,9 @@ describe("marketing outreach safety", () => {
     const route = readFileSync(resolve("app/api/admin/marketing/drafts/route.ts"), "utf8");
     expect(sql).toContain("current_draft.revision <> target_revision");
     expect(sql).toContain("approved_revision = target_revision");
-    expect(route).toContain("revision: draft.revision + 1");
-    expect(route).toContain("approved_revision: null");
+    expect(sql).toContain("create table marketing_approved_message_snapshots");
+    expect(sql).toContain("cancellation_reason='draft_revised'");
+    expect(route).toContain('"revise_marketing_draft"');
   });
 
   it("keeps marketing tables private from browser database roles", () => {
@@ -51,5 +52,45 @@ describe("marketing outreach safety", () => {
     expect(reconciliation).toContain("array_length(matches, 1), 0) > 1");
     expect(reconciliation).toContain("pause_reason = 'registration_match_conflict'");
     expect(reconciliation).toContain("return query select 'conflict'");
+  });
+
+  it("keeps source group and post references in the deduplication key", () => {
+    const sql = readFileSync(resolve("supabase/migrations/031_marketing_crm_foundation.sql"), "utf8");
+    expect(sql).toMatch(/marketing_contact_sources_natural_key[\s\S]*coalesce\(group_url/);
+    expect(sql).toMatch(/coalesce\(group_url[\s\S]*coalesce\(post_url/);
+  });
+
+  it("retains suppression identity snapshots after contact deletion", () => {
+    const sql = readFileSync(resolve("supabase/migrations/031_marketing_crm_foundation.sql"), "utf8");
+    expect(sql).toContain("preserve_marketing_suppression_on_contact_delete");
+    expect(sql).toContain("identity snapshot preserved on contact deletion");
+    expect(sql).toContain("suppress_marketing_contact");
+  });
+
+  it("scopes Telegram-style message identifiers by thread", () => {
+    const sql = readFileSync(resolve("supabase/migrations/031_marketing_crm_foundation.sql"), "utf8");
+    expect(sql).toMatch(/marketing_messages_external_id_idx[\s\S]*external_thread_id, external_message_id/);
+    expect(sql).toContain("channel <> 'telegram'");
+  });
+
+  it("stores immutable approval and operational queue fields", () => {
+    const sql = readFileSync(resolve("supabase/migrations/031_marketing_crm_foundation.sql"), "utf8");
+    for (const field of ["approved_snapshot_id", "attempt_count", "last_attempt_at", "provider_result", "cancelled_at", "cancellation_reason", "lease_owner", "lease_expires_at", "transport_job_id", "completed_at"]) expect(sql).toContain(field);
+  });
+
+  it("fails closed when contactability is not explicitly permitted", () => {
+    expect(dispatchEligibility({ ...safeFacts, contactabilityPermitted: false })).toEqual({ eligible: false, failures: ["contactability_not_permitted"] });
+  });
+
+  it("normalizes historically formatted registered phones during reconciliation", () => {
+    const sql = readFileSync(resolve("supabase/migrations/031_marketing_crm_foundation.sql"), "utf8");
+    expect(sql).toContain("normalize_lithuanian_contact_number(p.phone) = phone_normalized");
+  });
+
+  it("shows the exact contact total separately from the rendered page", () => {
+    const ui = readFileSync(resolve("app/admin/marketing/page.tsx"), "utf8");
+    expect(ui).toContain("pagination.total");
+    expect(ui).toContain("contacts.length");
+    expect(ui).toContain("onPage(pagination.page + 1)");
   });
 });

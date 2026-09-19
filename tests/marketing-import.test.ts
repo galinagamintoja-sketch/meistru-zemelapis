@@ -10,7 +10,7 @@ describe("marketing contact import", () => {
     ["37061234567", "+37061234567"],
     ["0 612 34567", "+37061234567"],
     ["8 612 34567", "+37061234567"],
-    ["+44 7700 900123", "+447700900123"]
+    ["+44 20 7946 0018", "+442079460018"]
   ])("normalizes %s without forcing foreign numbers to Lithuania", (input, expected) => {
     expect(normalizeMarketingPhone(input)).toBe(expected);
   });
@@ -66,6 +66,39 @@ describe("marketing contact import", () => {
     ]);
     expect(result[0].outcome).toBe("conflict");
     expect(result[0].reasons).toContain("phone_email_different_contacts");
+  });
+
+  it("quarantines a shared or recycled endpoint with multiple owners", () => {
+    const result = previewContactImport([{ Name: "Unknown owner", Phone: "861234567" }], mapping, [
+      { contactId: "a", type: "phone", normalizedValue: "+37061234567" },
+      { contactId: "b", type: "phone", normalizedValue: "+37061234567" }
+    ]);
+    expect(result[0]).toMatchObject({ outcome: "conflict", reasons: ["identity_has_multiple_owners"] });
+  });
+
+  it("does not miss a candidate among more than 1,000 existing identities", () => {
+    const identities = Array.from({ length: 1200 }, (_, index) => ({ contactId: `contact-${index}`, type: "email" as const, normalizedValue: `person${index}@example.lt` }));
+    expect(previewContactImport([{ Name: "Known", Email: "person1199@example.lt" }], mapping, identities)[0])
+      .toMatchObject({ outcome: "existing_contact", contactId: "contact-1199" });
+  });
+
+  it("preserves a repeated contact row as another source instead of a conflict", () => {
+    const sourceMapping = { ...mapping, groupUrl: "Group", postUrl: "Post" };
+    const rows = previewContactImport([
+      { Name: "Jonas", Phone: "861234567", Group: "https://facebook.com/groups/a", Post: "https://facebook.com/posts/1" },
+      { Name: "Jonas", Phone: "861234567", Group: "https://facebook.com/groups/b", Post: "https://facebook.com/posts/2" }
+    ], sourceMapping);
+    expect(rows.map((row) => row.outcome)).toEqual(["new", "existing_contact"]);
+    expect(rows[1].reasons).toContain("duplicate_within_import_source_preserved");
+  });
+
+  it("preserves invalid endpoint evidence when the other endpoint is valid", () => {
+    const [badEmail] = previewContactImport([{ Name: "A", Phone: "861234567", Email: "not-email" }], mapping);
+    const [badPhone] = previewContactImport([{ Name: "B", Phone: "123", Email: "b@example.lt" }], mapping);
+    expect(badEmail).toMatchObject({ outcome: "new", values: { emailRaw: "not-email", emailNormalized: null } });
+    expect(badEmail.reasons).toContain("invalid_email");
+    expect(badPhone).toMatchObject({ outcome: "new", values: { phoneRaw: "123", phoneNormalized: null } });
+    expect(badPhone.reasons).toContain("invalid_phone");
   });
 
   it("marks a row invalid without a usable identity", () => {
