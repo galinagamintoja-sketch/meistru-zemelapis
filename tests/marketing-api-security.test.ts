@@ -38,4 +38,17 @@ describe("marketing API authorization", () => {
     }));
     expect(response.status).toBe(401);
   });
+
+  it("rejects unauthorised conversation linking before database access", async () => {
+    const { POST } = await import("../app/api/admin/marketing/conversations/link/route");
+    const response = await POST(new Request("http://localhost/api/admin/marketing/conversations/link", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        conversationId: "11111111-1111-4111-8111-111111111111",
+        contactId: "22222222-2222-4222-8222-222222222222"
+      })
+    }));
+    expect(response.status).toBe(401);
+  });
 });

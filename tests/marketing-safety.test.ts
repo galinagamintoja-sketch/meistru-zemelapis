@@ -93,4 +93,32 @@ describe("marketing outreach safety", () => {
     expect(ui).toContain("contacts.length");
     expect(ui).toContain("onPage(pagination.page + 1)");
   });
+
+  it("deduplicates identical invalid endpoint evidence without collapsing different values", () => {
+    const sql = readFileSync(resolve("supabase/migrations/031_marketing_crm_foundation.sql"), "utf8");
+    expect(sql).toMatch(/marketing_contact_identities_invalid_value_idx[\s\S]*lower\(trim\(raw_value\)\)[\s\S]*where not is_valid/);
+    expect(sql).toMatch(/values\(resolved_contact,'phone',phone_raw,null,false,false,'uncertain'[\s\S]*on conflict do nothing/);
+    expect(sql).toMatch(/values\(resolved_contact,'email',email_raw,null,false,false,'uncertain'[\s\S]*on conflict do nothing/);
+  });
+
+  it("enforces contactability identity ownership and endpoint/channel compatibility", () => {
+    const sql = readFileSync(resolve("supabase/migrations/031_marketing_crm_foundation.sql"), "utf8");
+    expect(sql).toContain("unique (id, contact_id)");
+    expect(sql).toMatch(/foreign key \(identity_id, contact_id\)[\s\S]*references marketing_contact_identities\(id, contact_id\)/);
+    expect(sql).toContain("validate_marketing_contactability_identity");
+    expect(sql).toContain("contactability_identity_must_be_valid");
+    expect(sql).toContain("identity_channel_mismatch");
+    expect(sql).toMatch(/new\.identity_id is null[\s\S]*new\.channel <> 'telegram'/);
+  });
+
+  it("links unmatched inbound conversations transactionally and stops acquisition", () => {
+    const sql = readFileSync(resolve("supabase/migrations/031_marketing_crm_foundation.sql"), "utf8");
+    const linking = sql.slice(sql.indexOf("create or replace function link_marketing_conversation_to_contact"));
+    expect(linking).toContain("for update");
+    expect(linking).toContain("conversation_not_eligible_for_matching");
+    expect(linking).toMatch(/update marketing_messages[\s\S]*contact_id = target_contact_id/);
+    expect(linking).toContain("pause_reason = 'reply_received'");
+    expect(linking).toContain("cancellation_reason = 'reply_received'");
+    expect(linking).toContain("'conversation_linked_to_contact'");
+  });
 });

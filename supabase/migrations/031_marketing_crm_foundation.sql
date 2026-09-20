@@ -44,6 +44,7 @@ create table marketing_contact_identities (
   invalid_reason text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  unique (id, contact_id),
   check ((is_valid and normalized_value is not null and invalid_reason is null)
       or (not is_valid and invalid_reason is not null))
 );
@@ -53,11 +54,14 @@ create index marketing_contact_identities_lookup_idx on marketing_contact_identi
 create unique index marketing_contact_identities_contact_value_idx
   on marketing_contact_identities(contact_id, identity_type, normalized_value)
   where normalized_value is not null;
+create unique index marketing_contact_identities_invalid_value_idx
+  on marketing_contact_identities(contact_id, identity_type, lower(trim(raw_value)))
+  where not is_valid;
 
 create table marketing_contactability (
   id uuid primary key default gen_random_uuid(),
   contact_id uuid not null references marketing_contacts(id) on delete cascade,
-  identity_id uuid references marketing_contact_identities(id) on delete cascade,
+  identity_id uuid,
   channel marketing_channel not null,
   recipient_category text not null default 'unknown' check (recipient_category in ('individual', 'legal_entity', 'unknown')),
   eligibility_state text not null default 'unknown' check (eligibility_state in ('unknown', 'permitted', 'blocked', 'needs_review')),
@@ -69,8 +73,41 @@ create table marketing_contactability (
   reviewed_by text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  foreign key (identity_id, contact_id)
+    references marketing_contact_identities(id, contact_id) on delete cascade,
   unique nulls not distinct (contact_id, identity_id, channel)
 );
+
+create or replace function validate_marketing_contactability_identity()
+returns trigger language plpgsql as $$
+declare endpoint_type marketing_identity_type; endpoint_valid boolean;
+begin
+  if new.identity_id is null then
+    if new.channel <> 'telegram' then
+      raise exception using errcode = '23514', message = 'contact_level_eligibility_requires_telegram';
+    end if;
+    return new;
+  end if;
+
+  select identity_type, is_valid into endpoint_type, endpoint_valid
+  from marketing_contact_identities
+  where id = new.identity_id and contact_id = new.contact_id;
+  if not found then
+    raise exception using errcode = '23503', message = 'contactability_identity_contact_mismatch';
+  end if;
+  if not endpoint_valid then
+    raise exception using errcode = '23514', message = 'contactability_identity_must_be_valid';
+  end if;
+  if (endpoint_type = 'email' and new.channel <> 'email')
+     or (endpoint_type = 'phone' and new.channel <> 'sms')
+     or (endpoint_type = 'telegram_user_id' and new.channel <> 'telegram') then
+    raise exception using errcode = '23514', message = 'identity_channel_mismatch';
+  end if;
+  return new;
+end $$;
+create trigger marketing_contactability_validate_identity
+before insert or update of contact_id, identity_id, channel on marketing_contactability
+for each row execute function validate_marketing_contactability_identity();
 
 create table marketing_imports (
   id uuid primary key default gen_random_uuid(),
@@ -122,6 +159,8 @@ create table marketing_conversations (
   needs_reply boolean not null default false,
   unread_count integer not null default 0 check (unread_count >= 0),
   assigned_owner text,
+  linked_by text,
+  linked_at timestamptz,
   status text not null default 'open' check (status in ('open', 'resolved', 'needs_matching')),
   last_inbound_at timestamptz,
   last_outbound_at timestamptz,
@@ -488,11 +527,13 @@ begin
   end if;
   if nullif(phone_raw,'') is not null and phone_normalized is null then
     insert into marketing_contact_identities(contact_id,identity_type,raw_value,normalized_value,is_primary,is_valid,confidence,invalid_reason)
-      values(resolved_contact,'phone',phone_raw,null,false,false,'uncertain',coalesce(phone_invalid_reason,'invalid_phone_number'));
+      values(resolved_contact,'phone',phone_raw,null,false,false,'uncertain',coalesce(phone_invalid_reason,'invalid_phone_number'))
+      on conflict do nothing;
   end if;
   if nullif(email_raw,'') is not null and email_normalized is null then
     insert into marketing_contact_identities(contact_id,identity_type,raw_value,normalized_value,is_primary,is_valid,confidence,invalid_reason)
-      values(resolved_contact,'email',email_raw,null,false,false,'uncertain',coalesce(email_invalid_reason,'invalid_email_address'));
+      values(resolved_contact,'email',email_raw,null,false,false,'uncertain',coalesce(email_invalid_reason,'invalid_email_address'))
+      on conflict do nothing;
   end if;
   insert into marketing_contact_sources(contact_id,import_id,source_type,source_url,group_url,post_url,source_label,discovered_at,raw_data)
     values(resolved_contact,target_import_id,'import',nullif(target_source_url,''),nullif(target_group_url,''),nullif(target_post_url,''),target_source_label,target_discovered_at,jsonb_build_object('rowNumber',target_row_number))
@@ -530,6 +571,71 @@ begin
 end $$;
 create trigger marketing_messages_pause_on_inbound
 after insert on marketing_messages for each row execute function marketing_pause_on_inbound_message();
+
+-- Human-reviewed linking for inbound conversations that could not be matched safely.
+create or replace function link_marketing_conversation_to_contact(
+  target_conversation_id uuid, target_contact_id uuid, reviewer text
+) returns jsonb language plpgsql security definer set search_path = public as $$
+declare conversation_row marketing_conversations%rowtype; has_inbound boolean;
+begin
+  if nullif(trim(reviewer), '') is null then
+    raise exception using errcode = '22023', message = 'reviewer_required';
+  end if;
+  select * into conversation_row from marketing_conversations
+    where id = target_conversation_id for update;
+  if not found then
+    raise exception using errcode = 'P0002', message = 'conversation_not_found';
+  end if;
+  if conversation_row.contact_id is not null or conversation_row.status <> 'needs_matching' then
+    raise exception using errcode = '40001', message = 'conversation_not_eligible_for_matching';
+  end if;
+  perform 1 from marketing_contacts where id = target_contact_id for key share;
+  if not found then
+    raise exception using errcode = '23503', message = 'target_contact_not_found';
+  end if;
+  if exists (
+    select 1 from marketing_conversations
+    where contact_id = target_contact_id and status <> 'resolved'
+  ) then
+    raise exception using errcode = '23505', message = 'target_contact_has_open_conversation';
+  end if;
+
+  select exists (
+    select 1 from marketing_messages
+    where conversation_id = target_conversation_id and direction = 'inbound'
+  ) into has_inbound;
+
+  update marketing_messages set contact_id = target_contact_id
+    where conversation_id = target_conversation_id and contact_id is null;
+  update marketing_conversations set
+    contact_id = target_contact_id,
+    status = 'open',
+    needs_reply = has_inbound,
+    resolved_at = null,
+    linked_by = reviewer,
+    linked_at = now(),
+    updated_at = now()
+    where id = target_conversation_id;
+
+  if has_inbound then
+    update marketing_sequence_enrollments set
+      state = 'paused', pause_reason = 'reply_received', updated_at = now()
+      where contact_id = target_contact_id and state = 'active';
+    update marketing_send_queue set
+      status = 'cancelled', cancelled_at = now(), cancellation_reason = 'reply_received', updated_at = now()
+      where contact_id = target_contact_id and status in ('queued','leased');
+    update marketing_contacts set
+      status = case when status in ('new','contacted') then 'replied' else status end,
+      updated_at = now()
+      where id = target_contact_id;
+  end if;
+
+  insert into marketing_events(contact_id,conversation_id,event_type,actor_type,actor_id,payload)
+    values(target_contact_id,target_conversation_id,'conversation_linked_to_contact','admin',reviewer,
+      jsonb_build_object('hadInbound',has_inbound,'previousStatus',conversation_row.status));
+  return jsonb_build_object('linked',true,'conversationId',target_conversation_id,
+    'contactId',target_contact_id,'needsReply',has_inbound);
+end $$;
 
 -- A profile insert/update reconciles a unique phone or email match and stops outreach.
 create or replace function reconcile_marketing_registration(target_profile_id uuid)
@@ -574,6 +680,7 @@ revoke all on function revise_marketing_draft(uuid,integer,text,text,marketing_c
 revoke all on function reject_marketing_draft(uuid,integer,text) from public, anon, authenticated;
 revoke all on function suppress_marketing_contact(uuid,text,text,text,text) from public, anon, authenticated;
 revoke all on function import_marketing_contact_row(uuid,text,text,text,text,text,text,text,text,text,text,text,text,timestamptz,integer,text,text) from public, anon, authenticated;
+revoke all on function link_marketing_conversation_to_contact(uuid,uuid,text) from public, anon, authenticated;
 grant execute on function reconcile_marketing_registration(uuid) to service_role;
 grant execute on function approve_marketing_draft(uuid,integer,text,timestamptz) to service_role;
 grant execute on function approve_marketing_draft_batch(uuid[],text,timestamptz) to service_role;
@@ -581,6 +688,7 @@ grant execute on function revise_marketing_draft(uuid,integer,text,text,marketin
 grant execute on function reject_marketing_draft(uuid,integer,text) to service_role;
 grant execute on function suppress_marketing_contact(uuid,text,text,text,text) to service_role;
 grant execute on function import_marketing_contact_row(uuid,text,text,text,text,text,text,text,text,text,text,text,text,timestamptz,integer,text,text) to service_role;
+grant execute on function link_marketing_conversation_to_contact(uuid,uuid,text) to service_role;
 
 do $$ declare table_name text; begin
   foreach table_name in array array[
