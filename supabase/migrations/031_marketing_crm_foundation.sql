@@ -136,7 +136,7 @@ create table marketing_contact_sources (
 );
 create unique index marketing_contact_sources_natural_key
   on marketing_contact_sources(contact_id, source_type, coalesce(group_url, ''), coalesce(post_url, ''), coalesce(source_url, ''),
-    case when group_url is null and post_url is null and source_url is null then coalesce(source_label, '') else '' end);
+    (case when group_url is null and post_url is null and source_url is null then coalesce(source_label, '') else '' end));
 alter table marketing_contactability add constraint marketing_contactability_source_fk
   foreign key (source_id) references marketing_contact_sources(id) on delete set null;
 

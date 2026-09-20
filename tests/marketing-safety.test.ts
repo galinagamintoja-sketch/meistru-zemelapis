@@ -58,6 +58,7 @@ describe("marketing outreach safety", () => {
     const sql = readFileSync(resolve("supabase/migrations/031_marketing_crm_foundation.sql"), "utf8");
     expect(sql).toMatch(/marketing_contact_sources_natural_key[\s\S]*coalesce\(group_url/);
     expect(sql).toMatch(/coalesce\(group_url[\s\S]*coalesce\(post_url/);
+    expect(sql).toMatch(/\(case when group_url is null[\s\S]*else '' end\)\)/);
   });
 
   it("retains suppression identity snapshots after contact deletion", () => {
