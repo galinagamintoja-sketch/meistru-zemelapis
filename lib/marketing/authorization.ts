@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { requireAdminSession } from "../auth-session";
+import { requireMarketingAdminSession } from "./auth";
 
 function safeEqual(left: string, right: string) {
   const a = Buffer.from(left);
@@ -8,7 +8,7 @@ function safeEqual(left: string, right: string) {
 }
 
 export async function requireMarketingImportAccess(request: Request) {
-  const admin = await requireAdminSession(request);
+  const admin = await requireMarketingAdminSession();
   if (admin) return { actor: `admin:${admin.email}`, kind: "admin" as const };
   const configured = process.env.MARKETING_IMPORT_API_KEY;
   const supplied = request.headers.get("x-localpro-import-key");

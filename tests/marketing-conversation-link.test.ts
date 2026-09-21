@@ -6,14 +6,14 @@ const contactId = "22222222-2222-4222-8222-222222222222";
 describe("marketing conversation linking API", () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.doMock("../lib/auth-session", () => ({
-      requireAdminSession: async () => ({ email: "admin@example.test" })
+    vi.doMock("../lib/marketing/auth", () => ({
+      requireMarketingAdminSession: async () => ({ email: "admin@example.test" })
     }));
   });
 
   it("validates identifiers before invoking the RPC", async () => {
-    vi.doMock("../lib/supabase", () => ({
-      createServerSupabase: () => ({ rpc: vi.fn() })
+    vi.doMock("../lib/marketing/supabase", () => ({
+      createMarketingServerSupabase: () => ({ rpc: vi.fn() })
     }));
     const { POST } = await import("../app/api/admin/marketing/conversations/link/route");
     const response = await POST(new Request("http://localhost/api/admin/marketing/conversations/link", {
@@ -27,8 +27,8 @@ describe("marketing conversation linking API", () => {
 
   it("passes the explicit admin selection to the transactional RPC", async () => {
     const rpc = vi.fn().mockResolvedValue({ data: { linked: true, needsReply: true }, error: null });
-    vi.doMock("../lib/supabase", () => ({
-      createServerSupabase: () => ({ rpc })
+    vi.doMock("../lib/marketing/supabase", () => ({
+      createMarketingServerSupabase: () => ({ rpc })
     }));
     const { POST } = await import("../app/api/admin/marketing/conversations/link/route");
     const response = await POST(new Request("http://localhost/api/admin/marketing/conversations/link", {
@@ -49,8 +49,8 @@ describe("marketing conversation linking API", () => {
       data: null,
       error: { message: "private database details", code: "P0001" }
     });
-    vi.doMock("../lib/supabase", () => ({
-      createServerSupabase: () => ({ rpc })
+    vi.doMock("../lib/marketing/supabase", () => ({
+      createMarketingServerSupabase: () => ({ rpc })
     }));
     const { POST } = await import("../app/api/admin/marketing/conversations/link/route");
     const response = await POST(new Request("http://localhost/api/admin/marketing/conversations/link", {

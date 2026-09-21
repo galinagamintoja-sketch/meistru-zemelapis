@@ -11,7 +11,7 @@ import type {
   ImportMapping,
   ImportPreviewRow,
 } from "../../../../../../lib/marketing/types";
-import { createServerSupabase } from "../../../../../../lib/supabase";
+import { createMarketingServerSupabase } from "../../../../../../lib/marketing/supabase";
 import { z } from "zod";
 import {
   normalizeMarketingEmail,
@@ -88,8 +88,7 @@ async function existingIdentities(
   rows: ImportInputRow[],
   mapping: ImportMapping,
 ): Promise<ExistingIdentity[]> {
-  const supabase = createServerSupabase();
-  if (!supabase) return [];
+  const supabase = createMarketingServerSupabase();
   const candidates = candidateValues(rows, mapping);
   const found: ExistingIdentity[] = [];
   for (const [type, values] of [
@@ -156,12 +155,7 @@ export async function GET(request: Request) {
       { error: "Valid importId is required" },
       { status: 400 },
     );
-  const supabase = createServerSupabase();
-  if (!supabase)
-    return NextResponse.json(
-      { error: "Import report unavailable" },
-      { status: 404 },
-    );
+  const supabase = createMarketingServerSupabase();
   const { data, error } = await supabase
     .from("marketing_imports")
     .select("file_name,error_report")
@@ -200,15 +194,7 @@ async function commitRows(
   mapping: ImportMapping,
   actor: string,
 ) {
-  const supabase = createServerSupabase();
-  if (!supabase)
-    return {
-      importId: null,
-      results: rows.map((row) => ({
-        rowNumber: row.rowNumber,
-        status: row.outcome,
-      })),
-    };
+  const supabase = createMarketingServerSupabase();
   const summary = importSummary(rows);
   const initialReport = errorReport(rows);
   const { data: importRecord, error: importError } = await supabase

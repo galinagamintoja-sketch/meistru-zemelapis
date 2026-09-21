@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useState } from "react";
 import LocalProBrand from "../../../components/LocalProBrand";
 import styles from "./marketing.module.css";
 
@@ -84,13 +84,15 @@ export default function MarketingAdminPage() {
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const loadData = useCallback(async (contactPage = 1) => {
     const [contactsResponse, overviewResponse] = await Promise.all([fetch(`/api/admin/marketing/contacts?limit=50&page=${contactPage}`), fetch("/api/admin/marketing/overview")]);
     if (contactsResponse.status === 401 || overviewResponse.status === 401) {
       setAuthorized(false);
       setChecked(true);
-      setMessage("Prisijunkite su administratoriaus Google paskyra.");
+      setMessage("Prisijunkite su CRM administratoriaus el. paštu ir slaptažodžiu.");
       return;
     }
     const contactsData = await contactsResponse.json();
@@ -110,6 +112,33 @@ export default function MarketingAdminPage() {
       setMessage(error instanceof Error ? error.message : "Duomenų įkelti nepavyko");
     });
   }, [loadData]);
+
+  const login = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy(true);
+    setMessage("Tikrinami prisijungimo duomenys...");
+    try {
+      const response = await fetch("/api/admin/marketing/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!response.ok) throw new Error("Neteisingi prisijungimo duomenys arba prieiga nesuteikta.");
+      setPassword("");
+      await loadData();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Prisijungti nepavyko.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const logout = async () => {
+    await fetch("/api/admin/marketing/auth/logout", { method: "POST" });
+    setAuthorized(false);
+    setChecked(true);
+    setMessage("Atsijungta nuo CRM.");
+  };
 
   const upload = async (commit: boolean) => {
     if (!file) return;
@@ -175,9 +204,17 @@ export default function MarketingAdminPage() {
         <h1>Marketingo CRM</h1>
         <p>{message}</p>
         {checked ? (
-          <a className={styles.primary} href="/auth/google?next=%2Fadmin%2Fmarketing">
-            Prisijungti su Google
-          </a>
+          <form className={styles.loginForm} onSubmit={login}>
+            <label>
+              El. paštas
+              <input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} />
+            </label>
+            <label>
+              Slaptažodis
+              <input type="password" autoComplete="current-password" required minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} />
+            </label>
+            <button className={styles.primary} type="submit" disabled={busy}>{busy ? "Jungiamasi..." : "Prisijungti"}</button>
+          </form>
         ) : null}
       </main>
     );
@@ -198,6 +235,7 @@ export default function MarketingAdminPage() {
           <button type="button" onClick={() => loadData()}>
             Atnaujinti
           </button>
+          <button type="button" onClick={logout}>Atsijungti</button>
         </div>
       </header>
       <nav className={styles.nav} aria-label="Marketingo skyriai">

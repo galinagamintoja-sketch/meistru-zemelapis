@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdminSession } from "../../../../../../lib/auth-session";
-import { createServerSupabase } from "../../../../../../lib/supabase";
+import { requireMarketingAdminSession } from "../../../../../../lib/marketing/auth";
+import { createMarketingServerSupabase } from "../../../../../../lib/marketing/supabase";
 
 const linkConversationSchema = z.object({
   conversationId: z.string().uuid(),
@@ -9,10 +9,10 @@ const linkConversationSchema = z.object({
 }).strict();
 
 export async function POST(request: Request) {
-  const admin = await requireAdminSession(request);
+  const admin = await requireMarketingAdminSession();
   if (!admin) {
     return NextResponse.json(
-      { error: "Admin Google login required" },
+      { error: "CRM admin login required" },
       { status: 401 },
     );
   }
@@ -27,13 +27,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = createServerSupabase();
-  if (!supabase) {
-    return NextResponse.json(
-      { error: "Marketing database is unavailable", code: "MARKETING_DATABASE_UNAVAILABLE" },
-      { status: 503 },
-    );
-  }
+  const supabase = createMarketingServerSupabase();
   const { data, error } = await supabase.rpc(
     "link_marketing_conversation_to_contact",
     {

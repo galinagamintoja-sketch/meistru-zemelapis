@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "../../../../../lib/auth-session";
-import { createServerSupabase } from "../../../../../lib/supabase";
+import { requireMarketingAdminSession } from "../../../../../lib/marketing/auth";
+import { createMarketingServerSupabase } from "../../../../../lib/marketing/supabase";
 import { z } from "zod";
 
 const draftActionSchema = z.discriminatedUnion("action", [
@@ -26,10 +26,10 @@ const draftActionSchema = z.discriminatedUnion("action", [
 ]);
 
 export async function PATCH(request: Request) {
-  const admin = await requireAdminSession(request);
+  const admin = await requireMarketingAdminSession();
   if (!admin)
     return NextResponse.json(
-      { error: "Admin Google login required" },
+      { error: "CRM admin login required" },
       { status: 401 },
     );
   const parsed = draftActionSchema.safeParse(
@@ -41,8 +41,7 @@ export async function PATCH(request: Request) {
       { status: 400 },
     );
   const body = parsed.data;
-  const supabase = createServerSupabase();
-  if (!supabase) return NextResponse.json({ ok: true, mode: "seed" });
+  const supabase = createMarketingServerSupabase();
   if (body.action === "approve_batch") {
     const { data: batchId, error } = await supabase.rpc(
       "approve_marketing_draft_batch",

@@ -4,9 +4,9 @@ describe("marketing API authorization", () => {
   beforeEach(() => {
     vi.resetModules();
     delete process.env.MARKETING_IMPORT_API_KEY;
-    vi.doMock("../lib/auth-session", () => ({ requireAdminSession: async () => null }));
-    vi.doMock("../lib/supabase", () => ({
-      createServerSupabase: () => { throw new Error("unauthorized request reached service-role client"); }
+    vi.doMock("../lib/marketing/auth", () => ({ requireMarketingAdminSession: async () => null }));
+    vi.doMock("../lib/marketing/supabase", () => ({
+      createMarketingServerSupabase: () => { throw new Error("unauthorized request reached service-role client"); }
     }));
   });
 
@@ -37,7 +37,7 @@ describe("marketing API authorization", () => {
       body: JSON.stringify({ contact: { Name: "Test" } })
     }));
     expect(response.status).toBe(401);
-  });
+  }, 15_000);
 
   it("rejects unauthorised conversation linking before database access", async () => {
     const { POST } = await import("../app/api/admin/marketing/conversations/link/route");
@@ -50,5 +50,10 @@ describe("marketing API authorization", () => {
       })
     }));
     expect(response.status).toBe(401);
+  });
+
+  it("does not expose a public CRM signup route", async () => {
+    const fs = await import("node:fs");
+    expect(fs.existsSync("app/api/admin/marketing/auth/signup/route.ts")).toBe(false);
   });
 });

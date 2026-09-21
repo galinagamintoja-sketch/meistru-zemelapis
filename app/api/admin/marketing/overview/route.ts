@@ -1,23 +1,14 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "../../../../../lib/auth-session";
-import { createServerSupabase } from "../../../../../lib/supabase";
+import { requireMarketingAdminSession } from "../../../../../lib/marketing/auth";
+import { createMarketingServerSupabase } from "../../../../../lib/marketing/supabase";
 
-export async function GET(request: Request) {
-  if (!(await requireAdminSession(request)))
+export async function GET() {
+  if (!(await requireMarketingAdminSession()))
     return NextResponse.json(
-      { error: "Admin Google login required" },
+      { error: "CRM admin login required" },
       { status: 401 },
     );
-  const supabase = createServerSupabase();
-  if (!supabase)
-    return NextResponse.json({
-      mode: "seed",
-      counts: {},
-      queue: [],
-      conversations: [],
-      drafts: [],
-      settings: {},
-    });
+  const supabase = createMarketingServerSupabase();
   const [contacts, queue, conversations, drafts, settings] = await Promise.all([
     supabase.from("marketing_contacts").select("status"),
     supabase
