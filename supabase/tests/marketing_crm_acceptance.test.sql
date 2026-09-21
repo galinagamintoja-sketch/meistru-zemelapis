@@ -16,6 +16,8 @@ select pg_temp.assert_true(not has_table_privilege('authenticated', 'marketing_s
 select pg_temp.assert_true(has_table_privilege('service_role', 'marketing_contacts', 'select'), 'service role can read contacts');
 select pg_temp.assert_true(has_function_privilege('service_role', 'link_marketing_conversation_to_contact(uuid,uuid,text)', 'execute'), 'service role can link conversations');
 select pg_temp.assert_true(not has_function_privilege('authenticated', 'link_marketing_conversation_to_contact(uuid,uuid,text)', 'execute'), 'authenticated cannot link conversations');
+select pg_temp.assert_true(has_function_privilege('service_role', 'reconcile_marketing_registration_event(uuid,text,text,text)', 'execute'), 'service role can reconcile external registration events');
+select pg_temp.assert_true(not has_function_privilege('authenticated', 'reconcile_marketing_registration_event(uuid,text,text,text)', 'execute'), 'authenticated cannot reconcile external registration events');
 
 -- Historical Lithuanian normalization variants remain equivalent.
 select pg_temp.assert_true(normalize_lithuanian_contact_number('+37061234567') = '+37061234567', '+370 phone');
@@ -184,9 +186,7 @@ select pg_temp.assert_true((select state='cancelled' and pause_reason='suppresse
 delete from marketing_contacts where id='20000000-0000-4000-8000-000000000005';
 select pg_temp.assert_true((select count(*)=1 and bool_and(contact_id is null) from marketing_suppressions where normalized_value='suppressed@example.test' and revoked_at is null), 'suppression endpoint survives deletion');
 
--- Registration reconciliation handles a unique historical phone and fails closed on ambiguity.
-create temp table qa_profiles as
-select id, row_number() over (order by id) as row_number from tradesperson_profiles limit 2;
+-- Cross-project registration events handle a unique historical phone and fail closed on ambiguity.
 insert into marketing_contacts(id,display_name) values ('20000000-0000-4000-8000-000000000006','QA Registration Unique');
 insert into marketing_contact_identities(contact_id,identity_type,raw_value,normalized_value)
 values ('20000000-0000-4000-8000-000000000006','phone','+37069990001','+37069990001');
@@ -195,12 +195,13 @@ values ('40000000-0000-4000-8000-000000000002','20000000-0000-4000-8000-00000000
 insert into marketing_drafts(id,contact_id,channel,recipient_identity,body,draft_type)
 values ('50000000-0000-4000-8000-000000000004','20000000-0000-4000-8000-000000000006','sms','+37069990001','Registration pending','initial');
 select approve_marketing_draft('50000000-0000-4000-8000-000000000004',1,'qa-reviewer',now());
-set local session_replication_role = replica;
-update tradesperson_profiles set phone='869990001', email='qa-registration@example.test'
-where id=(select id from qa_profiles where row_number=1);
-set local session_replication_role = origin;
-select * from reconcile_marketing_registration((select id from qa_profiles where row_number=1));
-select pg_temp.assert_true((select status='registered' and specialist_profile_id=(select id from qa_profiles where row_number=1) from marketing_contacts where id='20000000-0000-4000-8000-000000000006'), 'unique registration matched');
+select * from reconcile_marketing_registration_event(
+  '70000000-0000-4000-8000-000000000001','869990001','qa-registration@example.test','localpro-disposable'
+);
+select pg_temp.assert_true((select status='registered'
+  and registration_source_project_ref='localpro-disposable'
+  and registration_external_profile_id='70000000-0000-4000-8000-000000000001'
+  from marketing_contacts where id='20000000-0000-4000-8000-000000000006'), 'unique registration event matched');
 select pg_temp.assert_true((select state='cancelled' and pause_reason='registered' from marketing_sequence_enrollments where contact_id='20000000-0000-4000-8000-000000000006'), 'registration cancels sequence');
 select pg_temp.assert_true((select status='cancelled' and cancellation_reason='registered' from marketing_send_queue where draft_id='50000000-0000-4000-8000-000000000004'), 'registration cancels queue');
 
@@ -213,12 +214,12 @@ insert into marketing_contact_identities(contact_id,identity_type,raw_value,norm
 insert into marketing_sequence_enrollments(sequence_id,contact_id,state,sequence_revision) values
   ('40000000-0000-4000-8000-000000000002','20000000-0000-4000-8000-000000000007','active',1),
   ('40000000-0000-4000-8000-000000000002','20000000-0000-4000-8000-000000000008','active',1);
-set local session_replication_role = replica;
-update tradesperson_profiles set phone='869990002', email='qa-ambiguous@example.test'
-where id=(select id from qa_profiles where row_number=2);
-set local session_replication_role = origin;
-select * from reconcile_marketing_registration((select id from qa_profiles where row_number=2));
-select pg_temp.assert_true((select count(*)=0 from marketing_contacts where id in ('20000000-0000-4000-8000-000000000007','20000000-0000-4000-8000-000000000008') and specialist_profile_id is not null), 'ambiguous registration does not link');
+select * from reconcile_marketing_registration_event(
+  '70000000-0000-4000-8000-000000000002','869990002','qa-ambiguous@example.test','localpro-disposable'
+);
+select pg_temp.assert_true((select count(*)=0 from marketing_contacts
+  where id in ('20000000-0000-4000-8000-000000000007','20000000-0000-4000-8000-000000000008')
+    and registration_external_profile_id is not null), 'ambiguous registration event does not link');
 select pg_temp.assert_true((select count(*)=2 from marketing_sequence_enrollments where contact_id in ('20000000-0000-4000-8000-000000000007','20000000-0000-4000-8000-000000000008') and state='paused' and pause_reason='registration_match_conflict'), 'ambiguous registration pauses both contacts');
 
 select 'marketing_crm_acceptance_passed' as result;

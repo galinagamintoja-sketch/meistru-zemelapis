@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     .from("marketing_contacts")
     .select(
       `
-    id,display_name,company_name,trade,area,status,recipient_category,notes,specialist_profile_id,registered_at,created_at,updated_at,
+    id,display_name,company_name,trade,area,status,recipient_category,notes,registration_source_project_ref,registration_external_profile_id,registered_at,created_at,updated_at,
     marketing_contact_identities(id,identity_type,raw_value,normalized_value,is_primary,is_valid,invalid_reason),
     marketing_contact_sources(id,source_type,source_url,group_url,post_url,source_label,discovered_at),
     marketing_contactability(id,identity_id,channel,recipient_category,eligibility_state,basis,evidence,evidence_date,review_date,reviewed_by)

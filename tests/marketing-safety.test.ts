@@ -46,9 +46,16 @@ describe("marketing outreach safety", () => {
     expect(sql).toContain("grant select, insert, update, delete on table %I to service_role");
   });
 
-  it("pauses ambiguous registration matches instead of linking profiles", () => {
+  it("keeps LocalPro registration matching behind an explicit cross-project integration boundary", () => {
     const sql = readFileSync(resolve("supabase/migrations/031_marketing_crm_foundation.sql"), "utf8");
-    const reconciliation = sql.slice(sql.indexOf("create or replace function reconcile_marketing_registration"));
+    const acceptanceSql = readFileSync(resolve("supabase/tests/marketing_crm_acceptance.test.sql"), "utf8");
+    expect(sql).not.toMatch(/\btradesperson_profiles\b/i);
+    expect(acceptanceSql).not.toMatch(/\btradesperson_profiles\b/i);
+    expect(sql).not.toMatch(/create trigger[^;]*registration/i);
+    expect(sql).toContain("create or replace function reconcile_marketing_registration_event");
+    expect(sql).toContain("registration_source_project_ref");
+    expect(sql).toContain("registration_external_profile_id");
+    const reconciliation = sql.slice(sql.indexOf("create or replace function reconcile_marketing_registration_event"));
     expect(reconciliation).toContain("array_length(matches, 1), 0) > 1");
     expect(reconciliation).toContain("pause_reason = 'registration_match_conflict'");
     expect(reconciliation).toContain("return query select 'conflict'");
@@ -83,9 +90,10 @@ describe("marketing outreach safety", () => {
     expect(dispatchEligibility({ ...safeFacts, contactabilityPermitted: false })).toEqual({ eligible: false, failures: ["contactability_not_permitted"] });
   });
 
-  it("normalizes historically formatted registered phones during reconciliation", () => {
+  it("normalizes historically formatted registration-event phones inside the CRM boundary", () => {
     const sql = readFileSync(resolve("supabase/migrations/031_marketing_crm_foundation.sql"), "utf8");
-    expect(sql).toContain("normalize_lithuanian_contact_number(p.phone) = phone_normalized");
+    const reconciliation = sql.slice(sql.indexOf("create or replace function reconcile_marketing_registration_event"));
+    expect(reconciliation).toContain("normalize_lithuanian_contact_number(target_phone)");
   });
 
   it("shows the exact contact total separately from the rendered page", () => {

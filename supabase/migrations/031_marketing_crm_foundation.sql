@@ -25,11 +25,14 @@ create table marketing_contacts (
   recipient_category text not null default 'unknown' check (recipient_category in ('individual', 'legal_entity', 'unknown')),
   owner_email text,
   notes text,
-  specialist_profile_id uuid unique references tradesperson_profiles(id) on delete set null,
+  registration_source_project_ref text,
+  registration_external_profile_id uuid,
   registered_at timestamptz,
   manually_corrected_fields text[] not null default '{}',
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (registration_source_project_ref, registration_external_profile_id),
+  check ((registration_source_project_ref is null) = (registration_external_profile_id is null))
 );
 
 create table marketing_contact_identities (
@@ -485,7 +488,7 @@ create or replace function import_marketing_contact_row(
   phone_invalid_reason text default null, email_invalid_reason text default null
 ) returns jsonb language plpgsql security definer set search_path = public as $$
 declare phone_owners uuid[]; email_owners uuid[]; all_owners uuid[]; resolved_contact uuid; created_contact boolean := false;
-  added_identity boolean := false; protected_fields text[]; profile_ids uuid[];
+  added_identity boolean := false; protected_fields text[];
 begin
   if nullif(trim(target_name), '') is null or (phone_normalized is null and email_normalized is null) then
     raise exception using errcode = '22023', message = 'invalid_marketing_contact_row';
@@ -538,17 +541,6 @@ begin
   insert into marketing_contact_sources(contact_id,import_id,source_type,source_url,group_url,post_url,source_label,discovered_at,raw_data)
     values(resolved_contact,target_import_id,'import',nullif(target_source_url,''),nullif(target_group_url,''),nullif(target_post_url,''),target_source_label,target_discovered_at,jsonb_build_object('rowNumber',target_row_number))
     on conflict do nothing;
-  select array_agg(distinct p.id) into profile_ids from tradesperson_profiles p
-    where (phone_normalized is not null and normalize_lithuanian_contact_number(p.phone) = phone_normalized)
-       or (email_normalized is not null and lower(trim(p.email)) = email_normalized);
-  if coalesce(array_length(profile_ids,1),0) = 1 then
-    perform reconcile_marketing_registration(profile_ids[1]);
-  elsif coalesce(array_length(profile_ids,1),0) > 1 then
-    update marketing_sequence_enrollments set state='paused',pause_reason='registration_match_conflict',updated_at=now()
-      where contact_id=resolved_contact and state='active';
-    insert into marketing_events(contact_id,event_type,payload)
-      values(resolved_contact,'registration_match_conflict',jsonb_build_object('profileIds',profile_ids));
-  end if;
   return jsonb_build_object('contactId',resolved_contact,'status',case when created_contact then 'created' when added_identity then 'updated' else 'already_exists' end);
 end $$;
 
@@ -637,27 +629,54 @@ begin
     'contactId',target_contact_id,'needsReply',has_inbound);
 end $$;
 
--- A profile insert/update reconciles a unique phone or email match and stops outreach.
-create or replace function reconcile_marketing_registration(target_profile_id uuid)
+-- Cross-project registration synchronisation is an explicit service-role boundary.
+-- The LocalPro integration supplies an opaque external profile ID plus matching
+-- evidence; this standalone CRM never queries or triggers on LocalPro tables.
+create or replace function reconcile_marketing_registration_event(
+  target_profile_id uuid,
+  target_phone text,
+  target_email text,
+  target_source_project_ref text
+)
 returns table(result text, contact_id uuid) language plpgsql security definer set search_path = public as $$
-declare profile_row tradesperson_profiles%rowtype; phone_value text; email_value text; matches uuid[];
+declare phone_value text; email_value text; matches uuid[];
 begin
-  select * into profile_row from tradesperson_profiles where id = target_profile_id;
-  if not found then return query select 'profile_not_found'::text, null::uuid; return; end if;
-  phone_value := normalize_lithuanian_contact_number(profile_row.phone);
-  email_value := lower(trim(profile_row.email));
+  if target_profile_id is null or nullif(trim(target_source_project_ref), '') is null then
+    raise exception using errcode = '22023', message = 'registration_source_required';
+  end if;
+  phone_value := normalize_lithuanian_contact_number(target_phone);
+  email_value := lower(nullif(trim(target_email), ''));
+  if phone_value is null and email_value is null then
+    raise exception using errcode = '22023', message = 'registration_identity_required';
+  end if;
   select array_agg(distinct i.contact_id) into matches from marketing_contact_identities i
-    where (i.identity_type = 'phone' and i.normalized_value = phone_value)
-       or (i.identity_type = 'email' and i.normalized_value = email_value);
+    where i.is_valid and (
+      (phone_value is not null and i.identity_type = 'phone' and i.normalized_value = phone_value)
+      or (email_value is not null and i.identity_type = 'email' and i.normalized_value = email_value)
+    );
   if coalesce(array_length(matches, 1), 0) = 1 then
-    update marketing_contacts set specialist_profile_id = target_profile_id, status = 'registered', registered_at = now(), updated_at = now()
+    if exists (
+      select 1 from marketing_contacts
+      where registration_source_project_ref = trim(target_source_project_ref)
+        and registration_external_profile_id = target_profile_id
+        and id <> matches[1]
+    ) then
+      raise exception using errcode = '23505', message = 'registration_external_profile_already_linked';
+    end if;
+    update marketing_contacts set
+      registration_source_project_ref = trim(target_source_project_ref),
+      registration_external_profile_id = target_profile_id,
+      status = 'registered', registered_at = now(), updated_at = now()
       where id = matches[1];
     update marketing_sequence_enrollments set state = 'cancelled', pause_reason = 'registered', updated_at = now()
       where marketing_sequence_enrollments.contact_id = matches[1] and state in ('active','paused');
     update marketing_send_queue set status = 'cancelled', cancelled_at=now(), cancellation_reason = 'registered', updated_at = now()
       where marketing_send_queue.contact_id = matches[1] and status in ('queued','leased');
     insert into marketing_events(contact_id,event_type,payload)
-      values(matches[1],'registration_matched',jsonb_build_object('specialistProfileId',target_profile_id));
+      values(matches[1],'registration_matched',jsonb_build_object(
+        'sourceProjectRef',trim(target_source_project_ref),
+        'externalProfileId',target_profile_id
+      ));
     return query select 'matched'::text, matches[1]; return;
   elsif coalesce(array_length(matches, 1), 0) > 1 then
     update marketing_sequence_enrollments set state = 'paused', pause_reason = 'registration_match_conflict', updated_at = now()
@@ -667,13 +686,7 @@ begin
   return query select 'no_match'::text, null::uuid;
 end $$;
 
-create or replace function marketing_reconcile_profile_trigger()
-returns trigger language plpgsql as $$ begin perform reconcile_marketing_registration(new.id); return new; end $$;
-create trigger tradesperson_profiles_marketing_reconcile
-after insert or update of phone, email on tradesperson_profiles
-for each row execute function marketing_reconcile_profile_trigger();
-
-revoke all on function reconcile_marketing_registration(uuid) from public, anon, authenticated;
+revoke all on function reconcile_marketing_registration_event(uuid,text,text,text) from public, anon, authenticated;
 revoke all on function approve_marketing_draft(uuid,integer,text,timestamptz) from public, anon, authenticated;
 revoke all on function approve_marketing_draft_batch(uuid[],text,timestamptz) from public, anon, authenticated;
 revoke all on function revise_marketing_draft(uuid,integer,text,text,marketing_channel,uuid,text) from public, anon, authenticated;
@@ -681,7 +694,7 @@ revoke all on function reject_marketing_draft(uuid,integer,text) from public, an
 revoke all on function suppress_marketing_contact(uuid,text,text,text,text) from public, anon, authenticated;
 revoke all on function import_marketing_contact_row(uuid,text,text,text,text,text,text,text,text,text,text,text,text,timestamptz,integer,text,text) from public, anon, authenticated;
 revoke all on function link_marketing_conversation_to_contact(uuid,uuid,text) from public, anon, authenticated;
-grant execute on function reconcile_marketing_registration(uuid) to service_role;
+grant execute on function reconcile_marketing_registration_event(uuid,text,text,text) to service_role;
 grant execute on function approve_marketing_draft(uuid,integer,text,timestamptz) to service_role;
 grant execute on function approve_marketing_draft_batch(uuid[],text,timestamptz) to service_role;
 grant execute on function revise_marketing_draft(uuid,integer,text,text,marketing_channel,uuid,text) to service_role;

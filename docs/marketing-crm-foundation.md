@@ -14,11 +14,11 @@ Branch: `feature/marketing-crm-v1`
 
 ## Implemented architecture
 
-- Supabase remains the authoritative CRM store; no second CRM or database is introduced.
+- The disposable standalone Supabase project is the authoritative CRM store for this testing phase; it does not require LocalPro application tables.
 - Migration 031 defines contacts, identities, sources, imports, conversations, messages, sequences, drafts, approvals, queue records, events, suppressions, contactability evidence, channel accounts, and settings.
 - Marketing tables have RLS enabled and direct browser-role access revoked.
 - No live transport adapter or background dispatch loop is enabled.
-- Incoming messages and unique registration matches synchronously stop pending acquisition work.
+- Incoming messages synchronously stop pending acquisition work. Registration matching is invoked through an explicit service-role integration RPC carrying an opaque LocalPro project ref/profile ID and phone/email evidence; there is no cross-project foreign key or database trigger.
 
 ## Import and admin surface
 
@@ -55,6 +55,12 @@ Contactability evidence is recorded per contact, optional endpoint, and channel.
 ## Phase 2 boundary
 
 Batch approval is supported by the schema and atomic API RPC. The current UI still offers individual approval only. A selection/review interface and “approve selected/all reviewed” controls remain Phase 2 work. Dispatch limits, weekday/window rules, delays, attempts, global pause, provider adapters, deterministic opt-out parsing, and scheduled reconciliation are configuration/foundation only until live dispatch is separately authorized and transactionally implemented.
+
+## Standalone registration boundary
+
+- `marketing_contacts` stores `registration_source_project_ref` and `registration_external_profile_id` as opaque external identifiers, without a foreign key to LocalPro.
+- `reconcile_marketing_registration_event(...)` is service-role-only and accepts the registration event payload supplied by a future LocalPro integration worker.
+- Contact imports never query LocalPro tables. Registration-event delivery, retry/idempotency orchestration, and production project allow-listing remain integration work and are not enabled in this foundation.
 
 ## Verification boundary
 
