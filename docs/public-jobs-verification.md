@@ -1,6 +1,6 @@
 # Darbų skelbimai — verification on isolated branch
 
-Checked 2026-09-24 against `feat/darbu-skelbimai-v1`. Synthetic data only. **Not yet ready for hosted user testing or production**: the separate preview database is migrated, but the Vercel jobs branch still lacks a valid service-role credential for that preview project. No real preview login or collector pilot has run.
+Checked 2026-09-24 against `feat/darbu-skelbimai-v1`. Synthetic data only. **Not yet ready for hosted user testing or production**: the separate preview database is migrated, but the Vercel jobs branch still lacks a working service-role credential for that preview project. No real preview login or collector pilot has run.
 
 | Area | Status | Evidence / remaining check |
 |---|---|---|
@@ -9,6 +9,7 @@ Checked 2026-09-24 against `feat/darbu-skelbimai-v1`. Synthetic data only. **Not
 | Schema import/duplicate/expiry/filter/removal/gate/rate | PASS (local SQL smoke) | `tests/public-jobs-database.test.ts` uses PGlite to run migration 031 and exercise first import, duplicate ID, 14-day expiry, trade+area query, hide, reimport preserving hidden state, five reveals/sixth blocked, rate bucket and cleanup. This is not hosted Postgres concurrency evidence. |
 | Desktop/mobile layout | PASS (synthetic UI only) | [desktop](../artifacts/jobs-preview/desktop-synthetic.png), [mobile](../artifacts/jobs-preview/mobile-synthetic.png); 2 fixture cards rendered, no horizontal overflow at 1280px or 390px. Screenshots are explicitly marked synthetic. |
 | Preview schema and grants | PASS (hosted SQL) | The `localpro-preview` project is active and distinct from live LocalPro. Migrations 025–031 were applied in order; jobs tables have RLS and anon cannot read jobs, authenticated cannot read import audit. |
+| Preview API configuration | FAIL / BLOCKED | New jobs-branch deployment with preview URL/anon and inherited preview server credential returns 503 for taxonomy and feed. Supabase access token can run preview SQL but cannot list/reveal preview API keys (403). A project admin must provide/configure a valid preview service-role credential through a secure provider setting. |
 | Real preview import/unknown taxonomy | NOT TESTED | Configure the preview project's service-role credential on the jobs Vercel branch, redeploy, then call HTTPS endpoint with preview-only token. |
 | Simultaneous imports, transaction rollback, missing-ID upgrade | NOT TESTED | Run against preview PostgreSQL with concurrent clients and a simulated statement failure; inspect rows and audit. |
 | 13/15-day, exact boundary, timezone/future | PARTIAL | Unit SQL/date calculations cover 13-day expiry interval and exactly 14-day cutoff, plus 15-day and future in TypeScript. Hosted timezone/clock behavior not tested. |
