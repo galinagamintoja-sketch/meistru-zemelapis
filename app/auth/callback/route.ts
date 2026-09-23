@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const requested = url.searchParams.get("next") ?? "/meistras";
   const next = safeAuthNext(requested);
   const { data: { user } } = await supabase.auth.getUser();
-  if (next === "/admin" && !isAdminEmail(user?.email)) {
+  if ((next === "/admin" || next.startsWith("/admin/")) && !isAdminEmail(user?.email)) {
     return NextResponse.redirect(new URL("/admin?error=unauthorised", url.origin));
   }
   if (next.startsWith("/meistras") && user && !(await getLinkedTradespersonProfile(user.id))) {

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localpro.lt/schemas/public-jobs-import-v1.json",
+  "title": "LocalPro public jobs import v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "source_platform", "source_url", "source_visibility", "request_type", "title", "summary", "trade_ids", "area_ids", "posted_at"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "source_platform": { "const": "facebook" },
+    "source_url": { "type": "string", "format": "uri", "maxLength": 2048 },
+    "source_post_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,100}$" },
+    "source_name": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "source_visibility": { "const": "public" },
+    "request_type": { "const": "work_request" },
+    "title": { "type": "string", "minLength": 5, "maxLength": 100 },
+    "summary": { "type": "string", "minLength": 20, "maxLength": 350 },
+    "trade_ids": { "type": "array", "minItems": 1, "maxItems": 6, "uniqueItems": true, "items": { "type": "string", "format": "uuid" } },
+    "area_ids": { "type": "array", "minItems": 1, "maxItems": 6, "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9-]{2,80}$" } },
+    "posted_at": { "type": "string", "format": "date-time" }
+  }
+}

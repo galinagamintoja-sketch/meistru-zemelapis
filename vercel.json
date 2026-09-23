@@ -3,6 +3,10 @@
     {
       "path": "/api/internal/account-deletions/run",
       "schedule": "17 2 * * *"
+    },
+    {
+      "path": "/api/internal/jobs/cleanup",
+      "schedule": "31 2 * * *"
     }
   ]
 }
