@@ -1,6 +1,6 @@
 # Darbų skelbimai — V1 implementation and collector handoff
 
-Status: **branch implementation; not a live preview or production-ready launch**. Do not import real data until a non-production LocalPro Supabase project and allowed Facebook collection method are identified.
+Status: **isolated branch and UI preview; not yet ready for hosted end-to-end testing or production**. The separate `localpro-preview` Supabase project (`hznpdchpdtqejqonxkgm`) was restored and migrations 025–031 were applied there on 2026-09-24. The Vercel jobs branch has preview-specific URL/anon settings, but its service-role credential is deliberately disabled until a valid credential for that preview project can be configured. Do not import real data until the preview API, authentication, and collector access method have been verified.
 
 ## Architecture and existing-system fit
 
@@ -55,8 +55,8 @@ Guest first batches are free. Each successful further page consumes one of five 
 
 ## Preview, rollback and release gates
 
-1. Identify the **non-production LocalPro** Supabase project reference and preview deployment; verify both URLs/keys against that project before applying migration or importing fixtures. No such target was identifiable from the clean checkout. Do not use the separate CRM project or production keys.
-2. Apply migration 031 only to that preview project, set preview-only secrets, and deploy this branch to preview. Use synthetic fixtures only there. Verify schema grants/RLS and browser inability to read jobs/audit directly.
+1. The **non-production LocalPro** Supabase project is `localpro-preview` (`hznpdchpdtqejqonxkgm`), distinct from the live `localpro-lt` project and the CRM project. Migrations 025–031 were applied there in order, and jobs-table RLS/no direct anon or authenticated access was checked. Do not use the CRM project or production keys.
+2. Configure a valid preview-project service-role credential for the jobs branch in Vercel, replacing its disabled placeholder. Preview-only cursor/import/cron secrets and URL/anon settings are already branch-scoped. Redeploy the branch, then verify the API points only to preview. Use synthetic fixtures only there and probe browser grants/RLS directly.
 3. Run import/duplicate/concurrency/failure/expiry/filter/gate/auth/admin and mobile/desktop checks. Keep a screenshot and per-check PASS/FAIL/NOT TESTED report. Test a real login/signup return path (including email verification if enabled) before calling the preview ready for user testing.
 4. Separately confirm the collector's permitted Facebook access method. Conduct a human-reviewed pilot of about 20 recent eligible posts, checking classification, geography, dates, links, multi-trade and duplicates. Do not connect an autonomous live collector before that review.
 
