@@ -11,6 +11,13 @@ it("migrates jobs and keeps imports, expiry, moderation and guest allowance cons
     await db.exec("create role anon; create role authenticated; create role service_role; create table service_subcategories(id uuid primary key, name text not null, is_active boolean not null default true)");
     await db.exec(readFileSync("supabase/migrations/031_public_jobs.sql", "utf8"));
     await db.exec(readFileSync("supabase/migrations/032_public_jobs_contact_filter.sql", "utf8"));
+    await db.exec(readFileSync("supabase/migrations/033_job_areas_lithuania.sql", "utf8"));
+    const varenaAreas = await db.query<{ id: string; name: string }>(
+      "select id,name from job_areas where id in ('varena','varenos-rajonas') order by id");
+    expect(varenaAreas.rows).toEqual([
+      { id: "varena", name: "Varėna" },
+      { id: "varenos-rajonas", name: "Varėnos rajonas" }
+    ]);
     const privileges = await db.query<{ anon_jobs: boolean; user_audit: boolean; anon_feed_rpc: boolean }>(
       "select has_table_privilege('anon','public.public_jobs','select') as anon_jobs, has_table_privilege('authenticated','public.public_job_import_audit','select') as user_audit, has_function_privilege('anon','public.list_public_jobs(uuid,text,timestamptz,timestamptz,uuid,timestamptz,integer)','execute') as anon_feed_rpc");
     expect(privileges.rows[0]).toEqual({ anon_jobs: false, user_audit: false, anon_feed_rpc: false });
@@ -50,6 +57,16 @@ it("migrates jobs and keeps imports, expiry, moderation and guest allowance cons
     expect((await list(null, null)).rows).toHaveLength(0);
     expect((await importJob()).outcome).toBe("duplicate");
     expect((await db.query<{ status: string }>("select status from public_jobs")).rows[0].status).toBe("hidden");
+
+    const varenaPayload = { ...payload,
+      source_url: "https://www.facebook.com/groups/123/posts/457/",
+      source_identity: "facebook:group:123:457",
+      area_ids: ["varena"] };
+    const varenaImport = await db.query<{ result: { outcome: string } }>(
+      "select import_public_job($1::jsonb,$2,$3) as result",
+      [JSON.stringify(varenaPayload), "collector-v1", "f7066aa2-255c-40be-aedf-8b089162af90"]);
+    expect(varenaImport.rows[0].result.outcome).toBe("accepted");
+    expect((await list(trade, "varena")).rows).toHaveLength(1);
 
     const guest = "28c43516-2af5-4f84-a527-a4cb969c8090";
     await db.query("insert into public_job_guest_sessions(id,expires_at) values($1, now() + interval '1 day')", [guest]);

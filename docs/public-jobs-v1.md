@@ -22,6 +22,8 @@ The feed function excludes `status != active` and `expires_at <= now()` on every
 
 Fetch `GET /api/jobs/taxonomy` from the target environment first. Put the returned active service UUID(s) in `trade_ids` and returned area ID(s) in `area_ids`. Do not invent UUIDs or area slugs. Example *synthetic* body (replace the service UUID with an ID returned by that environment):
 
+Migration `033_job_areas_lithuania.sql` covers all 60 Lithuanian municipalities and Varėna town, preserving the original pilot IDs. Use an exact town ID when present. If a smaller town is absent, use its municipality ID **only after independently verifying the town belongs to that municipality**; keep the original town name in the short summary. If the municipality cannot be verified, hold the post for review rather than assigning a nearby or similarly named area. New areas must be added to the canonical seed and migration, not guessed by the collector. After the 033 rollout, confirm both `varena` and `varenos-rajonas` appear in the live taxonomy before retrying the held Varėna request.
+
 ```json
 {
   "schema_version": 1,
