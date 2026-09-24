@@ -1,6 +1,6 @@
 # Darbų skelbimai — V1 implementation and collector handoff
 
-Status: **isolated branch with a working empty-board preview; not yet ready for production or real collection**. The separate `localpro-preview` Supabase project (`hznpdchpdtqejqonxkgm`) was restored and migrations 025–032 were applied there on 2026-09-24. The Vercel jobs branch now has branch-scoped preview URL, publishable key, and secret key. Its taxonomy and empty feed return HTTP 200. Do not import real data until authentication, hosted import behavior, and the collector access method have been verified.
+Status: **limited production release requested; collector pilot pending**. The separate `localpro-preview` Supabase project (`hznpdchpdtqejqonxkgm`) was restored and migrations 025–032 were applied there on 2026-09-24. Preview HTTP import and phone-number filtering passed with synthetic jobs, which were removed afterward. Production migrations 031–032 were applied to `localpro-lt` after verifying the project identity. Real collector access and login remain to be checked during the controlled pilot.
 
 ## Architecture and existing-system fit
 
@@ -61,4 +61,4 @@ Guest first batches are free. Each successful further page consumes one of five 
 3. Run import/duplicate/concurrency/failure/expiry/filter/gate/auth/admin and mobile/desktop checks. Keep a screenshot and per-check PASS/FAIL/NOT TESTED report. Test a real login/signup return path (including email verification if enabled) before calling the preview ready for user testing.
 4. Separately confirm the collector's permitted Facebook access method. Conduct a human-reviewed pilot of about 20 recent eligible posts, checking classification, geography, dates, links, multi-trade and duplicates. Do not connect an autonomous live collector before that review.
 
-Rollback before real imports: revert preview deployment, remove preview secrets, and drop migration-created functions/tables in reverse dependency order **on the verified preview project only**. After real imports, export required audit/identity data and decide retention/removal before any destructive rollback. No rollback SQL is run automatically. No production migration, merge, production deployment or live collector connection is part of this branch.
+Rollback before real imports: revert the jobs deployment and remove its importer/cursor secrets; leave the additive tables in place until any audit and identity data has been reviewed. After real imports, export required audit/identity data and decide retention/removal before any destructive rollback. No rollback SQL is run automatically.
