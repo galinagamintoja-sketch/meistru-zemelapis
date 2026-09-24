@@ -19,9 +19,12 @@ export async function GET(request: Request) {
   const trade = url.searchParams.get("trade") || null;
   const area = url.searchParams.get("area") || null;
   const period = url.searchParams.get("period") || "all";
+  const contactOnly = url.searchParams.get("contact_number") === "true";
   if (trade && !/^[0-9a-f-]{36}$/i.test(trade) || area && !/^[a-z0-9-]{2,80}$/.test(area) ||
-    !["all", "1d", "3d", "7d"].includes(period)) return json({ error: "invalid_filter" }, 400);
-  const filter = `${trade ?? ""}|${area ?? ""}|${period}`;
+    !["all", "1d", "3d", "7d"].includes(period) ||
+    (url.searchParams.has("contact_number") && !["true", "false"].includes(url.searchParams.get("contact_number") ?? "")))
+    return json({ error: "invalid_filter" }, 400);
+  const filter = `${trade ?? ""}|${area ?? ""}|${period}|${contactOnly}`;
   const rawCursor = url.searchParams.get("cursor");
   const cursor = rawCursor ? readFeedCursor(rawCursor, secret) : null;
   if (rawCursor && (!cursor || cursor.filter !== filter || Date.parse(cursor.snapshot) > Date.now() + 60_000))
@@ -58,7 +61,7 @@ export async function GET(request: Request) {
   const { data, error } = await db.rpc("list_public_jobs", {
     filter_trade: trade, filter_area: area, since_at: since,
     before_posted: cursor?.posted ?? null, before_id: cursor?.id ?? null,
-    snapshot_at: snapshot, row_limit: JOB_PAGE_SIZE + 1
+    snapshot_at: snapshot, row_limit: JOB_PAGE_SIZE + 1, contact_only: contactOnly
   });
   if (error) return json({ error: "unavailable" }, 503);
   const rows = (data ?? []) as JobRow[];

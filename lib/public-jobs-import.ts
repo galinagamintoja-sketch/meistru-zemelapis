@@ -19,6 +19,7 @@ export const importSchema = z.object({
   request_type: z.literal("work_request"),
   title: safeText(100).pipe(z.string().min(5)),
   summary: safeText(350).pipe(z.string().min(20)),
+  has_contact_number: z.boolean(),
   trade_ids: z.array(uuid).min(1).max(6).refine((items) => new Set(items).size === items.length),
   area_ids: z.array(z.string().regex(/^[a-z0-9-]{2,80}$/)).min(1).max(6)
     .refine((items) => new Set(items).size === items.length),

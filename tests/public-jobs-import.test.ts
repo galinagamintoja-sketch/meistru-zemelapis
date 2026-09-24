@@ -6,6 +6,7 @@ const base = {
   schema_version: 1, source_platform: "facebook", source_url: "https://www.facebook.com/groups/123/posts/456/",
   source_visibility: "public", request_type: "work_request", title: "Vonios plytelių klojimas",
   summary: "Ieškomas meistras vonios sienų ir grindų plytelėms kloti Lentvaryje.",
+  has_contact_number: true,
   trade_ids: ["c5ed13e2-734e-47c6-a4bb-0b993e0c7c7e"], area_ids: ["lentvaris"],
   posted_at: "2026-09-20T10:00:00+03:00"
 };
@@ -13,6 +14,7 @@ const base = {
 describe("public jobs import contract", () => {
   it("accepts the narrow work-request shape and rejects extra source text/contact", () => {
     expect(importSchema.safeParse(base).success).toBe(true);
+    expect(importSchema.safeParse({ ...base, has_contact_number: "yes" }).success).toBe(false);
     expect(importSchema.safeParse({ ...base, full_post: "copied original" }).success).toBe(false);
     expect(importSchema.safeParse({ ...base, summary: `${base.summary} +37061234567` }).success).toBe(false);
     expect(importSchema.safeParse({ ...base, area_ids: ["lentvaris", "lentvaris"] }).success).toBe(false);

@@ -10,23 +10,26 @@ type Taxonomy = {
 };
 type Job = {
   id: string; title: string; summary: string; source_url: string; source_name?: string | null;
+  has_contact_number: boolean;
   posted_at: string; trades: Array<{ id: string; name: string }>;
   areas: Array<{ id: string; name: string; kind: string }>;
 };
 type Feed = { jobs?: Job[]; next_cursor?: string | null; has_more?: boolean; gated?: boolean; error?: string };
 const periods = [{ value: "all", label: "Visi naujausi" }, { value: "1d", label: "Per 24 val." },
   { value: "3d", label: "Per 3 dienas" }, { value: "7d", label: "Per 7 dienas" }];
-const historyKey = (values: { trade: string; area: string; period: string }) =>
-  `localpro-jobs-pages:${values.trade}|${values.area}|${values.period}`;
+type Filters = { trade: string; area: string; period: string; contactOnly: boolean };
+const historyKey = (values: Filters) =>
+  `localpro-jobs-pages:${values.trade}|${values.area}|${values.period}|${values.contactOnly}`;
 
 function paramsFromLocation() {
   const params = new URLSearchParams(window.location.search);
-  return { trade: params.get("trade") ?? "", area: params.get("area") ?? "", period: params.get("period") ?? "all" };
+  return { trade: params.get("trade") ?? "", area: params.get("area") ?? "", period: params.get("period") ?? "all",
+    contactOnly: params.get("contact_number") === "true" };
 }
 
 export default function JobsPageClient() {
   const [taxonomy, setTaxonomy] = useState<Taxonomy>({ trades: [], areas: [] });
-  const [filters, setFilters] = useState({ trade: "", area: "", period: "all" });
+  const [filters, setFilters] = useState<Filters>({ trade: "", area: "", period: "all", contactOnly: false });
   const [jobs, setJobs] = useState<Job[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -48,6 +51,7 @@ export default function JobsPageClient() {
       if (values.trade) query.set("trade", values.trade);
       if (values.area) query.set("area", values.area);
       if (values.period !== "all") query.set("period", values.period);
+      if (values.contactOnly) query.set("contact_number", "true");
       const pendingKey = nextCursor ? `localpro-jobs-pending:${historyKey(values)}|${nextCursor}` : null;
       const actionId = nextCursor ? replayAction ?? (pendingKey && sessionStorage.getItem(pendingKey)) ?? crypto.randomUUID() : null;
       if (pendingKey && actionId && !replayAction) sessionStorage.setItem(pendingKey, actionId);
@@ -100,13 +104,14 @@ export default function JobsPageClient() {
     }).catch(() => {});
   }, [load]);
 
-  function changeFilter(key: "trade" | "area" | "period", value: string) {
+  function changeFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     const updated = { ...filters, [key]: value };
     setFilters(updated); setJobs([]); setCursor(null); setHasMore(false); setGated(false);
     const query = new URLSearchParams();
     if (updated.trade) query.set("trade", updated.trade);
     if (updated.area) query.set("area", updated.area);
     if (updated.period !== "all") query.set("period", updated.period);
+    if (updated.contactOnly) query.set("contact_number", "true");
     window.history.replaceState(null, "", `/darbu-skelbimai${query.size ? `?${query}` : ""}`);
     busy.current = false;
     void load(null, true, updated);
@@ -130,6 +135,9 @@ export default function JobsPageClient() {
       <label>Laikotarpis<select value={filters.period} onChange={(event) => changeFilter("period", event.target.value)}>
         {periods.map((period) => <option key={period.value} value={period.value}>{period.label}</option>)}
       </select></label>
+      <label className={styles.contactFilter}><input type="checkbox" checked={filters.contactOnly}
+        onChange={(event) => changeFilter("contactOnly", event.target.checked)} />
+        Tik įrašai su telefono numeriu</label>
     </section>
     <p className={styles.note}>Įrašas atsidarys „Facebook“. Gali reikėti prisijungti; darbas jau gali būti užimtas.</p>
     <section className={styles.list} aria-live="polite">
@@ -137,7 +145,8 @@ export default function JobsPageClient() {
         <div className={styles.meta}><span>{job.areas.map((area) => area.name).join(", ")}</span>
           <time dateTime={job.posted_at}>{new Intl.DateTimeFormat("lt-LT", { timeZone: "Europe/Vilnius", dateStyle: "medium" }).format(new Date(job.posted_at))}</time></div>
         <h2>{job.title}</h2><p>{job.summary}</p>
-        <div className={styles.tags}>{job.trades.map((trade) => <span key={trade.id}>{trade.name}</span>)}</div>
+        <div className={styles.tags}>{job.trades.map((trade) => <span key={trade.id}>{trade.name}</span>)}
+          {job.has_contact_number && <span>Telefono numeris originaliame įraše</span>}</div>
         <div className={styles.actions}><a href={job.source_url} target="_blank" rel="noopener noreferrer" onClick={rememberScroll}>Žiūrėti originalų įrašą ↗</a>
           <a href={`mailto:pagalba@localpro.lt?subject=${encodeURIComponent(`Pranešti apie skelbimą ${job.id}`)}`}>Pranešti apie skelbimą</a></div>
       </article>)}

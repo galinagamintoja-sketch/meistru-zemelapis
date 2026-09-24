@@ -10,6 +10,7 @@ it("migrates jobs and keeps imports, expiry, moderation and guest allowance cons
   try {
     await db.exec("create role anon; create role authenticated; create role service_role; create table service_subcategories(id uuid primary key, name text not null, is_active boolean not null default true)");
     await db.exec(readFileSync("supabase/migrations/031_public_jobs.sql", "utf8"));
+    await db.exec(readFileSync("supabase/migrations/032_public_jobs_contact_filter.sql", "utf8"));
     const privileges = await db.query<{ anon_jobs: boolean; user_audit: boolean; anon_feed_rpc: boolean }>(
       "select has_table_privilege('anon','public.public_jobs','select') as anon_jobs, has_table_privilege('authenticated','public.public_job_import_audit','select') as user_audit, has_function_privilege('anon','public.list_public_jobs(uuid,text,timestamptz,timestamptz,uuid,timestamptz,integer)','execute') as anon_feed_rpc");
     expect(privileges.rows[0]).toEqual({ anon_jobs: false, user_audit: false, anon_feed_rpc: false });
@@ -18,6 +19,7 @@ it("migrates jobs and keeps imports, expiry, moderation and guest allowance cons
     const payload = {
       source_url: "https://www.facebook.com/groups/123/posts/456/", source_identity: "facebook:group:123:456",
       title: "Vonios plytelių klojimas", summary: "Ieškomas meistras vonios sienų ir grindų plytelėms kloti Lentvaryje.",
+      has_contact_number: true,
       posted_at: new Date(Date.now() - 13 * 86_400_000).toISOString(), trade_ids: [trade, secondTrade], area_ids: ["lentvaris"]
     };
     const importJob = async () => (await db.query<{ result: { outcome: string; job_id?: string } }>(
@@ -33,9 +35,13 @@ it("migrates jobs and keeps imports, expiry, moderation and guest allowance cons
     const stored = await db.query<{ posted_at: Date; expires_at: Date }>("select posted_at,expires_at from public_jobs");
     expect(stored.rows).toHaveLength(1);
     expect(+stored.rows[0].expires_at - +stored.rows[0].posted_at).toBe(14 * 86_400_000);
-    const list = (filterTrade: string | null, filterArea: string | null) => db.query(
-      "select * from list_public_jobs($1,$2,$3,$4,$5,$6,$7)",
-      [filterTrade, filterArea, null, null, null, new Date().toISOString(), 7]);
+    const list = (filterTrade: string | null, filterArea: string | null, contactOnly = false) => db.query(
+      "select * from list_public_jobs($1,$2,$3,$4,$5,$6,$7,$8)",
+      [filterTrade, filterArea, null, null, null, new Date().toISOString(), 7, contactOnly]);
+    expect((await list(trade, "lentvaris")).rows).toHaveLength(1);
+    expect((await list(trade, "lentvaris", true)).rows).toHaveLength(1);
+    await db.query("update public_jobs set has_contact_number = false where id = $1", [first.job_id]);
+    expect((await list(trade, "lentvaris", true)).rows).toHaveLength(0);
     expect((await list(trade, "lentvaris")).rows).toHaveLength(1);
     expect((await list(secondTrade, "lentvaris")).rows).toHaveLength(1);
     expect((await list(trade, "vilnius")).rows).toHaveLength(0);

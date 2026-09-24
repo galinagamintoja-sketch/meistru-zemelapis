@@ -1,6 +1,6 @@
 # Darbų skelbimai — V1 implementation and collector handoff
 
-Status: **isolated branch with a working empty-board preview; not yet ready for production or real collection**. The separate `localpro-preview` Supabase project (`hznpdchpdtqejqonxkgm`) was restored and migrations 025–031 were applied there on 2026-09-24. The Vercel jobs branch now has branch-scoped preview URL, publishable key, and secret key. Its taxonomy and empty feed return HTTP 200. Do not import real data until authentication, hosted import behavior, and the collector access method have been verified.
+Status: **isolated branch with a working empty-board preview; not yet ready for production or real collection**. The separate `localpro-preview` Supabase project (`hznpdchpdtqejqonxkgm`) was restored and migrations 025–032 were applied there on 2026-09-24. The Vercel jobs branch now has branch-scoped preview URL, publishable key, and secret key. Its taxonomy and empty feed return HTTP 200. Do not import real data until authentication, hosted import behavior, and the collector access method have been verified.
 
 ## Architecture and existing-system fit
 
@@ -12,7 +12,7 @@ Status: **isolated branch with a working empty-board preview; not yet ready for 
 
 ## Data and access
 
-Migration `031_public_jobs.sql` adds jobs, trade and area associations, private import audit and rate buckets, minimal guest sessions/reveal receipts and admin actions. All new tables have RLS enabled and no browser grants. Service role alone reads or mutates them through server routes. Import, associations and acceptance audit are one PostgreSQL function transaction. A canonical URL and namespace-aware source identity are independently unique. An import cannot change status, timestamps, IDs or content of an existing job. A later supplied post ID fills a null ID only when URL and identity agree. Cross-posts with different Facebook post identities are *not* automatically merged.
+Migrations `031_public_jobs.sql` and `032_public_jobs_contact_filter.sql` add jobs, trade and area associations, private import audit and rate buckets, minimal guest sessions/reveal receipts and admin actions. All new tables have RLS enabled and no browser grants. Service role alone reads or mutates them through server routes. Import, associations and acceptance audit are one PostgreSQL function transaction. A canonical URL and namespace-aware source identity are independently unique. An import cannot change status, timestamps, IDs or content of an existing job. A later supplied post ID fills a null ID only when URL and identity agree. Cross-posts with different Facebook post identities are *not* automatically merged.
 
 The feed function excludes `status != active` and `expires_at <= now()` on every read. Expiry is `posted_at + interval '14 days'`; no scheduler is required for visibility. The background cleanup removes expired guest sessions, audit older than 90 days, rate buckets older than two days and admin-action history older than a year. It **does not purge job identity rows**, preserving deduplication; long-term job-row retention needs a separate future policy if storage becomes material. Changing the 14-day lifetime requires a reviewed migration; it does not silently extend existing rows.
 
@@ -33,13 +33,14 @@ Fetch `GET /api/jobs/taxonomy` from the target environment first. Put the return
   "request_type": "work_request",
   "title": "Vonios plytelių klojimas",
   "summary": "Ieškomas meistras vonios sienų ir grindų plytelėms kloti Lentvaryje.",
+  "has_contact_number": true,
   "trade_ids": ["<UUID from GET /api/jobs/taxonomy>"],
   "area_ids": ["lentvaris"],
   "posted_at": "2026-09-20T10:00:00+03:00"
 }
 ```
 
-The accepted request title and summary must be original, neutral Lithuanian plain text, without copied full posts, names, addresses, contacts or links. Obvious contact/link patterns are rejected, but this is not proof of privacy or factual availability. The collector must classify a concrete work request, not an advert for a tradesperson's service or general recruitment. Both `source_visibility` and `request_type` are assertions, not verified facts. Do not guess location, timing, budget or date. An exact timezone-aware publication instant is required; an unknown/relative-only date is rejected, not replaced with import time. Five minutes of future clock skew is tolerated. The age boundary is exclusive: exactly 14 days old is rejected.
+The accepted request title and summary must be original, neutral Lithuanian plain text, without copied full posts, names, addresses, contacts or links. `has_contact_number` records whether a reviewer verified a phone number in the original post; it never stores or displays the number itself. The board checkbox filters for verified `true` values and links to the original post for contact details. Obvious contact/link patterns are rejected, but this is not proof of privacy or factual availability. The collector must classify a concrete work request, not an advert for a tradesperson's service or general recruitment. Both `source_visibility` and `request_type` are assertions, not verified facts. Do not guess location, timing, budget or date. An exact timezone-aware publication instant is required; an unknown/relative-only date is rejected, not replaced with import time. Five minutes of future clock skew is tolerated. The age boundary is exclusive: exactly 14 days old is rejected.
 
 Supported URL shapes: `https://(www|m).facebook.com/groups/{group}/(posts|permalink)/{numericPostId}/`, `https://(www|m).facebook.com/{page}/posts/{numericPostId}/`, and `story.php?story_fbid={numericPostId}&id={numericPageId}`. Exact Facebook hosts only; tracking query and fragment are dropped. A short/share URL, group homepage, redirect, HTTP URL, deceptive host or mismatched supplied ID is rejected. The server does **not** fetch the link, so source availability/public visibility is not verified. Page-name versus numeric-page URL aliases may conflict rather than auto-merge; the collector should use stable canonical permalinks.
 
@@ -55,7 +56,7 @@ Guest first batches are free. Each successful further page consumes one of five 
 
 ## Preview, rollback and release gates
 
-1. The **non-production LocalPro** Supabase project is `localpro-preview` (`hznpdchpdtqejqonxkgm`), distinct from the live `localpro-lt` project and the CRM project. Migrations 025–031 were applied there in order, and jobs-table RLS/no direct anon or authenticated access was checked. Do not use the CRM project or production keys.
+1. The **non-production LocalPro** Supabase project is `localpro-preview` (`hznpdchpdtqejqonxkgm`), distinct from the live `localpro-lt` project and the CRM project. Migrations 025–032 were applied there in order, and jobs-table RLS/no direct anon or authenticated access was checked. Do not use the CRM project or production keys.
 2. The jobs branch has a verified preview-project secret key, preview publishable key, and branch-scoped cursor/import/cron secrets. Its [preview board](https://meistru-zemelapis-5m4p1bzan-lentvaris.vercel.app/darbu-skelbimai), taxonomy, and empty feed return HTTP 200. Use synthetic fixtures only there and probe browser grants/RLS directly.
 3. Run import/duplicate/concurrency/failure/expiry/filter/gate/auth/admin and mobile/desktop checks. Keep a screenshot and per-check PASS/FAIL/NOT TESTED report. Test a real login/signup return path (including email verification if enabled) before calling the preview ready for user testing.
 4. Separately confirm the collector's permitted Facebook access method. Conduct a human-reviewed pilot of about 20 recent eligible posts, checking classification, geography, dates, links, multi-trade and duplicates. Do not connect an autonomous live collector before that review.
