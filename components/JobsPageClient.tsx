@@ -137,7 +137,7 @@ export default function JobsPageClient() {
       </select></label>
       <label className={styles.contactFilter}><input type="checkbox" checked={filters.contactOnly}
         onChange={(event) => changeFilter("contactOnly", event.target.checked)} />
-        Tik įrašai su telefono numeriu</label>
+        Tik skelbimai su telefono numeriu</label>
     </section>
     <p className={styles.note}>Įrašas atsidarys „Facebook“. Gali reikėti prisijungti; darbas jau gali būti užimtas.</p>
     <section className={styles.list} aria-live="polite">
