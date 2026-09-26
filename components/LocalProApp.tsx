@@ -21,6 +21,7 @@ import { MAX_PROFILE_CATEGORIES, MAX_PROFILE_SERVICES, selectionCounter, uniqueS
 import { clampToLithuania, getResponsiveLithuaniaMinZoom, LITHUANIA_BOUNDS } from "../lib/lithuania-map";
 import { ServiceSearchCombobox } from "./service-search-combobox";
 import { profileSeoSlug } from "../lib/seo";
+import { LanguageSwitcher, TranslationController } from "./TradespersonLanguage";
 
 type Props = {
   initialSpecialists: Specialist[];
@@ -1174,11 +1175,13 @@ export default function LocalProApp({
     .toUpperCase();
 
   return (
-    <div className={`app-shell ${registrationOnly ? "registration-only" : ""}`}>
+    <div className={`app-shell ${registrationOnly ? "registration-only" : ""}`} data-tradesperson-language-surface={registrationOnly ? "" : undefined}>
+      {registrationOnly ? <TranslationController /> : null}
       <header className="topbar">
         <a className="brand" href="/" aria-label="LocalPro.lt">
           <LocalProBrand priority />
         </a>
+        {registrationOnly ? <LanguageSwitcher /> : null}
         <nav className="stage-nav" aria-label="Puslapio skyriai">
           {!registrationOnly ? <a href="/request">Pateikti darbų užklausą</a> : <a href="/">Grįžti į pagrindinį puslapį</a>}
           {!accountState.authenticated ? <><a href="/meistro-registracija">Meistro registracija</a><a href="/login">Prisijungti</a></> : null}

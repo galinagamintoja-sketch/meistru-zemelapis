@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { TradespersonNavigation } from "./tradesperson-navigation";
 import LocalProBrand from "./LocalProBrand";
+import { LanguageSwitcher, TranslationController } from "./TradespersonLanguage";
 
 type ShellProfile = { name: string; profession?: string | null; active: boolean; photoUrl?: string | null };
 
 export function TradespersonShell({ children, profile, deletionPending = false }: { children: React.ReactNode; profile: ShellProfile; deletionPending?: boolean }) {
   const initial = profile.name.trim().charAt(0).toLocaleUpperCase("lt-LT") || "M";
-  return <div className="tradesperson-shell">
+  return <div className="tradesperson-shell" data-tradesperson-language-surface>
+    <TranslationController />
     <aside className="tradesperson-sidebar">
       <Link className="brand" href="/">
         <LocalProBrand priority />
@@ -25,9 +27,10 @@ export function TradespersonShell({ children, profile, deletionPending = false }
       <div className="tradesperson-logout"><Logout /></div>
     </aside>
     <div className="tradesperson-main">
+      <div className="tradesperson-desktop-language"><LanguageSwitcher /></div>
       <header>
         <Link className="brand" href="/"><LocalProBrand iconOnly /></Link>
-        <strong>{profile.name}</strong><span className="mobile-header-action"><BellIcon /></span>
+        <strong>{profile.name}</strong><LanguageSwitcher />
       </header>
       <main>{deletionPending ? <div className="deletion-pending-banner" role="status">Paskyros ištrynimas suplanuotas. Profilis paslėptas, o pakeitimai išjungti. Ištrynimą galite atšaukti paskyros puslapyje.</div> : null}{children}</main>
     </div>
@@ -45,10 +48,6 @@ export function PortalCard({ title, children }: { title: string; children: React
 
 function CheckIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 12.5 3.1 3.1L17.5 8" /></svg>;
-}
-
-function BellIcon() {
-  return <svg viewBox="0 0 24 24" aria-label="Pranešimai"><path d="M6.5 17.5h11l-1.4-2V10a4.1 4.1 0 0 0-8.2 0v5.5zM10 20h4" /></svg>;
 }
 
 function LogoutIcon() {
