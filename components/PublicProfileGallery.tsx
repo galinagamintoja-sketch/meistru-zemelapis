@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import SafeProfileImage from "./SafeProfileImage";
+import { defaultTradePhoto } from "../lib/default-trade-photo";
 
-type Props = { name: string; trade: string; photoUrls: string[] };
+type Props = { name: string; trade: string; categorySlug: string; photoUrls: string[] };
 
-export default function PublicProfileGallery({ name, trade, photoUrls }: Props) {
+export default function PublicProfileGallery({ name, trade, categorySlug, photoUrls }: Props) {
   const [hydrated, setHydrated] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -48,9 +49,10 @@ export default function PublicProfileGallery({ name, trade, photoUrls }: Props) 
   }, [activeIndex, photoUrls.length]);
 
   return <>
-    <button className="public-profile-hero-photo" type="button" data-gallery-ready={hydrated || undefined} onClick={(event) => photoUrls.length && openGallery(0, event.currentTarget)} aria-label={photoUrls.length ? `Atidaryti ${name} darbų galeriją` : `${name} darbų nuotraukos nėra`} disabled={!photoUrls.length || !hydrated}>
-      <SafeProfileImage src={photoUrls[0]} alt={`${name} pagrindinė darbų nuotrauka`} specialistName={name} trade={trade} loading="eager" sizes="(max-width: 620px) 58vw, 220px" fallbackText="Nuotraukos nėra" />
+    <button className="public-profile-hero-photo" type="button" data-gallery-ready={hydrated || undefined} onClick={(event) => photoUrls.length && openGallery(0, event.currentTarget)} aria-label={photoUrls.length ? `Atidaryti ${name} darbų galeriją` : `${trade} iliustracinė nuotrauka`} disabled={!photoUrls.length || !hydrated}>
+      <SafeProfileImage src={photoUrls[0] ?? defaultTradePhoto(categorySlug)} alt={photoUrls.length ? `${name} pagrindinė darbų nuotrauka` : `${trade} iliustracinė nuotrauka`} specialistName={name} trade={trade} loading="eager" sizes="(max-width: 620px) 58vw, 220px" fallbackText="Nuotraukos nėra" />
       {photoUrls.length ? <span>Peržiūrėti darbus</span> : null}
+      {!photoUrls.length ? <span>Iliustracinė nuotrauka</span> : null}
     </button>
     {photoUrls.length ? <section className="public-profile-gallery" aria-labelledby="public-profile-gallery-title">
       <h2 id="public-profile-gallery-title">Darbų nuotraukos</h2>

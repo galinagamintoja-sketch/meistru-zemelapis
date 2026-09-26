@@ -11,6 +11,7 @@ import { clampToLithuania, getResponsiveLithuaniaMinZoom, LITHUANIA_BOUNDS } fro
 import styles from "./HomepagePreviewV2.module.css";
 import LocalProPreviewBrand from "./LocalProPreviewBrand";
 import { canonicalCategorySlug } from "../lib/service-taxonomy";
+import { defaultTradePhoto } from "../lib/default-trade-photo";
 
 type Props = {
   initialSpecialists: Specialist[];
@@ -324,11 +325,11 @@ export default function HomepagePreviewV2({
         name.textContent = specialist.companyName || specialist.name;
         const photoWrap = document.createElement("div");
         photoWrap.className = styles.mapPopupPhoto;
-        const photoUrl = specialistPhoto(specialist);
+        const photoUrl = specialistPhoto(specialist) ?? defaultTradePhoto(specialist.categorySlug);
         if (photoUrl) {
           const photo = document.createElement("img");
           photo.src = photoUrl;
-          photo.alt = `${specialist.name} darbų nuotrauka`;
+          photo.alt = specialistPhoto(specialist) ? `${specialist.name} darbų nuotrauka` : `${specialist.trade} iliustracinė nuotrauka`;
           photo.addEventListener("error", () => {
             photo.remove();
             const fallback = document.createElement("span");
@@ -475,13 +476,14 @@ export default function HomepagePreviewV2({
                 <a className={styles.specialistCard} href={`/meistrai/${profileSeoSlug(specialist)}?return=${encodeURIComponent(returnHref)}`} onClick={rememberReturnPosition} key={specialist.id}>
                   <div className={styles.photoWrap}>
                     <SafeProfileImage
-                      src={photo}
-                      alt={`${specialist.name} darbų nuotrauka`}
+                      src={photo ?? defaultTradePhoto(specialist.categorySlug)}
+                      alt={photo ? `${specialist.name} darbų nuotrauka` : `${specialist.trade} iliustracinė nuotrauka`}
                       specialistName={specialist.name}
                       trade={specialist.trade}
                       className={styles.specialistPhoto}
                       sizes="(max-width: 620px) 88px, 150px"
                     />
+                    {!photo ? <span className={styles.illustrativePhotoLabel}>Iliustracinė nuotrauka</span> : null}
                   </div>
                   <div className={styles.cardBody}>
                     <div className={styles.cardTitleRow}>

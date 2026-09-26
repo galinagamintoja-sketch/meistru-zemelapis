@@ -30,7 +30,7 @@ export default async function PublicTradespersonPage({ params, searchParams }: P
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(profileJsonLd(profile)) }} />
     <nav className="public-profile-nav" aria-label="Profilio navigacija"><Link className="public-profile-brand" href="/" aria-label="LocalPro.lt pagrindinis puslapis"><LocalProPreviewBrand /></Link><Link href={returnPath}>← Meistrų paieška</Link></nav>
     <article className="public-profile-card">
-      <header className="public-profile-header"><p className="eyebrow">LocalPro meistro profilis</p><h1>{profile.companyName || profile.name} – {profile.trade} {profile.town}</h1>{profile.companyName ? <p>{profile.name}</p> : null}<PublicProfileGallery name={profile.name} trade={profile.trade} photoUrls={profile.photoUrls ?? []} /></header>
+      <header className="public-profile-header"><p className="eyebrow">LocalPro meistro profilis</p><h1>{profile.companyName || profile.name} – {profile.trade} {profile.town}</h1>{profile.companyName ? <p>{profile.name}</p> : null}<PublicProfileGallery name={profile.name} trade={profile.trade} categorySlug={profile.categorySlug} photoUrls={profile.photoUrls ?? []} /></header>
       <section className="public-profile-grid"><div className="public-profile-main">
         <section><h2>Apie meistrą</h2><p>{profile.description}</p></section>
         <section><h2>Paslaugos</h2><ul>{(profile.subcategoryNames || []).map((service) => <li key={service}>{service}</li>)}</ul></section>
