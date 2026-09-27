@@ -520,8 +520,7 @@ Object.assign(russianCopy, {
   "Prašymo pateikti nepavyko.": "Не удалось отправить запрос.",
   "Paskyros ištrynimo suplanuoti nepavyko.": "Не удалось запланировать удаление аккаунта.",
   "Paskyros ištrynimo atšaukti nepavyko.": "Не удалось отменить удаление аккаунта.",
-  "Darbų nuotrauka": "Фотография работы",
-  "Patikrinkite įvestus duomenis.": "Проверьте введённые данные."
+  "Darbų nuotrauka": "Фотография работы"
 });
 
 const patterns: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
