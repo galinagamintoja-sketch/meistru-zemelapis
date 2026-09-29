@@ -179,10 +179,10 @@
   height: 40px;
   place-items: center;
   border-radius: 12px;
-  background: #dfebd5;
-  color: var(--spruce);
-  font-size: 23px;
+  background: #1877f2;
+  color: white;
 }
+.jobsArchiveIcon svg { width: 28px; height: 28px; fill: currentColor; }
 .jobsArchiveArrow { flex: none; margin-left: 8px; color: var(--clay); font-size: 22px; }
 
 .searchBar {
@@ -832,7 +832,8 @@
   .jobsArchiveCta { width: 100%; margin: 20px auto 24px; padding: 12px; gap: 10px; }
   .jobsArchiveCta strong { font-size: 14px; }
   .jobsArchiveCta small { font-size: 12px; }
-  .jobsArchiveIcon { width: 34px; height: 34px; font-size: 19px; }
+  .jobsArchiveIcon { width: 34px; height: 34px; }
+  .jobsArchiveIcon svg { width: 24px; height: 24px; }
 
   .searchBar {
     padding: 8px;

@@ -6,6 +6,7 @@ import { getLinkedTradespersonProfile } from "../../lib/tradesperson-account";
 import { getHomepageAccountState } from "../../lib/homepage-account-state";
 import { isAdminEmail } from "../../lib/auth-session";
 import { inspectVerifiedEmailResolution } from "../../lib/verified-email-resolution";
+import { safeAuthNext } from "../../lib/safe-auth-next";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -17,14 +18,16 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function TradespersonRegistrationPage() {
+export default async function TradespersonRegistrationPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  const requested = safeAuthNext((await searchParams).next, "");
+  const registrationNext = requested.startsWith("/darbu-skelbimai") ? requested : undefined;
   const [categories, auth] = await Promise.all([
     getCategories(),
     createSupabaseAuthClient().then((client) => client.auth.getUser()).catch(() => ({ data: { user: null } }))
   ]);
   const user = auth.data.user;
   const profile = user ? await getLinkedTradespersonProfile(user.id) : null;
-  if (profile) redirect("/meistras/uzklausos");
+  if (profile) redirect(registrationNext ?? "/meistras/uzklausos");
   if (user) {
     const resolution = await inspectVerifiedEmailResolution();
     if (resolution.outcome === "unique_match" || resolution.outcome === "ambiguous" || resolution.outcome === "ownership_conflict") {
@@ -45,6 +48,7 @@ export default async function TradespersonRegistrationPage() {
       categories={categories}
       accountState={accountState}
       registrationOnly
+      registrationNext={registrationNext}
     />
   );
 }

@@ -416,7 +416,7 @@ export default function HomepagePreviewV2({
           <p className={styles.eyebrow}>Raskite meistrą savo darbui</p>
           <h1>Patikimi meistrai<br /><span>jūsų mieste</span></h1>
           <a className={styles.jobsArchiveCta} href="/darbu-skelbimai">
-            <span className={styles.jobsArchiveIcon} aria-hidden="true">✦</span>
+            <span className={styles.jobsArchiveIcon} aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M14.2 20v-7.1h2.4l.4-3.1h-2.8V7.9c0-.9.3-1.5 1.6-1.5h1.4V3.6c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4v2.3H8.6v3.1H11V20h3.2Z" /></svg></span>
             <span><strong>FB darbų skelbimų archyvas su kontaktais</strong><small>Raskite naujų užsakymų savo vietovėje</small></span>
             <span className={styles.jobsArchiveArrow} aria-hidden="true">↗</span>
           </a>

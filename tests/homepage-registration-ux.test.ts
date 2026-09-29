@@ -27,7 +27,7 @@ describe("homepage and dedicated registration UX", () => {
     const registrationPage = read("app/meistro-registracija/page.tsx");
     expect(homepage).not.toContain("registrationOnly");
     expect(registrationPage).toContain("registrationOnly");
-    expect(registrationPage).toContain('redirect("/meistras/uzklausos")');
+    expect(registrationPage).toContain('redirect(registrationNext ?? "/meistras/uzklausos")');
     expect(registrationPage).toContain("getLinkedTradespersonProfile(user.id)");
   });
 

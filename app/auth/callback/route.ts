@@ -19,8 +19,10 @@ export async function GET(request: Request) {
   if ((next === "/admin" || next.startsWith("/admin/")) && !isAdminEmail(user?.email)) {
     return NextResponse.redirect(new URL("/admin?error=unauthorised", url.origin));
   }
-  if (next.startsWith("/meistras") && user && !(await getLinkedTradespersonProfile(user.id))) {
-    return NextResponse.redirect(new URL("/meistro-registracija", url.origin));
+  if ((next.startsWith("/meistras") || next.startsWith("/darbu-skelbimai")) && user && !(await getLinkedTradespersonProfile(user.id))) {
+    const registration = new URL("/meistro-registracija", url.origin);
+    if (next.startsWith("/darbu-skelbimai")) registration.searchParams.set("next", next);
+    return NextResponse.redirect(registration);
   }
   return NextResponse.redirect(new URL(next, url.origin));
 }

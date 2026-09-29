@@ -1,6 +1,7 @@
 import { createServerSupabase } from "./supabase";
+import { unstable_cache } from "next/cache";
 import { JOB_PAGE_SIZE } from "./public-jobs-import";
-import { signFeedCursor } from "./public-jobs-cursor";
+import { signFeedCursor, type FeedCursor } from "./public-jobs-cursor";
 
 export type PublicJobFilters = { trade: string; area: string; period: string; contactOnly: boolean };
 export type PublicJob = {
@@ -10,7 +11,15 @@ export type PublicJob = {
   areas: Array<{ id: string; name: string; kind: string }>;
 };
 export type FirstJobPage = { jobs: PublicJob[]; next_cursor: string | null; has_more: boolean; gated: false };
-export type PublicJobTaxonomy = { trades: Array<{ id: string; name: string; slug: string }>; areas: Array<{ id: string; name: string; kind: string }> };
+export type PublicJobTaxonomy = {
+  trades: Array<{ id: string; name: string; count: number }>;
+  areas: Array<{ id: string; name: string; kind: string; count: number }>;
+};
+
+type JobRecord = Omit<PublicJob, "trades" | "areas"> & {
+  trades: Array<{ service_subcategories: { id: string; name: string } | null }>;
+  areas: Array<{ job_areas: { id: string; name: string; kind: string } | null }>;
+};
 
 export function publicJobFilters(params: Record<string, string | string[] | undefined>): PublicJobFilters | null {
   const single = (key: string) => typeof params[key] === "string" ? params[key] as string : "";
@@ -23,34 +32,84 @@ export function publicJobFilters(params: Record<string, string | string[] | unde
   return { trade, area, period, contactOnly: contact === "true" };
 }
 
-export async function getFirstPublicJobPage(filters: PublicJobFilters): Promise<FirstJobPage | null> {
+export function publicJobFilterKey(filters: PublicJobFilters) {
+  return `${filters.trade}|${filters.area}|${filters.period}|${filters.contactOnly}`;
+}
+
+export async function getPublicJobPage(filters: PublicJobFilters, cursor?: FeedCursor): Promise<FirstJobPage | null> {
   const secret = process.env.LOCALPRO_JOBS_CURSOR_SECRET;
   if (!secret || secret.length < 32) return null;
   const db = createServerSupabase();
   if (!db) return null;
-  const snapshot = new Date().toISOString();
+  const snapshot = cursor?.snapshot ?? new Date().toISOString();
   const since = filters.period === "all" ? null : new Date(Date.now() - Number(filters.period[0]) * 86_400_000).toISOString();
-  const { data, error } = await db.rpc("list_public_jobs", {
-    filter_trade: filters.trade || null, filter_area: filters.area || null, since_at: since,
-    before_posted: null, before_id: null, snapshot_at: snapshot,
-    row_limit: JOB_PAGE_SIZE + 1, contact_only: filters.contactOnly
-  });
+  const select = [
+    "id,title,summary,source_url,source_name,has_contact_number,posted_at",
+    "trades:public_job_trades(service_subcategories(id,name))",
+    "areas:public_job_areas(job_areas(id,name,kind))",
+    filters.trade ? "category_filter:public_job_trades!inner(service_subcategories!inner(service_category_id))" : "",
+    filters.area ? "area_filter:public_job_areas!inner(area_id)" : ""
+  ].filter(Boolean).join(",");
+  let query = db.from("public_jobs").select(select)
+    .eq("status", "active").gt("expires_at", new Date().toISOString()).lte("created_at", snapshot)
+    .order("posted_at", { ascending: false }).order("id", { ascending: false }).limit(JOB_PAGE_SIZE + 1);
+  if (since) query = query.gte("posted_at", since);
+  if (filters.contactOnly) query = query.eq("has_contact_number", true);
+  if (filters.trade) query = query.eq("category_filter.service_subcategories.service_category_id", filters.trade);
+  if (filters.area) query = query.eq("area_filter.area_id", filters.area);
+  if (cursor) query = query.or(`posted_at.lt.${cursor.posted},and(posted_at.eq.${cursor.posted},id.lt.${cursor.id})`);
+  const { data, error } = await query;
   if (error) return null;
-  const rows = (data ?? []) as PublicJob[];
-  const jobs = rows.slice(0, JOB_PAGE_SIZE);
+  const rows = (data ?? []) as unknown as JobRecord[];
+  const jobs = rows.slice(0, JOB_PAGE_SIZE).map((row): PublicJob => ({
+    id: row.id, title: row.title, summary: row.summary, source_url: row.source_url,
+    source_name: row.source_name, has_contact_number: row.has_contact_number, posted_at: row.posted_at,
+    trades: row.trades.flatMap((item) => item.service_subcategories ? [item.service_subcategories] : []),
+    areas: row.areas.flatMap((item) => item.job_areas ? [item.job_areas] : [])
+  }));
   const hasMore = rows.length > JOB_PAGE_SIZE;
   const last = jobs.at(-1);
-  const filter = `${filters.trade}|${filters.area}|${filters.period}|${filters.contactOnly}`;
-  return { jobs, has_more: hasMore, next_cursor: hasMore && last ? signFeedCursor({ snapshot, posted: last.posted_at, id: last.id, filter }, secret) : null, gated: false };
+  return {
+    jobs, has_more: hasMore,
+    next_cursor: hasMore && last ? signFeedCursor({ snapshot, posted: last.posted_at, id: last.id, filter: publicJobFilterKey(filters) }, secret) : null,
+    gated: false
+  };
 }
 
-export async function getPublicJobTaxonomy(): Promise<PublicJobTaxonomy | null> {
+export const getFirstPublicJobPage = (filters: PublicJobFilters) => getPublicJobPage(filters);
+
+export const getPublicJobTaxonomy = unstable_cache(async (): Promise<PublicJobTaxonomy | null> => {
   const db = createServerSupabase();
   if (!db) return null;
-  const [trades, areas] = await Promise.all([
-    db.from("service_subcategories").select("id,name,slug").eq("is_active", true).order("name"),
+  const [categories, areas] = await Promise.all([
+    db.from("service_categories").select("id,name,sort_order").eq("is_active", true).order("sort_order"),
     db.from("job_areas").select("id,name,kind").eq("is_active", true).order("name")
   ]);
-  if (trades.error || areas.error) return null;
-  return { trades: trades.data ?? [], areas: areas.data ?? [] };
-}
+  if (categories.error || areas.error) return null;
+  const categoryCounts = new Map<string, number>();
+  const areaCounts = new Map<string, number>();
+  const now = new Date().toISOString();
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await db.from("public_jobs")
+      .select("id,public_job_trades(service_subcategories(service_category_id)),public_job_areas(area_id)")
+      .eq("status", "active").gt("expires_at", now).order("id").range(offset, offset + 499);
+    if (error || !data) return null;
+    for (const job of data) {
+      const categoryIds = new Set(job.public_job_trades.map((item) => {
+        const subcategory = Array.isArray(item.service_subcategories) ? item.service_subcategories[0] : item.service_subcategories;
+        return subcategory?.service_category_id;
+      }).filter((id): id is string => Boolean(id)));
+      for (const id of categoryIds) categoryCounts.set(id, (categoryCounts.get(id) ?? 0) + 1);
+      for (const id of new Set(job.public_job_areas.map((item) => item.area_id))) {
+        areaCounts.set(id, (areaCounts.get(id) ?? 0) + 1);
+      }
+    }
+    if (data.length < 500) break;
+  }
+  return {
+    trades: (categories.data ?? []).flatMap((item) => categoryCounts.has(item.id)
+      ? [{ id: item.id, name: item.name, count: categoryCounts.get(item.id)! }] : []),
+    areas: (areas.data ?? []).flatMap((item) => areaCounts.has(item.id)
+      ? [{ id: item.id, name: item.name, kind: item.kind, count: areaCounts.get(item.id)! }] : [])
+  };
+}, ["public-job-taxonomy-v2"], { revalidate: 60 });

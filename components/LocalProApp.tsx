@@ -28,6 +28,7 @@ type Props = {
   categories: Category[];
   accountState?: HomepageAccountState;
   registrationOnly?: boolean;
+  registrationNext?: string;
 };
 
 export type RegistrationDraft = {
@@ -425,7 +426,8 @@ export default function LocalProApp({
   initialSpecialists,
   categories,
   accountState = { authenticated: false, hasProfile: false, isAdmin: false },
-  registrationOnly = false
+  registrationOnly = false,
+  registrationNext
 }: Props) {
   const [trade, setTrade] = useState("all");
   const [city, setCity] = useState("all");
@@ -995,7 +997,7 @@ export default function LocalProApp({
       }
 
       setSubmitTone("success");
-      window.location.assign(registration.data.dashboardUrl ?? "/meistras/uzklausos");
+      window.location.assign(registrationNext ?? registration.data.dashboardUrl ?? "/meistras/uzklausos");
       setSubmitMessage(
         addressResolution.usedManualFallback
           ? "Profilis aktyvus. Adresą prireikus peržiūrėsime rankiniu būdu, o tinkamos nuotraukos paskelbiamos iškart."

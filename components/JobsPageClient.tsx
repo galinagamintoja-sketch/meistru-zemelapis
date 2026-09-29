@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./JobsPageClient.module.css";
 import type { FirstJobPage, PublicJob, PublicJobFilters, PublicJobTaxonomy } from "../lib/public-jobs-first-page";
 
 type Taxonomy = PublicJobTaxonomy;
 type Job = PublicJob;
-type Feed = { jobs?: Job[]; next_cursor?: string | null; has_more?: boolean; gated?: boolean; error?: string };
+type Feed = { jobs?: Job[]; next_cursor?: string | null; has_more?: boolean; gated?: boolean; profile_required?: boolean; error?: string };
 const periods = [{ value: "all", label: "Visi naujausi" }, { value: "1d", label: "Per 24 val." },
   { value: "3d", label: "Per 3 dienas" }, { value: "7d", label: "Per 7 dienas" }];
 type Filters = PublicJobFilters;
@@ -21,7 +22,8 @@ function paramsFromLocation() {
     contactOnly: params.get("contact_number") === "true" };
 }
 
-export default function JobsPageClient({ initialFilters, initialFeed, initialTaxonomy, initialAuthenticated }: { initialFilters?: Filters; initialFeed?: FirstJobPage; initialTaxonomy?: Taxonomy; initialAuthenticated?: boolean | null }) {
+export default function JobsPageClient({ initialFilters, initialFeed, initialTaxonomy, initialAccess }: { initialFilters?: Filters; initialFeed?: FirstJobPage; initialTaxonomy?: Taxonomy; initialAccess?: "guest" | "registration" | "ready" | null }) {
+  const router = useRouter();
   const [taxonomy, setTaxonomy] = useState<Taxonomy>(initialTaxonomy ?? { trades: [], areas: [] });
   const [filters, setFilters] = useState<Filters>(initialFilters ?? defaultFilters);
   const [jobs, setJobs] = useState<Job[]>(initialFeed?.jobs ?? []);
@@ -59,7 +61,12 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
       const feed = await response.json() as Feed;
       if (!response.ok || feed.error) throw new Error("feed_failed");
       if (requestNumber !== sequence.current) return null;
-      if (feed.gated) { if (pendingKey) sessionStorage.removeItem(pendingKey); setGated(true); return feed; }
+      if (feed.gated) {
+        if (pendingKey) sessionStorage.removeItem(pendingKey);
+        if (feed.profile_required) router.push(`/meistro-registracija?next=${encodeURIComponent(`/darbu-skelbimai${window.location.search}`)}`);
+        else setGated(true);
+        return feed;
+      }
       setGated(false);
       setJobs((before) => {
         const merged = replace ? feed.jobs ?? [] : [...before, ...(feed.jobs ?? [])];
@@ -80,7 +87,7 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
     } finally {
       if (requestNumber === sequence.current) { setLoading(false); busy.current = false; }
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     const initial = paramsFromLocation();
@@ -126,11 +133,11 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
       <p>Naujausi darbų užsakymai pagal amatą ir vietovę. Pasirinkite skelbimą ir susisiekite per originalų įrašą.</p>
     </header>
     <section className={styles.filters} aria-label="Skelbimų filtrai">
-      <label>Darbo sritis<select value={filters.trade} onChange={(event) => changeFilter("trade", event.target.value)}>
-        <option value="">Visos sritys</option>{taxonomy.trades.map((trade) => <option key={trade.id} value={trade.id}>{trade.name}</option>)}
+      <label>Darbų sritis<select value={filters.trade} onChange={(event) => changeFilter("trade", event.target.value)}>
+        <option value="">Visos sritys</option>{taxonomy.trades.map((trade) => <option key={trade.id} value={trade.id}>{trade.name} ({trade.count})</option>)}
       </select></label>
-      <label>Vietovė<select value={filters.area} onChange={(event) => changeFilter("area", event.target.value)}>
-        <option value="">Visos vietovės</option>{taxonomy.areas.map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}
+      <label>Miestas ar rajonas<select value={filters.area} onChange={(event) => changeFilter("area", event.target.value)}>
+        <option value="">Visos vietovės</option>{taxonomy.areas.map((area) => <option key={area.id} value={area.id}>{area.name} ({area.count})</option>)}
       </select></label>
       <label>Laikotarpis<select value={filters.period} onChange={(event) => changeFilter("period", event.target.value)}>
         {periods.map((period) => <option key={period.value} value={period.value}>{period.label}</option>)}
@@ -154,7 +161,11 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
       {error && <div role="alert"><p>Skelbimų įkelti nepavyko.</p><button onClick={() => void load(jobs.length ? cursor : null, jobs.length === 0)}>Bandyti dar kartą</button></div>}
       {!loading && !error && !jobs.length && <div className={styles.empty}><h2>Skelbimų nerasta</h2><p>Pabandykite pakeisti arba išvalyti filtrus.</p>
         <button onClick={() => { changeFilter("trade", ""); window.location.href = "/darbu-skelbimai"; }}>Išvalyti filtrus</button></div>}
-      {!loading && !error && hasMore && <button ref={moreButton} className={styles.more} onClick={() => initialAuthenticated === false ? setGated(true) : void load(cursor, false)} disabled={!cursor}>Rodyti daugiau</button>}
+      {!loading && !error && hasMore && <button ref={moreButton} className={styles.more} onClick={() => {
+        if (initialAccess === "guest") setGated(true);
+        else if (initialAccess === "registration") router.push(`/meistro-registracija?next=${encodeURIComponent(loginNext)}`);
+        else void load(cursor, false);
+      }} disabled={!cursor}>Rodyti daugiau</button>}
       {!loading && !error && !hasMore && jobs.length > 0 && <p className={styles.end}>Visi atitinkantys skelbimai parodyti.</p>}
     </section>
     {gated && <dialog ref={registrationDialog} className={styles.registrationDialog} aria-labelledby="jobs-registration-title" onClose={() => { setGated(false); moreButton.current?.focus(); }}>
@@ -162,7 +173,7 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
       <span className={styles.dialogIcon} aria-hidden="true">✦</span>
       <p className={styles.dialogEyebrow}>Daugiau galimybių</p>
       <h2 id="jobs-registration-title">Atraskite daugiau darbų skelbimų</h2>
-      <p>Nemokamai prisijunkite su Google ir peržiūrėkite visą archyvą. Meistro profilio kurti nereikia.</p>
+      <p>Nemokamai tęskite su Google ir atraskite daugiau jums tinkamų darbų.</p>
       <a className={styles.googleButton} href={`/auth/google?next=${encodeURIComponent(loginNext)}`} onClick={rememberScroll}>Tęsti su Google nemokamai <span aria-hidden="true">↗</span></a>
       <button className={styles.notNow} type="button" onClick={() => registrationDialog.current?.close()}>Dabar ne</button>
     </dialog>}
