@@ -415,7 +415,11 @@ export default function HomepagePreviewV2({
         <section className={styles.hero}>
           <p className={styles.eyebrow}>Raskite meistrą savo darbui</p>
           <h1>Patikimi meistrai<br /><span>jūsų mieste</span></h1>
-          <p className={styles.heroSubhead}>Įveskite reikalingą paslaugą ir savo vietovę, palyginkite meistrų profilius bei darbų nuotraukas ir susisiekite tiesiogiai su tinkamu specialistu.</p>
+          <a className={styles.jobsArchiveCta} href="/darbu-skelbimai">
+            <span className={styles.jobsArchiveIcon} aria-hidden="true">✦</span>
+            <span><strong>FB darbų skelbimų archyvas su kontaktais</strong><small>Raskite naujų užsakymų savo vietovėje</small></span>
+            <span className={styles.jobsArchiveArrow} aria-hidden="true">↗</span>
+          </a>
 
           <form className={styles.searchBar} onSubmit={submitSearch} aria-label="Rasti vietos specialistą">
             <label className={styles.searchField}>

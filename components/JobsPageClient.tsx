@@ -21,7 +21,7 @@ function paramsFromLocation() {
     contactOnly: params.get("contact_number") === "true" };
 }
 
-export default function JobsPageClient({ initialFilters, initialFeed, initialTaxonomy }: { initialFilters?: Filters; initialFeed?: FirstJobPage; initialTaxonomy?: Taxonomy }) {
+export default function JobsPageClient({ initialFilters, initialFeed, initialTaxonomy, initialAuthenticated }: { initialFilters?: Filters; initialFeed?: FirstJobPage; initialTaxonomy?: Taxonomy; initialAuthenticated?: boolean | null }) {
   const [taxonomy, setTaxonomy] = useState<Taxonomy>(initialTaxonomy ?? { trades: [], areas: [] });
   const [filters, setFilters] = useState<Filters>(initialFilters ?? defaultFilters);
   const [jobs, setJobs] = useState<Job[]>(initialFeed?.jobs ?? []);
@@ -33,7 +33,12 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
   const busy = useRef(false);
   const sequence = useRef(0);
   const currentFilters = useRef(filters);
+  const registrationDialog = useRef<HTMLDialogElement>(null);
+  const moreButton = useRef<HTMLButtonElement>(null);
   useEffect(() => { currentFilters.current = filters; }, [filters]);
+  useEffect(() => {
+    if (gated && !registrationDialog.current?.open) registrationDialog.current?.showModal();
+  }, [gated]);
 
   const load = useCallback(async (nextCursor: string | null, replace: boolean, values = currentFilters.current, replayAction?: string): Promise<Feed | null> => {
     if (busy.current && !replace) return null;
@@ -149,12 +154,17 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
       {error && <div role="alert"><p>Skelbimų įkelti nepavyko.</p><button onClick={() => void load(jobs.length ? cursor : null, jobs.length === 0)}>Bandyti dar kartą</button></div>}
       {!loading && !error && !jobs.length && <div className={styles.empty}><h2>Skelbimų nerasta</h2><p>Pabandykite pakeisti arba išvalyti filtrus.</p>
         <button onClick={() => { changeFilter("trade", ""); window.location.href = "/darbu-skelbimai"; }}>Išvalyti filtrus</button></div>}
-      {gated && <div className={styles.gate}><h2>Norite matyti daugiau darbų skelbimų?</h2>
-        <p>Nemokamai prisijunkite arba užsiregistruokite ir tęskite peržiūrą.</p>
-        <Link href={`/login?next=${encodeURIComponent(loginNext)}`} onClick={rememberScroll}>Registruotis nemokamai</Link>
-        <Link href={`/login?next=${encodeURIComponent(loginNext)}`} onClick={rememberScroll}>Prisijungti</Link></div>}
-      {!loading && !error && !gated && hasMore && <button className={styles.more} onClick={() => void load(cursor, false)} disabled={!cursor}>Rodyti daugiau</button>}
+      {!loading && !error && hasMore && <button ref={moreButton} className={styles.more} onClick={() => initialAuthenticated === false ? setGated(true) : void load(cursor, false)} disabled={!cursor}>Rodyti daugiau</button>}
       {!loading && !error && !hasMore && jobs.length > 0 && <p className={styles.end}>Visi atitinkantys skelbimai parodyti.</p>}
     </section>
+    {gated && <dialog ref={registrationDialog} className={styles.registrationDialog} aria-labelledby="jobs-registration-title" onClose={() => { setGated(false); moreButton.current?.focus(); }}>
+      <button className={styles.dialogClose} type="button" aria-label="Uždaryti" onClick={() => registrationDialog.current?.close()}>×</button>
+      <span className={styles.dialogIcon} aria-hidden="true">✦</span>
+      <p className={styles.dialogEyebrow}>Daugiau galimybių</p>
+      <h2 id="jobs-registration-title">Atraskite daugiau darbų skelbimų</h2>
+      <p>Nemokamai prisijunkite su Google ir peržiūrėkite visą archyvą. Meistro profilio kurti nereikia.</p>
+      <a className={styles.googleButton} href={`/auth/google?next=${encodeURIComponent(loginNext)}`} onClick={rememberScroll}>Tęsti su Google nemokamai <span aria-hidden="true">↗</span></a>
+      <button className={styles.notNow} type="button" onClick={() => registrationDialog.current?.close()}>Dabar ne</button>
+    </dialog>}
   </main>;
 }
