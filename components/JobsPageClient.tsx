@@ -3,21 +3,15 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./JobsPageClient.module.css";
+import type { FirstJobPage, PublicJob, PublicJobFilters, PublicJobTaxonomy } from "../lib/public-jobs-first-page";
 
-type Taxonomy = {
-  trades: Array<{ id: string; name: string; slug: string }>;
-  areas: Array<{ id: string; name: string; kind: string }>;
-};
-type Job = {
-  id: string; title: string; summary: string; source_url: string; source_name?: string | null;
-  has_contact_number: boolean;
-  posted_at: string; trades: Array<{ id: string; name: string }>;
-  areas: Array<{ id: string; name: string; kind: string }>;
-};
+type Taxonomy = PublicJobTaxonomy;
+type Job = PublicJob;
 type Feed = { jobs?: Job[]; next_cursor?: string | null; has_more?: boolean; gated?: boolean; error?: string };
 const periods = [{ value: "all", label: "Visi naujausi" }, { value: "1d", label: "Per 24 val." },
   { value: "3d", label: "Per 3 dienas" }, { value: "7d", label: "Per 7 dienas" }];
-type Filters = { trade: string; area: string; period: string; contactOnly: boolean };
+type Filters = PublicJobFilters;
+const defaultFilters: Filters = { trade: "", area: "", period: "all", contactOnly: false };
 const historyKey = (values: Filters) =>
   `localpro-jobs-pages:${values.trade}|${values.area}|${values.period}|${values.contactOnly}`;
 
@@ -27,14 +21,14 @@ function paramsFromLocation() {
     contactOnly: params.get("contact_number") === "true" };
 }
 
-export default function JobsPageClient() {
-  const [taxonomy, setTaxonomy] = useState<Taxonomy>({ trades: [], areas: [] });
-  const [filters, setFilters] = useState<Filters>({ trade: "", area: "", period: "all", contactOnly: false });
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
+export default function JobsPageClient({ initialFilters, initialFeed, initialTaxonomy }: { initialFilters?: Filters; initialFeed?: FirstJobPage; initialTaxonomy?: Taxonomy }) {
+  const [taxonomy, setTaxonomy] = useState<Taxonomy>(initialTaxonomy ?? { trades: [], areas: [] });
+  const [filters, setFilters] = useState<Filters>(initialFilters ?? defaultFilters);
+  const [jobs, setJobs] = useState<Job[]>(initialFeed?.jobs ?? []);
+  const [cursor, setCursor] = useState<string | null>(initialFeed?.next_cursor ?? null);
+  const [hasMore, setHasMore] = useState(Boolean(initialFeed?.has_more));
   const [gated, setGated] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialFeed);
   const [error, setError] = useState(false);
   const busy = useRef(false);
   const sequence = useRef(0);
@@ -87,8 +81,9 @@ export default function JobsPageClient() {
     const initial = paramsFromLocation();
     setFilters(initial);
     void (async () => {
-      const first = await load(null, true, initial);
-      if (!first || first.error) return;
+      const matchesServer = initialFeed && initialFilters && historyKey(initial) === historyKey(initialFilters);
+      const first = matchesServer ? initialFeed : await load(null, true, initial);
+      if (!first || ("error" in first && first.error)) return;
       let history: Array<{ cursor: string; actionId: string }> = [];
       try { history = JSON.parse(sessionStorage.getItem(historyKey(initial)) ?? "[]"); } catch { /* ignore stale state */ }
       for (const item of history.slice(0, 20)) {
@@ -99,10 +94,10 @@ export default function JobsPageClient() {
       const scroll = Number(sessionStorage.getItem(`localpro-jobs-scroll:${historyKey(initial)}`));
       if (scroll > 0) window.scrollTo({ top: scroll, behavior: "instant" });
     })();
-    fetch("/api/jobs/taxonomy").then((response) => response.json()).then((data: Taxonomy) => {
+    if (!initialTaxonomy) fetch("/api/jobs/taxonomy").then((response) => response.json()).then((data: Taxonomy) => {
       if (Array.isArray(data.trades) && Array.isArray(data.areas)) setTaxonomy(data);
     }).catch(() => {});
-  }, [load]);
+  }, [load, initialFeed, initialFilters, initialTaxonomy]);
 
   function changeFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     const updated = { ...filters, [key]: value };

@@ -8,7 +8,7 @@ const nextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
   images: {
     formats: ["image/avif", "image/webp"],
-    minimumCacheTTL: 86400,
+    minimumCacheTTL: 60,
     remotePatterns: [{ protocol: "https", hostname: "**.supabase.co" }]
   },
   turbopack: {

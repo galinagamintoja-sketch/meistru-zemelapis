@@ -57,6 +57,23 @@ describe("managed profile photo access", () => {
     expect(rows[0].profile_photos?.[2].url).toBe("https://example.lt/work.jpg");
   });
 
+  it("uses stable URLs only for approved photos on publishable profiles", async () => {
+    const { signManagedPhotoUrls } = await import("../lib/specialists");
+    const row = profileWithPhotos();
+    row.public_contact_consent_at = "2026-09-29T00:00:00Z";
+    const first = await signManagedPhotoUrls([row], false, true);
+    const sameProfile = profileWithPhotos();
+    sameProfile.public_contact_consent_at = row.public_contact_consent_at;
+    const second = await signManagedPhotoUrls([sameProfile], false, true);
+    const noConsent = await signManagedPhotoUrls([profileWithPhotos()], false, true);
+
+    expect(first[0].profile_photos?.[0].url).toBe("/api/public/profile-photos/approved");
+    expect(second[0].profile_photos?.[0].url).toBe(first[0].profile_photos?.[0].url);
+    expect(first[0].profile_photos?.[1].url).toBeNull();
+    expect(noConsent[0].profile_photos?.[0].url).toBeNull();
+    expect(createSignedUrl).not.toHaveBeenCalled();
+  });
+
   it("signs pending managed photos only for authenticated admin review", async () => {
     const { signManagedPhotoUrls } = await import("../lib/specialists");
     const rows = await signManagedPhotoUrls([profileWithPhotos()], true);

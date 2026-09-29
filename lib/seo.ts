@@ -157,7 +157,7 @@ export function profileJsonLd(profile: Specialist) {
     areaServed: profile.operatingCities.map((name) => ({ "@type": "City", name })),
     knowsAbout: profile.subcategoryNames?.length ? profile.subcategoryNames : profile.subcategorySlugs
   };
-  if (profile.photoUrls?.[0]) person.image = profile.photoUrls[0];
+  if (profile.photoUrls?.[0]) person.image = new URL(profile.photoUrls[0], SITE_URL).toString();
   return { "@context": "https://schema.org", "@type": "ProfilePage", url, mainEntity: person };
 }
 

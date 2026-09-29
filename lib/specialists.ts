@@ -141,11 +141,11 @@ export async function getSpecialists(filters: SpecialistFilters = {}) {
     throw new Error(error.message);
   }
 
-  const rows = await signManagedPhotoUrls((data ?? []) as unknown as ProfileRow[], false);
+  const rows = await signManagedPhotoUrls((data ?? []) as unknown as ProfileRow[], false, true);
   return toPublicSpecialistList(applyFilters(removePublicTestProfiles(rows.map((row) => profileRowToSpecialist(row)), filters), filters));
 }
 
-export async function signManagedPhotoUrls(rows: ProfileRow[], includeUnapproved: boolean) {
+export async function signManagedPhotoUrls(rows: ProfileRow[], includeUnapproved: boolean, publicUrls = false) {
   const supabase = createServerSupabase();
   if (!supabase) return rows;
 
@@ -155,6 +155,12 @@ export async function signManagedPhotoUrls(rows: ProfileRow[], includeUnapproved
     // Never return it when the object lives in private storage, even if signing fails.
     photo.url = null;
     if (!includeUnapproved && photo.moderation_status !== "approved") return;
+    if (publicUrls) {
+      if (!photo.id || row.public_status !== "public" || row.approval_status !== "approved" || row.is_demo || !row.public_contact_consent_at || photo.removed_from_profile_at) return;
+      photo.url = `/api/public/profile-photos/${photo.id}`;
+      if (photo.card_storage_path) photo.card_url = `/api/public/profile-photos/${photo.id}?variant=card`;
+      return;
+    }
     const { data, error } = await supabase.storage.from("profile-photos").createSignedUrl(photo.storage_path, 600);
     if (!error) photo.url = data.signedUrl;
     if (photo.card_storage_path) {

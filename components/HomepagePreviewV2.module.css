@@ -386,6 +386,15 @@
   height: 100%;
 }
 
+.heroSecondary {
+  margin-top: 16px;
+  color: var(--spruce);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .illustrativePhotoLabel {
   position: absolute;
   z-index: 2;
