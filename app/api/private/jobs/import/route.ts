@@ -1,7 +1,8 @@
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "../../../../../lib/supabase";
 import { importFieldErrors, importSchema, normalizeFacebookPostUrl, validatePostedAt } from "../../../../../lib/public-jobs-import";
+import { validJobsImportBearer } from "../../../../../lib/private-jobs-auth";
 
 export const runtime = "nodejs";
 
@@ -9,18 +10,9 @@ function response(body: Record<string, unknown>, status: number, headers?: Heade
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
 }
 
-function validBearer(request: Request) {
-  const expected = process.env.LOCALPRO_JOBS_IMPORT_TOKEN;
-  const supplied = request.headers.get("authorization")?.match(/^Bearer ([A-Za-z0-9_-]{32,256})$/)?.[1];
-  if (!expected || !supplied) return false;
-  const a = createHash("sha256").update(supplied).digest();
-  const b = createHash("sha256").update(expected).digest();
-  return timingSafeEqual(a, b);
-}
-
 export async function POST(request: Request) {
   if (!process.env.LOCALPRO_JOBS_IMPORT_TOKEN) return response({ outcome: "unavailable", reason_code: "import_disabled" }, 503);
-  if (!validBearer(request)) return response({ outcome: "unauthorized", reason_code: "invalid_credential" }, 401);
+  if (!validJobsImportBearer(request)) return response({ outcome: "unauthorized", reason_code: "invalid_credential" }, 401);
   const db = createServerSupabase();
   if (!db) return response({ outcome: "unavailable", reason_code: "database_unavailable" }, 503);
   const importer = "collector-v1";
