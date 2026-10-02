@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "../../../../../lib/supabase";
-import { importFieldErrors, importSchema, normalizeFacebookPostUrl, validatePostedAt } from "../../../../../lib/public-jobs-import";
+import { JOB_MAX_IMPORT_BYTES, importFieldErrors, importSchema, normalizeFacebookPostUrl, validatePostedAt } from "../../../../../lib/public-jobs-import";
 import { validJobsImportBearer } from "../../../../../lib/private-jobs-auth";
 
 export const runtime = "nodejs";
@@ -34,9 +34,9 @@ export async function POST(request: Request) {
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json"))
     return reject("content_type_required", 415);
   const length = Number(request.headers.get("content-length") ?? "0");
-  if (length > 8192) return reject("body_too_large", 413);
+  if (length > JOB_MAX_IMPORT_BYTES) return reject("body_too_large", 413);
   const raw = await request.text();
-  if (Buffer.byteLength(raw, "utf8") > 8192) return reject("body_too_large", 413);
+  if (Buffer.byteLength(raw, "utf8") > JOB_MAX_IMPORT_BYTES) return reject("body_too_large", 413);
   let body: unknown;
   try { body = JSON.parse(raw); } catch { return reject("invalid_json", 400); }
   const parsed = importSchema.safeParse(body);

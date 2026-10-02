@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { importSchema, normalizeFacebookPostUrl, validatePostedAt } from "../lib/public-jobs-import";
+import { readFileSync } from "node:fs";
+import { JOB_MAX_TRADE_IDS, importSchema, normalizeFacebookPostUrl, validatePostedAt } from "../lib/public-jobs-import";
 import { readFeedCursor, signFeedCursor } from "../lib/public-jobs-cursor";
 
 const base = {
@@ -19,6 +20,23 @@ describe("public jobs import contract", () => {
     expect(importSchema.safeParse({ ...base, summary: `${base.summary} +37061234567` }).success).toBe(false);
     expect(importSchema.safeParse({ ...base, area_ids: ["lentvaris", "lentvaris"] }).success).toBe(false);
     expect(importSchema.safeParse({ ...base, posted_at: "2026-02-30T10:00:00+02:00" }).success).toBe(false);
+  });
+
+  it("reports the trade limit instead of silently accepting overbroad classification", () => {
+    const tradeIds = Array.from({ length: JOB_MAX_TRADE_IDS + 1 }, (_, index) =>
+      `c5ed13e2-734e-47c6-a4bb-${String(index).padStart(12, "0")}`);
+    const result = importSchema.safeParse({ ...base, trade_ids: tradeIds });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: ["trade_ids"], code: "too_big" })
+    ]));
+  });
+
+  it("serves the documented import schema with the enforced trade limit", () => {
+    const documented = readFileSync(new URL("../docs/public-jobs-import.schema.json", import.meta.url), "utf8");
+    const served = readFileSync(new URL("../public/schemas/public-jobs-import-v1.json", import.meta.url), "utf8");
+    expect(served).toBe(documented);
+    expect(JSON.parse(served).properties.trade_ids.maxItems).toBe(JOB_MAX_TRADE_IDS);
   });
 
   it("normalizes a post variant and rejects deceptive or non-post URLs", () => {

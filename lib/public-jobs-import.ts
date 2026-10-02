@@ -3,6 +3,9 @@ import { z } from "zod";
 export const JOB_MAX_AGE_DAYS = 14;
 export const JOB_PAGE_SIZE = 6;
 export const JOB_GUEST_REVEALS = 5;
+export const JOB_MAX_TRADE_IDS = 6;
+export const JOB_MAX_AREA_IDS = 6;
+export const JOB_MAX_IMPORT_BYTES = 8192;
 
 const uuid = z.string().uuid();
 const safeText = (max: number) => z.string().trim().min(1).max(max)
@@ -20,8 +23,8 @@ export const importSchema = z.object({
   title: safeText(100).pipe(z.string().min(5)),
   summary: safeText(350).pipe(z.string().min(20)),
   has_contact_number: z.boolean(),
-  trade_ids: z.array(uuid).min(1).max(6).refine((items) => new Set(items).size === items.length),
-  area_ids: z.array(z.string().regex(/^[a-z0-9-]{2,80}$/)).min(1).max(6)
+  trade_ids: z.array(uuid).min(1).max(JOB_MAX_TRADE_IDS).refine((items) => new Set(items).size === items.length),
+  area_ids: z.array(z.string().regex(/^[a-z0-9-]{2,80}$/)).min(1).max(JOB_MAX_AREA_IDS)
     .refine((items) => new Set(items).size === items.length),
   posted_at: z.string().datetime({ offset: true })
 }).strict();
