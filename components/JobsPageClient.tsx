@@ -150,7 +150,7 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
     <section className={styles.list} aria-live="polite">
       {jobs.map((job) => <article className={styles.card} key={job.id}>
         <div className={styles.meta}><span>{job.areas.map((area) => area.name).join(", ")}</span>
-          <time dateTime={job.posted_at}>{new Intl.DateTimeFormat("lt-LT", { timeZone: "Europe/Vilnius", dateStyle: "medium" }).format(new Date(job.posted_at))}</time></div>
+          <time dateTime={job.posted_at}>{new Intl.DateTimeFormat("lt-LT", { timeZone: "Europe/Vilnius", dateStyle: "medium", timeStyle: "short" }).format(new Date(job.posted_at))}</time></div>
         <h2>{job.title}</h2><p>{job.summary}</p>
         <div className={styles.tags}>{job.trades.map((trade) => <span key={trade.id}>{trade.name}</span>)}
           {job.has_contact_number && <span>Telefono numeris originaliame įraše</span>}</div>
