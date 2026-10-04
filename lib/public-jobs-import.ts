@@ -18,7 +18,9 @@ export const importSchema = z.object({
   source_url: z.string().url().max(2048),
   source_post_id: z.string().regex(/^[A-Za-z0-9_-]{1,100}$/).optional(),
   source_name: safeText(100).optional(),
-  source_visibility: z.literal("public"),
+  // Audience metadata is optional; imports are authorized by the protected importer.
+  // Keep known collector values without asserting that the source is public.
+  source_visibility: z.enum(["public", "private", "unverified"]).optional(),
   request_type: z.literal("work_request"),
   title: safeText(100).pipe(z.string().min(5)),
   summary: safeText(350).pipe(z.string().min(20)),

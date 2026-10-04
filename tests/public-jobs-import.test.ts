@@ -13,6 +13,15 @@ const base = {
 };
 
 describe("public jobs import contract", () => {
+  it("does not require public-audience evidence for protected imports", () => {
+    const { source_visibility: _visibility, ...withoutAudience } = base;
+    expect(importSchema.safeParse(withoutAudience).success).toBe(true);
+    for (const source_visibility of ["public", "private", "unverified"]) {
+      expect(importSchema.safeParse({ ...base, source_visibility }).success).toBe(true);
+    }
+    expect(importSchema.safeParse({ ...base, source_visibility: "invented" }).success).toBe(false);
+  });
+
   it("accepts the narrow work-request shape and rejects extra source text/contact", () => {
     expect(importSchema.safeParse(base).success).toBe(true);
     expect(importSchema.safeParse({ ...base, has_contact_number: "yes" }).success).toBe(false);
@@ -37,6 +46,7 @@ describe("public jobs import contract", () => {
     const served = readFileSync(new URL("../public/schemas/public-jobs-import-v1.json", import.meta.url), "utf8");
     expect(served).toBe(documented);
     expect(JSON.parse(served).properties.trade_ids.maxItems).toBe(JOB_MAX_TRADE_IDS);
+    expect(JSON.parse(served).required).not.toContain("source_visibility");
   });
 
   it("normalizes a post variant and rejects deceptive or non-post URLs", () => {
