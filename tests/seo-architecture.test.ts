@@ -4,7 +4,11 @@ import {
   categoryJsonLd, categoryMetadata, isSeoEligible, matchesCategoryLocation, profileJsonLd,
   profileMetadata, profilePath, profileSeoSlug, safeJsonLd
 } from "../lib/seo";
-import { buildSeoSitemapEntries } from "../app/sitemap";
+import sitemap, { buildSeoSitemapEntries, dynamic } from "../app/sitemap";
+import { vi } from "vitest";
+import { getSeoSpecialists } from "../lib/specialists";
+
+vi.mock("../lib/specialists", () => ({ getSeoSpecialists: vi.fn() }));
 import { renderToStaticMarkup } from "react-dom/server";
 import { SeoProfileCard } from "../components/seo-profile-card";
 
@@ -21,6 +25,23 @@ const karolina: Specialist = {
 };
 
 describe("LocalPro SEO architecture", () => {
+  it("refreshes the sitemap for newly approved and withdrawn profiles without a rebuild", async () => {
+    expect(dynamic).toBe("force-dynamic");
+    const previousEnv = process.env.VERCEL_ENV;
+    process.env.VERCEL_ENV = "production";
+    try {
+      vi.mocked(getSeoSpecialists).mockResolvedValueOnce([])
+        .mockResolvedValueOnce([karolina])
+        .mockResolvedValueOnce([{ ...karolina, publicStatus: "private" }]);
+      const url = `https://localpro.lt${profilePath(karolina)}`;
+      expect((await sitemap()).map((entry) => entry.url)).not.toContain(url);
+      expect((await sitemap()).map((entry) => entry.url)).toContain(url);
+      expect((await sitemap()).map((entry) => entry.url)).not.toContain(url);
+    } finally {
+      if (previousEnv === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = previousEnv;
+    }
+  });
   it("indexes only complete, approved, public, consented, non-demo/non-test profiles", () => {
     expect(isSeoEligible(karolina)).toBe(true);
     expect(isSeoEligible({ ...karolina, publicStatus: "private" })).toBe(false);
