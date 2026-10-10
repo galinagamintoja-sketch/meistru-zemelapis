@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AddressAutocomplete, { geocodeLithuanianAddress } from "./AddressAutocomplete";
 import SafeProfileImage from "./SafeProfileImage";
+import { specialistPhotoCandidates } from "../lib/specialist-photos";
 import LocalProBrand from "./LocalProBrand";
 import type { Category, Specialist } from "../lib/types";
 import { formatReviewCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
@@ -1393,6 +1394,7 @@ export default function LocalProApp({
                 <div className="selected-map-card">
                   <SafeProfileImage
                     src={activePhotoUrl}
+                    fallbackSrcs={specialistPhotoCandidates(activeSpecialist).filter((url) => url !== activePhotoUrl)}
                     alt={`${activeSpecialist.name} darbų nuotrauka`}
                     specialistName={activeSpecialist.name}
                     trade={activeSpecialist.trade}

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import SafeProfileImage from "./SafeProfileImage";
+import { specialistPhotoCandidates } from "../lib/specialist-photos";
 import type { Category, Specialist } from "../lib/types";
 import type { HomepageAccountState } from "../lib/homepage-account-state";
 import { profileSeoSlug } from "../lib/seo";
@@ -40,14 +41,7 @@ const normalized = (value: string | null | undefined) => (value ?? "")
   .trim();
 
 function specialistPhoto(specialist: Specialist) {
- const candidates = [
- specialist.cardPhotoUrls?.[0],
- specialist.photoRecords?.find((photo) => photo.moderationStatus === "approved" && !photo.removedAt)?.url,
- specialist.photoUrls?.[0],
- specialist.photos?.[0]
- ];
-
- return candidates.find((value) => value && /^(https?:\/\/|\/(?!\/))/.test(value.trim())) ?? null;
+  return specialistPhotoCandidates(specialist)[0] ?? null;
 }
 
 export function specialistMatchesService(specialist: Specialist, query: string, categories: Category[] = []) {
@@ -325,17 +319,24 @@ export default function HomepagePreviewV2({
         name.textContent = specialist.companyName || specialist.name;
         const photoWrap = document.createElement("div");
         photoWrap.className = styles.mapPopupPhoto;
-        const photoUrl = specialistPhoto(specialist) ?? defaultTradePhoto(specialist.categorySlug);
+        const candidates = specialistPhotoCandidates(specialist);
+        const photoUrl = candidates[0] ?? defaultTradePhoto(specialist.categorySlug);
         if (photoUrl) {
           const photo = document.createElement("img");
           photo.src = photoUrl;
           photo.alt = specialistPhoto(specialist) ? `${specialist.name} darbų nuotrauka` : `${specialist.trade} iliustracinė nuotrauka`;
+          let candidateIndex = 0;
           photo.addEventListener("error", () => {
+            candidateIndex += 1;
+            if (candidates[candidateIndex]) {
+              photo.src = candidates[candidateIndex];
+              return;
+            }
             photo.remove();
             const fallback = document.createElement("span");
             fallback.textContent = specialist.name.slice(0, 1).toUpperCase();
             photoWrap.append(fallback);
-          }, { once: true });
+          });
           photoWrap.append(photo);
         } else {
           const fallback = document.createElement("span");
@@ -482,6 +483,7 @@ export default function HomepagePreviewV2({
                   <div className={styles.photoWrap}>
                     <SafeProfileImage
                       src={photo ?? defaultTradePhoto(specialist.categorySlug)}
+                      fallbackSrcs={specialistPhotoCandidates(specialist).slice(1)}
                       alt={photo ? `${specialist.name} darbų nuotrauka` : `${specialist.trade} iliustracinė nuotrauka`}
                       specialistName={specialist.name}
                       trade={specialist.trade}

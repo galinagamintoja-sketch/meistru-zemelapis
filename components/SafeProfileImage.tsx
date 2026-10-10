@@ -7,6 +7,7 @@ const failedImageUrls = new Set<string>();
 
 type Props = {
   src?: string | null;
+  fallbackSrcs?: string[];
   alt: string;
   specialistName?: string;
   trade?: string;
@@ -30,7 +31,8 @@ export function safeProfileImageInitial(specialistName?: string, trade?: string)
 }
 
 export default function SafeProfileImage({
-  src,
+  src: preferredSrc,
+  fallbackSrcs = [],
   alt,
   specialistName,
   trade,
@@ -40,8 +42,10 @@ export default function SafeProfileImage({
   fallbackText,
   style
 }: Props) {
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const failed = !src || failedSrc === src || hasFailedProfileImage(src);
+  const [failedSources, setFailedSources] = useState<string[]>([]);
+  const src = [preferredSrc, ...fallbackSrcs].find((candidate) =>
+    candidate && !failedSources.includes(candidate) && !hasFailedProfileImage(candidate));
+  const failed = !src;
   const classes = ["safe-profile-image", failed ? "is-fallback" : "has-image", className].filter(Boolean).join(" ");
 
   return (
@@ -56,11 +60,15 @@ export default function SafeProfileImage({
           src={src}
           alt={alt}
           fill
+          // Managed photos are already resized. Serve them directly: Vercel
+          // rejects optimisation of these dynamic API URLs. External legacy
+          // photos also need no optimiser domain allowlist to display.
+          unoptimized={src.startsWith("/api/public/profile-photos/") || /^https?:\/\//.test(src)}
           sizes={sizes}
           priority={loading === "eager"}
           onError={() => {
             rememberFailedProfileImage(src);
-            setFailedSrc(src);
+            setFailedSources((previous) => [...previous, src]);
           }}
         />
       )}
