@@ -23,7 +23,7 @@ type JobRecord = Omit<PublicJob, "trades" | "areas"> & {
 
 export function publicJobFilters(params: Record<string, string | string[] | undefined>): PublicJobFilters | null {
   const single = (key: string) => typeof params[key] === "string" ? params[key] as string : "";
-  const trade = single("trade");
+  const trade = single("trade").toLowerCase();
   const area = single("area");
   const period = single("period") || "all";
   const contact = single("contact_number");

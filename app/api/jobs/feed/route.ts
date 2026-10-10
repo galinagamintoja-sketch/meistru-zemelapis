@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const secret = process.env.LOCALPRO_JOBS_CURSOR_SECRET;
   if (!secret || secret.length < 32) return json({ error: "unavailable" }, 503);
   const url = new URL(request.url);
-  const trade = url.searchParams.get("trade") || null;
+  const trade = url.searchParams.get("trade")?.toLowerCase() || null;
   const area = url.searchParams.get("area") || null;
   const period = url.searchParams.get("period") || "all";
   const contactOnly = url.searchParams.get("contact_number") === "true";

@@ -3,7 +3,7 @@ import { countPublicJobFacets, publicJobSince } from "../lib/public-jobs-facets"
 
 const { db } = vi.hoisted(() => ({ db: { from: vi.fn() } }));
 vi.mock("../lib/supabase", () => ({ createServerSupabase: () => db }));
-import { getPublicJobPage, getPublicJobTaxonomy } from "../lib/public-jobs-first-page";
+import { getPublicJobPage, getPublicJobTaxonomy, publicJobFilters } from "../lib/public-jobs-first-page";
 const defaults = { trade: "", area: "", period: "all", contactOnly: false };
 const jobs = [
   { categoryIds: ["interior", "interior", "electrical"], areaIds: ["kaunas", "kaunas"] },
@@ -13,6 +13,12 @@ const jobs = [
 ];
 
 describe("job facets", () => {
+  it("treats valid UUID category selections case-insensitively", () => {
+    const id = "23afad17-ae02-48fc-9891-8d0a33fd83d8";
+    const rows = [{ categoryIds: [id], areaIds: ["vilnius"] }];
+    expect(countPublicJobFacets(rows, { ...defaults, trade: id.toUpperCase() }).areas.get("vilnius")).toBe(1);
+    expect(publicJobFilters({ trade: id.toUpperCase() })?.trade).toBe(id);
+  });
   it("counts nationwide jobs once per category/area, including unknown-location jobs only nationwide", () => {
     const result = countPublicJobFacets(jobs, defaults);
     expect(Object.fromEntries(result.trades)).toEqual({ interior: 2, electrical: 2, plumbing: 1 });
