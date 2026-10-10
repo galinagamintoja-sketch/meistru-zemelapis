@@ -18,7 +18,7 @@ const historyKey = (values: Filters) =>
 
 function paramsFromLocation() {
   const params = new URLSearchParams(window.location.search);
-  return { trade: params.get("trade") ?? "", area: params.get("area") ?? "", period: params.get("period") ?? "all",
+  return { trade: (params.get("trade") ?? "").toLowerCase(), area: params.get("area") ?? "", period: params.get("period") ?? "all",
     contactOnly: params.get("contact_number") === "true" };
 }
 
@@ -94,7 +94,7 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
     const initial = paramsFromLocation();
     setFilters(initial);
     void (async () => {
-      const matchesServer = initialFeed && initialFilters && historyKey(initial) === historyKey(initialFilters);
+      const matchesServer = initialFeed && initialTaxonomy && initialFilters && historyKey(initial) === historyKey(initialFilters);
       const first = matchesServer ? initialFeed : await load(null, true, initial);
       if (!first || ("error" in first && first.error)) return;
       let history: Array<{ cursor: string; actionId: string }> = [];
@@ -107,7 +107,7 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
       const scroll = Number(sessionStorage.getItem(`localpro-jobs-scroll:${historyKey(initial)}`));
       if (scroll > 0) window.scrollTo({ top: scroll, behavior: "instant" });
     })();
-  }, [load, initialFeed, initialFilters]);
+  }, [load, initialFeed, initialFilters, initialTaxonomy]);
 
   function changeFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     const updated = { ...filters, [key]: value };

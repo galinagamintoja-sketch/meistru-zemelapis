@@ -11,7 +11,7 @@ export function countPublicJobFacets(jobs: FacetJob[], filters: PublicJobFilters
     if (!filters.area || job.areaIds.includes(filters.area)) {
       for (const id of new Set(job.categoryIds)) trades.set(id, (trades.get(id) ?? 0) + 1);
     }
-    if (!filters.trade || job.categoryIds.includes(filters.trade)) {
+    if (!filters.trade || job.categoryIds.some((id) => id.toLowerCase() === filters.trade.toLowerCase())) {
       for (const id of new Set(job.areaIds)) areas.set(id, (areas.get(id) ?? 0) + 1);
     }
   }
