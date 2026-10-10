@@ -4,6 +4,7 @@ import { getCategories } from "../../lib/specialists";
 import { createSupabaseAuthClient } from "../../lib/supabase-ssr";
 import { getLinkedTradespersonProfile } from "../../lib/tradesperson-account";
 import { getHomepageAccountState } from "../../lib/homepage-account-state";
+import { adminDestination } from "../../lib/admin-destination";
 import { isAdminEmail } from "../../lib/auth-session";
 import { inspectVerifiedEmailResolution } from "../../lib/verified-email-resolution";
 import { safeAuthNext } from "../../lib/safe-auth-next";
@@ -26,6 +27,8 @@ export default async function TradespersonRegistrationPage({ searchParams }: { s
     createSupabaseAuthClient().then((client) => client.auth.getUser()).catch(() => ({ data: { user: null } }))
   ]);
   const user = auth.data.user;
+  const adminNext = adminDestination(user);
+  if (adminNext) redirect(adminNext);
   const profile = user ? await getLinkedTradespersonProfile(user.id) : null;
   if (profile) redirect(registrationNext ?? "/meistras/uzklausos");
   if (user) {

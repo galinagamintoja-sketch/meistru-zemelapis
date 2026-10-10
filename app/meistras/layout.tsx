@@ -1,10 +1,15 @@
 import { TradespersonShell } from "../../components/tradesperson-shell";
-import { requireOwnedProfile } from "../../lib/tradesperson-account";
+import { getLinkedTradespersonProfile, requireTradespersonUser } from "../../lib/tradesperson-account";
+import { redirect } from "next/navigation";
+import { adminDestination } from "../../lib/admin-destination";
 import { createServerSupabase } from "../../lib/supabase";
 import { getActiveAccountDeletion } from "../../lib/account-deletion";
 
 export default async function TradespersonLayout({ children }: { children: React.ReactNode }) {
-  const { user, profile } = await requireOwnedProfile();
+  const user = await requireTradespersonUser();
+  const adminNext = adminDestination(user);
+  if (adminNext) redirect(adminNext);
+  const profile = await getLinkedTradespersonProfile(user.id);
   const name = String(profile?.display_name ?? user.user_metadata?.full_name ?? user.email?.split("@")[0] ?? "Meistras");
   const supabase = createServerSupabase();
   const deletion = await getActiveAccountDeletion(user.id, supabase);

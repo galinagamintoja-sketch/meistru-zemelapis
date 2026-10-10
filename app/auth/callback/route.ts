@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAuthClient } from "../../../lib/supabase-ssr";
 import { getLinkedTradespersonProfile } from "../../../lib/tradesperson-account";
 import { isAdminEmail } from "../../../lib/auth-session";
+import { adminDestination } from "../../../lib/admin-destination";
 import { safeAuthNext } from "../../../lib/safe-auth-next";
 
 export async function GET(request: Request) {
@@ -15,7 +16,10 @@ export async function GET(request: Request) {
 
   const requested = url.searchParams.get("next") ?? "/meistras";
   const next = safeAuthNext(requested);
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) return NextResponse.redirect(new URL("/login?error=oauth_callback", url.origin));
+  const adminNext = adminDestination(user, next);
+  if (adminNext) return NextResponse.redirect(new URL(adminNext, url.origin));
   if ((next === "/admin" || next.startsWith("/admin/")) && !isAdminEmail(user?.email)) {
     return NextResponse.redirect(new URL("/admin?error=unauthorised", url.origin));
   }

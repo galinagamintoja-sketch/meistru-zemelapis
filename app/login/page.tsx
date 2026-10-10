@@ -4,6 +4,7 @@ import { createSupabaseAuthClient } from "../../lib/supabase-ssr";
 import { safeAuthNext } from "../../lib/safe-auth-next";
 import type { Metadata } from "next";
 import LocalProBrand from "../../components/LocalProBrand";
+import { adminDestination } from "../../lib/admin-destination";
 import { isAdminEmail } from "../../lib/auth-session";
 import { LanguageSwitcher, TranslationController } from "../../components/TradespersonLanguage";
 import { getLinkedTradespersonProfile } from "../../lib/tradesperson-account";
@@ -28,6 +29,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const supabase = await createSupabaseAuthClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {
+    const adminNext = adminDestination(user, next);
+    if (adminNext) redirect(adminNext);
     if (forJobs && !(await getLinkedTradespersonProfile(user.id))) redirect(`/meistro-registracija?next=${encodeURIComponent(next)}`);
     redirect((next === "/admin" || next.startsWith("/admin/")) && !isAdminEmail(user.email) ? "/" : next);
   }
