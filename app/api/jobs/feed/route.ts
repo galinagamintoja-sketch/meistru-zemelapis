@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAuthClient } from "../../../../lib/supabase-ssr";
 import { readFeedCursor } from "../../../../lib/public-jobs-cursor";
-import { getPublicJobPage, publicJobFilterKey, type PublicJobFilters } from "../../../../lib/public-jobs-first-page";
+import { getPublicJobPage, getPublicJobTaxonomy, publicJobFilterKey, type PublicJobFilters } from "../../../../lib/public-jobs-first-page";
 import { getLinkedTradespersonProfile } from "../../../../lib/tradesperson-account";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +37,10 @@ export async function GET(request: Request) {
   if (cursor && userId && !(await getLinkedTradespersonProfile(userId))) {
     return json({ gated: true, profile_required: true, jobs: [], has_more: true });
   }
-  const page = await getPublicJobPage(filters, cursor ?? undefined);
-  if (!page) return json({ error: "unavailable" }, 503);
-  return json(page);
+  const [page, taxonomy] = await Promise.all([
+    getPublicJobPage(filters, cursor ?? undefined),
+    cursor ? Promise.resolve(undefined) : getPublicJobTaxonomy(filters)
+  ]);
+  if (!page || taxonomy === null) return json({ error: "unavailable" }, 503);
+  return json({ ...page, ...(taxonomy ? { taxonomy } : {}) });
 }

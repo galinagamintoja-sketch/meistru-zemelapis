@@ -1,5 +1,5 @@
 import { createServerSupabase } from "./supabase";
-import { unstable_cache } from "next/cache";
+import { countPublicJobFacets, publicJobSince, type FacetJob } from "./public-jobs-facets";
 import { JOB_PAGE_SIZE } from "./public-jobs-import";
 import { signFeedCursor, type FeedCursor } from "./public-jobs-cursor";
 
@@ -42,7 +42,7 @@ export async function getPublicJobPage(filters: PublicJobFilters, cursor?: FeedC
   const db = createServerSupabase();
   if (!db) return null;
   const snapshot = cursor?.snapshot ?? new Date().toISOString();
-  const since = filters.period === "all" ? null : new Date(Date.now() - Number(filters.period[0]) * 86_400_000).toISOString();
+  const since = publicJobSince(filters.period, Date.now());
   const select = [
     "id,title,summary,source_url,source_name,has_contact_number,posted_at",
     "trades:public_job_trades(service_subcategories(id,name))",
@@ -78,7 +78,7 @@ export async function getPublicJobPage(filters: PublicJobFilters, cursor?: FeedC
 
 export const getFirstPublicJobPage = (filters: PublicJobFilters) => getPublicJobPage(filters);
 
-export const getPublicJobTaxonomy = unstable_cache(async (): Promise<PublicJobTaxonomy | null> => {
+export async function getPublicJobTaxonomy(filters: PublicJobFilters = { trade: "", area: "", period: "all", contactOnly: false }): Promise<PublicJobTaxonomy | null> {
   const db = createServerSupabase();
   if (!db) return null;
   const [categories, areas] = await Promise.all([
@@ -86,30 +86,29 @@ export const getPublicJobTaxonomy = unstable_cache(async (): Promise<PublicJobTa
     db.from("job_areas").select("id,name,kind").eq("is_active", true).order("name")
   ]);
   if (categories.error || areas.error) return null;
-  const categoryCounts = new Map<string, number>();
-  const areaCounts = new Map<string, number>();
+  const facetJobs: FacetJob[] = [];
   const now = new Date().toISOString();
+  const since = publicJobSince(filters.period, Date.parse(now));
   for (let offset = 0; ; offset += 500) {
-    const { data, error } = await db.from("public_jobs")
+    let query = db.from("public_jobs")
       .select("id,public_job_trades(service_subcategories(service_category_id)),public_job_areas(area_id)")
       .eq("status", "active").gt("expires_at", now).order("id").range(offset, offset + 499);
+    if (since) query = query.gte("posted_at", since);
+    if (filters.contactOnly) query = query.eq("has_contact_number", true);
+    const { data, error } = await query;
     if (error || !data) return null;
     for (const job of data) {
       const categoryIds = new Set(job.public_job_trades.map((item) => {
         const subcategory = Array.isArray(item.service_subcategories) ? item.service_subcategories[0] : item.service_subcategories;
         return subcategory?.service_category_id;
       }).filter((id): id is string => Boolean(id)));
-      for (const id of categoryIds) categoryCounts.set(id, (categoryCounts.get(id) ?? 0) + 1);
-      for (const id of new Set(job.public_job_areas.map((item) => item.area_id))) {
-        areaCounts.set(id, (areaCounts.get(id) ?? 0) + 1);
-      }
+      facetJobs.push({ categoryIds: [...categoryIds], areaIds: job.public_job_areas.map((item) => item.area_id) });
     }
     if (data.length < 500) break;
   }
+  const counts = countPublicJobFacets(facetJobs, filters);
   return {
-    trades: (categories.data ?? []).flatMap((item) => categoryCounts.has(item.id)
-      ? [{ id: item.id, name: item.name, count: categoryCounts.get(item.id)! }] : []),
-    areas: (areas.data ?? []).flatMap((item) => areaCounts.has(item.id)
-      ? [{ id: item.id, name: item.name, kind: item.kind, count: areaCounts.get(item.id)! }] : [])
+    trades: (categories.data ?? []).map((item) => ({ id: item.id, name: item.name, count: counts.trades.get(item.id) ?? 0 })),
+    areas: (areas.data ?? []).map((item) => ({ id: item.id, name: item.name, kind: item.kind, count: counts.areas.get(item.id) ?? 0 }))
   };
-}, ["public-job-taxonomy-v2"], { revalidate: 60 });
+}

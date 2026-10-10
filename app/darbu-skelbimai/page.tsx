@@ -16,7 +16,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
   const filters = publicJobFilters(await searchParams);
   const [firstPage, taxonomy, userId] = await Promise.all([
     filters ? getFirstPublicJobPage(filters) : Promise.resolve(null),
-    getPublicJobTaxonomy(),
+    getPublicJobTaxonomy(filters ?? undefined),
     createSupabaseAuthClient().then((auth) => auth.auth.getUser()).then(({ data }) => data.user?.id ?? "").catch(() => null)
   ]);
   const access = userId === null ? null : !userId ? "guest" : await getLinkedTradespersonProfile(userId) ? "ready" : "registration";

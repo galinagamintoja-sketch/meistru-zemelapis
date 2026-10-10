@@ -8,7 +8,7 @@ import type { FirstJobPage, PublicJob, PublicJobFilters, PublicJobTaxonomy } fro
 
 type Taxonomy = PublicJobTaxonomy;
 type Job = PublicJob;
-type Feed = { jobs?: Job[]; next_cursor?: string | null; has_more?: boolean; gated?: boolean; profile_required?: boolean; error?: string };
+type Feed = { taxonomy?: Taxonomy; jobs?: Job[]; next_cursor?: string | null; has_more?: boolean; gated?: boolean; profile_required?: boolean; error?: string };
 const periods = [{ value: "all", label: "Visi naujausi" }, { value: "1d", label: "Per 24 val." },
   { value: "3d", label: "Per 3 dienas" }, { value: "7d", label: "Per 7 dienas" }];
 type Filters = PublicJobFilters;
@@ -68,6 +68,7 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
         return feed;
       }
       setGated(false);
+      if (feed.taxonomy) setTaxonomy(feed.taxonomy);
       setJobs((before) => {
         const merged = replace ? feed.jobs ?? [] : [...before, ...(feed.jobs ?? [])];
         return Array.from(new Map(merged.map((item) => [item.id, item])).values());
@@ -106,14 +107,15 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
       const scroll = Number(sessionStorage.getItem(`localpro-jobs-scroll:${historyKey(initial)}`));
       if (scroll > 0) window.scrollTo({ top: scroll, behavior: "instant" });
     })();
-    if (!initialTaxonomy) fetch("/api/jobs/taxonomy").then((response) => response.json()).then((data: Taxonomy) => {
-      if (Array.isArray(data.trades) && Array.isArray(data.areas)) setTaxonomy(data);
-    }).catch(() => {});
-  }, [load, initialFeed, initialFilters, initialTaxonomy]);
+  }, [load, initialFeed, initialFilters]);
 
   function changeFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     const updated = { ...filters, [key]: value };
+    currentFilters.current = updated;
     setFilters(updated); setJobs([]); setCursor(null); setHasMore(false); setGated(false);
+    // Do not show counts belonging to the previous filters while loading.
+    setTaxonomy((before) => ({ trades: before.trades.map((item) => ({ ...item, count: 0 })),
+      areas: before.areas.map((item) => ({ ...item, count: 0 })) }));
     const query = new URLSearchParams();
     if (updated.trade) query.set("trade", updated.trade);
     if (updated.area) query.set("area", updated.area);
@@ -134,10 +136,10 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
     </header>
     <section className={styles.filters} aria-label="Skelbimų filtrai">
       <label>Darbų sritis<select value={filters.trade} onChange={(event) => changeFilter("trade", event.target.value)}>
-        <option value="">Visos sritys</option>{taxonomy.trades.map((trade) => <option key={trade.id} value={trade.id}>{trade.name} ({trade.count})</option>)}
+        <option value="">Visos sritys</option>{taxonomy.trades.map((trade) => <option key={trade.id} value={trade.id}>{trade.name}{loading ? " (…)" : ` (${trade.count})`}</option>)}
       </select></label>
       <label>Miestas ar rajonas<select value={filters.area} onChange={(event) => changeFilter("area", event.target.value)}>
-        <option value="">Visos vietovės</option>{taxonomy.areas.map((area) => <option key={area.id} value={area.id}>{area.name} ({area.count})</option>)}
+        <option value="">Visos vietovės</option>{taxonomy.areas.map((area) => <option key={area.id} value={area.id}>{area.name}{loading ? " (…)" : ` (${area.count})`}</option>)}
       </select></label>
       <label>Laikotarpis<select value={filters.period} onChange={(event) => changeFilter("period", event.target.value)}>
         {periods.map((period) => <option key={period.value} value={period.value}>{period.label}</option>)}
