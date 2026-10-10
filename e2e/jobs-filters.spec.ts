@@ -21,7 +21,7 @@ for (const mobile of [false, true]) {
         await action(); const feed = await (await response).json() as Feed;
         for (const item of feed.taxonomy.trades) await expect(trade.locator(`option[value="${item.id}"]`)).toHaveText(`${item.name} (${item.count})`);
         await expect(page.locator("article")).toHaveCount(feed.jobs.length);
-        for (const job of feed.jobs) await expect(page.getByRole("heading", { name: job.title, exact: true })).toBeVisible();
+        await expect(page.locator("article h2")).toHaveText(feed.jobs.map((job) => job.title));
         return feed;
       }
       const nation = await (await request.get("/api/jobs/feed")).json() as Feed;
