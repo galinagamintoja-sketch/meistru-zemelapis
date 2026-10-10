@@ -45,6 +45,8 @@ test("a failed card thumbnail falls back to the existing approved original, not 
   await card.scrollIntoViewIfNeeded();
   const img = card.locator("img");
   await expect(img).toHaveAttribute("src", /\/api\/public\/profile-photos\/[a-f0-9-]+$/);
-  await expect.poll(() => img.evaluate((e) => (e as HTMLImageElement).complete && (e as HTMLImageElement).naturalWidth > 0)).toBe(true);
+  // Full originals can be much larger than thumbnails; allow time for the real
+  // network transfer after the intentionally failed thumbnail request.
+  await expect.poll(() => img.evaluate((e) => (e as HTMLImageElement).complete && (e as HTMLImageElement).naturalWidth > 0), { timeout: 20_000 }).toBe(true);
   await expect(card).not.toContainText("Iliustracinė nuotrauka");
 });
