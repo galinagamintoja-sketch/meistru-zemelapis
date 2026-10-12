@@ -856,12 +856,15 @@
 .public-profile-gallery-button { display: block; width: 100%; border: 0; padding: 0; border-radius: 10px; background: transparent; cursor: zoom-in; }
 .public-profile-photo { position: relative; min-height: 260px; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 10px; background: var(--soft); }
 .public-profile-photo img { object-fit: cover; }
-.profile-lightbox { position: fixed; z-index: 3000; inset: 0; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border: 0; place-items: center; padding: 20px; background: rgba(18, 24, 20, .88); }
+.profile-lightbox { position: fixed; z-index: 3000; inset: 0; box-sizing: border-box; width: 100%; max-width: none; height: 100vh; height: 100dvh; max-height: none; margin: 0; border: 0; place-items: center; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); overflow: hidden; background: rgba(18, 24, 20, .88); }
 .profile-lightbox[open] { display: grid; }
 .profile-lightbox::backdrop { background: rgba(18, 24, 20, .55); }
-.profile-lightbox-content { position: relative; display: grid; gap: 12px; width: min(920px, 100%); max-height: calc(100vh - 40px); padding: 14px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow); }
-.profile-lightbox-content > .safe-profile-image { display: grid; width: 100%; max-height: calc(100vh - 150px); place-items: center; overflow: hidden; border-radius: 10px; background: var(--soft); }
-.profile-lightbox-content img { display: block; width: 100%; max-height: calc(100vh - 150px); object-fit: contain; }
+/* Definite grid height gives the absolutely positioned Next Image a real canvas.
+   minmax(0, 1fr) reserves controls without intrinsic image sizing overflowing it. */
+.profile-lightbox-content { position: relative; box-sizing: border-box; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 12px; width: min(920px, 100%); height: 100%; min-width: 0; min-height: 0; padding: 14px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow); }
+.profile-lightbox-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; border-radius: 10px; background: var(--soft); touch-action: pan-y pinch-zoom; }
+.profile-lightbox-stage > .safe-profile-image { width: 100%; height: 100%; }
+.profile-lightbox-stage img { object-fit: contain; }
 .profile-lightbox-close { position: absolute; z-index: 1; top: 22px; right: 22px; width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(25, 47, 34, .92); color: white; font-size: 28px; cursor: pointer; }
 .profile-lightbox-controls { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 12px; text-align: center; }
 .profile-lightbox-controls button { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--spruce); font-size: 20px; cursor: pointer; }
