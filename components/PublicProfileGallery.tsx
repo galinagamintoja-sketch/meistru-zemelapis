@@ -12,6 +12,11 @@ export default function PublicProfileGallery({ name, trade, categorySlug, photoU
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
+  const swipeStart = useRef<{ x: number; y: number; id: number } | null>(null);
+
+  function navigate(direction: number) {
+    setActiveIndex((current) => current === null ? null : (current + direction + photoUrls.length) % photoUrls.length);
+  }
 
   useEffect(() => setHydrated(true), []);
 
@@ -35,6 +40,7 @@ export default function PublicProfileGallery({ name, trade, categorySlug, photoU
 
   useEffect(() => {
     if (activeIndex === null) return;
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") { event.preventDefault(); closeGallery(); }
@@ -44,7 +50,7 @@ export default function PublicProfileGallery({ name, trade, categorySlug, photoU
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = "";
+      document.body.style.overflow = previousOverflow;
     };
   }, [activeIndex, photoUrls.length]);
 
@@ -65,11 +71,29 @@ export default function PublicProfileGallery({ name, trade, categorySlug, photoU
     {activeIndex !== null ? <dialog ref={mountDialog} className="profile-lightbox" role="dialog" aria-modal="true" aria-label={`${name} darbų galerija`} onCancel={(event) => { event.preventDefault(); closeGallery(); }} onClick={(event) => { if (event.target === event.currentTarget) closeGallery(); }}>
       <div className="profile-lightbox-content">
         <button ref={closeRef} className="profile-lightbox-close" type="button" onClick={closeGallery} aria-label="Uždaryti galeriją">×</button>
-        <SafeProfileImage src={photoUrls[activeIndex]} alt={`${name} darbų nuotrauka ${activeIndex + 1}`} specialistName={name} trade={trade} loading="eager" sizes="100vw" fallbackText="Nuotraukos nėra" />
+        {/* Next Image fill needs a definite, viewport-sized stage, not an auto-height wrapper. */}
+        <div className="profile-lightbox-stage"
+          onPointerDown={(event) => {
+            if (!event.isPrimary) { swipeStart.current = null; return; }
+            if (event.pointerType === "mouse") return;
+            swipeStart.current = { x: event.clientX, y: event.clientY, id: event.pointerId };
+            if (event.nativeEvent.isTrusted) event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerCancel={() => { swipeStart.current = null; }}
+          onPointerUp={(event) => {
+            const start = swipeStart.current;
+            swipeStart.current = null;
+            if (!start || start.id !== event.pointerId) return;
+            const dx = event.clientX - start.x;
+            const dy = event.clientY - start.y;
+            if (Math.abs(dx) >= 50 && Math.abs(dx) > Math.abs(dy) * 1.5) navigate(dx < 0 ? 1 : -1);
+          }}>
+          <SafeProfileImage key={photoUrls[activeIndex]} src={photoUrls[activeIndex]} alt={`${name} darbų nuotrauka ${activeIndex + 1}`} specialistName={name} trade={trade} loading="eager" sizes="(max-width: 960px) 100vw, 920px" fallbackText="Nuotraukos nėra" />
+        </div>
         <div className="profile-lightbox-controls">
-          <button type="button" onClick={() => setActiveIndex((activeIndex - 1 + photoUrls.length) % photoUrls.length)} aria-label="Ankstesnė nuotrauka">←</button>
-          <span>{activeIndex + 1} / {photoUrls.length}</span>
-          <button type="button" onClick={() => setActiveIndex((activeIndex + 1) % photoUrls.length)} aria-label="Kita nuotrauka">→</button>
+          <button type="button" onClick={() => navigate(-1)} aria-label="Ankstesnė nuotrauka">←</button>
+          <span aria-live="polite" aria-atomic="true">{activeIndex + 1} / {photoUrls.length}</span>
+          <button type="button" onClick={() => navigate(1)} aria-label="Kita nuotrauka">→</button>
         </div>
       </div>
     </dialog> : null}
