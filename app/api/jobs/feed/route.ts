@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAuthClient } from "../../../../lib/supabase-ssr";
 import { readFeedCursor } from "../../../../lib/public-jobs-cursor";
-import { getPublicJobPage, getPublicJobTaxonomy, publicJobFilterKey, type PublicJobFilters } from "../../../../lib/public-jobs-first-page";
+import { getPublicJobPage, getPublicJobTaxonomy, publicJobFilterKey, publicJobFilters } from "../../../../lib/public-jobs-first-page";
 import { getLinkedTradespersonProfile } from "../../../../lib/tradesperson-account";
 
 export const dynamic = "force-dynamic";
@@ -11,15 +11,9 @@ export async function GET(request: Request) {
   const secret = process.env.LOCALPRO_JOBS_CURSOR_SECRET;
   if (!secret || secret.length < 32) return json({ error: "unavailable" }, 503);
   const url = new URL(request.url);
-  const trade = url.searchParams.get("trade")?.toLowerCase() || null;
-  const area = url.searchParams.get("area") || null;
-  const period = url.searchParams.get("period") || "all";
-  const contactOnly = url.searchParams.get("contact_number") === "true";
-  if (trade && !/^[0-9a-f-]{36}$/i.test(trade) || area && !/^[a-z0-9-]{2,80}$/.test(area) ||
-    !["all", "1d", "3d", "7d"].includes(period) ||
-    (url.searchParams.has("contact_number") && !["true", "false"].includes(url.searchParams.get("contact_number") ?? "")))
+  const filters = publicJobFilters(Object.fromEntries(url.searchParams));
+  if (!filters)
     return json({ error: "invalid_filter" }, 400);
-  const filters: PublicJobFilters = { trade: trade ?? "", area: area ?? "", period, contactOnly };
   const filter = publicJobFilterKey(filters);
   const rawCursor = url.searchParams.get("cursor");
   const cursor = rawCursor ? readFeedCursor(rawCursor, secret) : null;

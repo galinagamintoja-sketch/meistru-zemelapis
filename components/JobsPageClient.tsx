@@ -12,19 +12,19 @@ type Feed = { taxonomy?: Taxonomy; jobs?: Job[]; next_cursor?: string | null; ha
 const periods = [{ value: "all", label: "Visi naujausi" }, { value: "1d", label: "Per 24 val." },
   { value: "3d", label: "Per 3 dienas" }, { value: "7d", label: "Per 7 dienas" }];
 type Filters = PublicJobFilters;
-const defaultFilters: Filters = { trade: "", area: "", period: "all", contactOnly: false };
+const defaultFilters: Filters = { trade: "", service: "", area: "", period: "all", contactOnly: false };
 const historyKey = (values: Filters) =>
-  `localpro-jobs-pages:${values.trade}|${values.area}|${values.period}|${values.contactOnly}`;
+  `localpro-jobs-pages:${values.trade}|${values.area}|${values.period}|${values.contactOnly}${values.service ? `|service:${values.service}` : ""}`;
 
 function paramsFromLocation() {
   const params = new URLSearchParams(window.location.search);
-  return { trade: (params.get("trade") ?? "").toLowerCase(), area: params.get("area") ?? "", period: params.get("period") ?? "all",
+  return { trade: (params.get("trade") ?? "").toLowerCase(), service: (params.get("service") ?? "").toLowerCase(), area: params.get("area") ?? "", period: params.get("period") ?? "all",
     contactOnly: params.get("contact_number") === "true" };
 }
 
 export default function JobsPageClient({ initialFilters, initialFeed, initialTaxonomy, initialAccess }: { initialFilters?: Filters; initialFeed?: FirstJobPage; initialTaxonomy?: Taxonomy; initialAccess?: "guest" | "registration" | "ready" | null }) {
   const router = useRouter();
-  const [taxonomy, setTaxonomy] = useState<Taxonomy>(initialTaxonomy ?? { trades: [], areas: [] });
+  const [taxonomy, setTaxonomy] = useState<Taxonomy>(initialTaxonomy ?? { trades: [], services: [], areas: [] });
   const [filters, setFilters] = useState<Filters>(initialFilters ?? defaultFilters);
   const [jobs, setJobs] = useState<Job[]>(initialFeed?.jobs ?? []);
   const [cursor, setCursor] = useState<string | null>(initialFeed?.next_cursor ?? null);
@@ -50,6 +50,7 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
     try {
       const query = new URLSearchParams();
       if (values.trade) query.set("trade", values.trade);
+      if (values.service) query.set("service", values.service);
       if (values.area) query.set("area", values.area);
       if (values.period !== "all") query.set("period", values.period);
       if (values.contactOnly) query.set("contact_number", "true");
@@ -92,6 +93,7 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
 
   useEffect(() => {
     const initial = paramsFromLocation();
+    currentFilters.current = initial;
     setFilters(initial);
     void (async () => {
       const matchesServer = initialFeed && initialTaxonomy && initialFilters && historyKey(initial) === historyKey(initialFilters);
@@ -100,24 +102,33 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
       let history: Array<{ cursor: string; actionId: string }> = [];
       try { history = JSON.parse(sessionStorage.getItem(historyKey(initial)) ?? "[]"); } catch { /* ignore stale state */ }
       for (const item of history.slice(0, 20)) {
+        if (historyKey(currentFilters.current) !== historyKey(initial)) return;
         if (!item?.cursor || !item?.actionId) break;
         const result = await load(item.cursor, false, initial, item.actionId);
         if (!result || result.gated || result.error) break;
       }
       const scroll = Number(sessionStorage.getItem(`localpro-jobs-scroll:${historyKey(initial)}`));
-      if (scroll > 0) window.scrollTo({ top: scroll, behavior: "instant" });
+      if (scroll > 0 && historyKey(currentFilters.current) === historyKey(initial)) window.scrollTo({ top: scroll, behavior: "instant" });
     })();
   }, [load, initialFeed, initialFilters, initialTaxonomy]);
 
   function changeFilter<K extends keyof Filters>(key: K, value: Filters[K]) {
     const updated = { ...filters, [key]: value };
+    // Do not carry a service into a newly selected category.
+    if (key === "trade") updated.service = "";
+    applyFilters(updated);
+  }
+
+  function applyFilters(updated: Filters) {
     currentFilters.current = updated;
     setFilters(updated); setJobs([]); setCursor(null); setHasMore(false); setGated(false);
     // Do not show counts belonging to the previous filters while loading.
     setTaxonomy((before) => ({ trades: before.trades.map((item) => ({ ...item, count: 0 })),
+      services: (before.services ?? []).map((item) => ({ ...item, count: 0 })),
       areas: before.areas.map((item) => ({ ...item, count: 0 })) }));
     const query = new URLSearchParams();
     if (updated.trade) query.set("trade", updated.trade);
+    if (updated.service) query.set("service", updated.service);
     if (updated.area) query.set("area", updated.area);
     if (updated.period !== "all") query.set("period", updated.period);
     if (updated.contactOnly) query.set("contact_number", "true");
@@ -128,6 +139,7 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
 
   const loginNext = `/darbu-skelbimai${typeof window !== "undefined" ? window.location.search : ""}`;
   const rememberScroll = () => sessionStorage.setItem(`localpro-jobs-scroll:${historyKey(filters)}`, String(window.scrollY));
+  const serviceOptions = (taxonomy.services ?? []).filter((item) => !filters.trade || item.category_id === filters.trade || item.id === filters.service);
   return <main className={styles.shell}>
     <div className={styles.top}><Link href="/">← LocalPro</Link></div>
     <header className={styles.hero}>
@@ -137,6 +149,10 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
     <section className={styles.filters} aria-label="Skelbimų filtrai">
       <label>Darbų sritis<select value={filters.trade} onChange={(event) => changeFilter("trade", event.target.value)}>
         <option value="">Visos sritys</option>{taxonomy.trades.map((trade) => <option key={trade.id} value={trade.id}>{trade.name}{loading ? " (…)" : ` (${trade.count})`}</option>)}
+      </select></label>
+      <label>Paslauga<select value={filters.service ?? ""} onChange={(event) => changeFilter("service", event.target.value)}>
+        <option value="">Visos paslaugos</option>{serviceOptions.map((service) => <option key={service.id} value={service.id}>{service.name}{loading ? " (…)" : ` (${service.count})`}</option>)}
+        {filters.service && !serviceOptions.some((item) => item.id === filters.service) && <option value={filters.service}>Pasirinkta paslauga (0)</option>}
       </select></label>
       <label>Miestas ar rajonas<select value={filters.area} onChange={(event) => changeFilter("area", event.target.value)}>
         <option value="">Visos vietovės</option>{taxonomy.areas.map((area) => <option key={area.id} value={area.id}>{area.name}{loading ? " (…)" : ` (${area.count})`}</option>)}
@@ -162,7 +178,7 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
       {loading && <p role="status">Įkeliami skelbimai…</p>}
       {error && <div role="alert"><p>Skelbimų įkelti nepavyko.</p><button onClick={() => void load(jobs.length ? cursor : null, jobs.length === 0)}>Bandyti dar kartą</button></div>}
       {!loading && !error && !jobs.length && <div className={styles.empty}><h2>Skelbimų nerasta</h2><p>Pabandykite pakeisti arba išvalyti filtrus.</p>
-        <button onClick={() => { changeFilter("trade", ""); window.location.href = "/darbu-skelbimai"; }}>Išvalyti filtrus</button></div>}
+        <button onClick={() => applyFilters(defaultFilters)}>Išvalyti filtrus</button></div>}
       {!loading && !error && hasMore && <button ref={moreButton} className={styles.more} onClick={() => {
         if (initialAccess === "guest") setGated(true);
         else if (initialAccess === "registration") router.push(`/meistro-registracija?next=${encodeURIComponent(loginNext)}`);
