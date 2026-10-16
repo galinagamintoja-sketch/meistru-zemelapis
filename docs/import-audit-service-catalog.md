@@ -41,11 +41,23 @@ Migration checks the source-post cardinality, existing Šiauliai association and
 - Typecheck, ESLint (0 errors, 8 existing warnings), seed-mode production build pass.
 - Desktop/mobile Playwright service and existing facet fixtures pass; fixtures are explicitly synthetic.
 
-## Production deployment gate
+## Production completion evidence (2026-10-16)
 
-This session has GitHub credentials but no authenticated Supabase dashboard, Vercel CLI, service-role key or importer bearer token. Migrations have NOT been applied to production, the listing is NOT yet corrected live, and new production service IDs are NOT yet available/verified. Do not tell Aladina the held requests are cleared based on local fixture IDs.
+Temporary user-supplied Supabase credentials restored authorized production access. No credential was written to a repository file.
 
-Once authorized production access is restored:
+- Applied 034 and 035 together in a transaction to verified `localpro-lt` project `kfeplqsesskrkvcjmupe`; recorded both migration versions in the ledger.
+- All 279 complete listing rows compare exactly equal before/after, including source IDs/URLs, publication/creation/update/expiry timestamps and body. All old service/category rows and job-area associations are unchanged. Exactly the intended one trade association was replaced.
+- Production IDs: Dekoratyvinis tinkavimas `234b903a-1224-4638-95f5-8feca3947894`; Pamatų šiltinimas `cbad6eaa-4970-4366-a28b-c88d2c312711`; Statybinių medžiagų pristatymas ir užnešimas `1fa581c5-e629-4094-a76b-48ef046b303d`. All active with the intended parent categories and presentation assignments.
+- Merged #40 and schema-query follow-up #41. Vercel confirms successful Production deployment of runtime commit `f41d5fdfc007b5f450222b0a702e112c80a7e690`; public `localpro.lt` taxonomy/feed return 200.
+- Live schema validation caught that service subcategories have no `sort_order` column (categories do). Removed the invalid select/order and added a regression assertion. The first deployment briefly returned taxonomy/feed 503 before the corrected deployment restored them.
+- Two additional live Playwright runs (1440px desktop and 390px mobile) passed against `https://localpro.lt`, using an independently captured real database snapshot as oracle. Checked every new service under its category, zero-result correctness, direct URLs/reload, ICF inclusion under the accurate service, exclusion under the old tag, area/date/contact combinations, reset, contextual counts and overflow. No mocked network or synthetic production listings used for these browser checks.
+- All three new services currently have zero real listings; held requests have not been released or reclassified.
+- Executed the actual protected importer taxonomy handler locally against the production DB with a local verification bearer: HTTP 200, all three exact active database IDs and categories returned. This is NOT an authenticated HTTP request to the deployed endpoint with Aladina's bearer. The live endpoint correctly returns 401 without a bearer; the supplied Supabase keys are not the website importer token. Aladina must refresh the protected taxonomy with its existing token for the final client-to-live-endpoint check.
+- Verified production import RPC acceptance for each new service and old-payload duplicate preservation of the ICF correction inside a fully rolled-back transaction. Zero QA jobs/audits persisted. Import function definition and source-identity constraints compare byte-for-byte unchanged.
+
+Aladina can use these real active IDs to reconsider the held requests, retaining its existing customer-request classification rules. No held requests were imported by this change.
+
+## Repeatable deployment/verification procedure
 
 1. Confirm the live LocalPro Supabase project, inspect the existing post and catalog, and capture job rows/associations plus import function/identity constraints for comparison.
 2. Apply 034 and 035 transactionally, recording them in the migration ledger according to the existing deployment workflow. Do not replay the full migration history blindly.
