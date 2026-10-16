@@ -90,7 +90,7 @@ export async function getPublicJobTaxonomy(filters: PublicJobFilters = { trade: 
   const [categories, areas, services] = await Promise.all([
     db.from("service_categories").select("id,name,sort_order").eq("is_active", true).order("sort_order"),
     db.from("job_areas").select("id,name,kind").eq("is_active", true).order("name"),
-    db.from("service_subcategories").select("id,name,service_category_id,sort_order").eq("is_active", true).order("sort_order").order("name")
+    db.from("service_subcategories").select("id,name,service_category_id").eq("is_active", true).order("name")
   ]);
   if (categories.error || areas.error || services.error) return null;
   const facetJobs: FacetJob[] = [];
