@@ -98,6 +98,10 @@ describe("database filtering", () => {
       { id: "paint", name: "Dažymas", category_id: "interior", count: 0 }
     ]);
     expect(services.eq).toHaveBeenCalledWith("is_active", true);
+    // Verified production schema: sort_order belongs to categories, not services.
+    expect(services.select).toHaveBeenCalledWith("id,name,service_category_id");
+    expect(services.order).toHaveBeenCalledWith("name");
+    expect(services.order).not.toHaveBeenCalledWith("sort_order");
   });
   it("applies date, phone, visibility and expiry before computing city-scoped counts", async () => {
     const categories = query([{ id: "interior", name: "Interior" }, { id: "plumbing", name: "Plumbing" }]);
