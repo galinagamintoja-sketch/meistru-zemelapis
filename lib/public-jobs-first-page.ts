@@ -3,7 +3,7 @@ import { countPublicJobFacets, publicJobSince, type FacetJob } from "./public-jo
 import { JOB_PAGE_SIZE } from "./public-jobs-import";
 import { signFeedCursor, type FeedCursor } from "./public-jobs-cursor";
 
-export type PublicJobFilters = { trade: string; area: string; period: string; contactOnly: boolean };
+export type PublicJobFilters = { trade: string; service?: string; area: string; period: string; contactOnly: boolean };
 export type PublicJob = {
   id: string; title: string; summary: string; source_url: string; source_name?: string | null;
   has_contact_number: boolean; posted_at: string;
@@ -13,6 +13,7 @@ export type PublicJob = {
 export type FirstJobPage = { jobs: PublicJob[]; next_cursor: string | null; has_more: boolean; gated: false };
 export type PublicJobTaxonomy = {
   trades: Array<{ id: string; name: string; count: number }>;
+  services: Array<{ id: string; name: string; category_id: string; count: number }>;
   areas: Array<{ id: string; name: string; kind: string; count: number }>;
 };
 
@@ -24,16 +25,19 @@ type JobRecord = Omit<PublicJob, "trades" | "areas"> & {
 export function publicJobFilters(params: Record<string, string | string[] | undefined>): PublicJobFilters | null {
   const single = (key: string) => typeof params[key] === "string" ? params[key] as string : "";
   const trade = single("trade").toLowerCase();
+  const service = single("service").toLowerCase();
   const area = single("area");
   const period = single("period") || "all";
   const contact = single("contact_number");
-  if ((trade && !/^[0-9a-f-]{36}$/i.test(trade)) || (area && !/^[a-z0-9-]{2,80}$/.test(area)) ||
+  if ((service && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(service)) ||
+    (trade && !/^[0-9a-f-]{36}$/i.test(trade)) || (area && !/^[a-z0-9-]{2,80}$/.test(area)) ||
     !["all", "1d", "3d", "7d"].includes(period) || (contact && !["true", "false"].includes(contact))) return null;
-  return { trade, area, period, contactOnly: contact === "true" };
+  return { trade, service, area, period, contactOnly: contact === "true" };
 }
 
 export function publicJobFilterKey(filters: PublicJobFilters) {
-  return `${filters.trade}|${filters.area}|${filters.period}|${filters.contactOnly}`;
+  // Keep existing category-only cursors valid; bind service cursors to their UUID.
+  return `${filters.trade}|${filters.area}|${filters.period}|${filters.contactOnly}${filters.service ? `|service:${filters.service.toLowerCase()}` : ""}`;
 }
 
 export async function getPublicJobPage(filters: PublicJobFilters, cursor?: FeedCursor): Promise<FirstJobPage | null> {
@@ -48,6 +52,7 @@ export async function getPublicJobPage(filters: PublicJobFilters, cursor?: FeedC
     "trades:public_job_trades(service_subcategories(id,name))",
     "areas:public_job_areas(job_areas(id,name,kind))",
     filters.trade ? "category_filter:public_job_trades!inner(service_subcategories!inner(service_category_id))" : "",
+    filters.service ? "service_filter:public_job_trades!inner(trade_id)" : "",
     filters.area ? "area_filter:public_job_areas!inner(area_id)" : ""
   ].filter(Boolean).join(",");
   let query = db.from("public_jobs").select(select)
@@ -56,6 +61,7 @@ export async function getPublicJobPage(filters: PublicJobFilters, cursor?: FeedC
   if (since) query = query.gte("posted_at", since);
   if (filters.contactOnly) query = query.eq("has_contact_number", true);
   if (filters.trade) query = query.eq("category_filter.service_subcategories.service_category_id", filters.trade);
+  if (filters.service) query = query.eq("service_filter.trade_id", filters.service);
   if (filters.area) query = query.eq("area_filter.area_id", filters.area);
   if (cursor) query = query.or(`posted_at.lt.${cursor.posted},and(posted_at.eq.${cursor.posted},id.lt.${cursor.id})`);
   const { data, error } = await query;
@@ -81,17 +87,18 @@ export const getFirstPublicJobPage = (filters: PublicJobFilters) => getPublicJob
 export async function getPublicJobTaxonomy(filters: PublicJobFilters = { trade: "", area: "", period: "all", contactOnly: false }): Promise<PublicJobTaxonomy | null> {
   const db = createServerSupabase();
   if (!db) return null;
-  const [categories, areas] = await Promise.all([
+  const [categories, areas, services] = await Promise.all([
     db.from("service_categories").select("id,name,sort_order").eq("is_active", true).order("sort_order"),
-    db.from("job_areas").select("id,name,kind").eq("is_active", true).order("name")
+    db.from("job_areas").select("id,name,kind").eq("is_active", true).order("name"),
+    db.from("service_subcategories").select("id,name,service_category_id,sort_order").eq("is_active", true).order("sort_order").order("name")
   ]);
-  if (categories.error || areas.error) return null;
+  if (categories.error || areas.error || services.error) return null;
   const facetJobs: FacetJob[] = [];
   const now = new Date().toISOString();
   const since = publicJobSince(filters.period, Date.parse(now));
   for (let offset = 0; ; offset += 500) {
     let query = db.from("public_jobs")
-      .select("id,public_job_trades(service_subcategories(service_category_id)),public_job_areas(area_id)")
+      .select("id,public_job_trades(trade_id,service_subcategories(service_category_id)),public_job_areas(area_id)")
       .eq("status", "active").gt("expires_at", now).order("id").range(offset, offset + 499);
     if (since) query = query.gte("posted_at", since);
     if (filters.contactOnly) query = query.eq("has_contact_number", true);
@@ -102,12 +109,15 @@ export async function getPublicJobTaxonomy(filters: PublicJobFilters = { trade: 
         const subcategory = Array.isArray(item.service_subcategories) ? item.service_subcategories[0] : item.service_subcategories;
         return subcategory?.service_category_id;
       }).filter((id): id is string => Boolean(id)));
-      facetJobs.push({ categoryIds: [...categoryIds], areaIds: job.public_job_areas.map((item) => item.area_id) });
+      facetJobs.push({ categoryIds: [...categoryIds], serviceIds: job.public_job_trades.map((item) => item.trade_id), areaIds: job.public_job_areas.map((item) => item.area_id) });
     }
     if (data.length < 500) break;
   }
   const counts = countPublicJobFacets(facetJobs, filters);
+  const activeCategories = new Set((categories.data ?? []).map((item) => item.id));
   return {
+    services: (services.data ?? []).filter((item) => activeCategories.has(item.service_category_id))
+      .map((item) => ({ id: item.id, name: item.name, category_id: item.service_category_id, count: counts.services.get(item.id) ?? 0 })),
     trades: (categories.data ?? []).map((item) => ({ id: item.id, name: item.name, count: counts.trades.get(item.id) ?? 0 })),
     areas: (areas.data ?? []).map((item) => ({ id: item.id, name: item.name, kind: item.kind, count: counts.areas.get(item.id) ?? 0 }))
   };
