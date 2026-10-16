@@ -27,7 +27,7 @@ const individual: Specialist = {
   rating: 4.99, reviewCount: 999, color: "#37503f", phone: "+37060000000", whatsapp: "37060000000",
   email: "private@localpro.lt", serviceArea: "Vilnius, Trakų rajonas",
   description: "Atliekame individualių namų statybos ir pamatų įrengimo darbus Vilniuje bei Trakų rajone pagal suderintą darbų apimtį.",
-  photos: [], photoUrls: ["/api/public/profile-photos/photo-public", "https://images.localpro.lt/work.jpg"], reviews: [],
+  photos: [], photoUrls: ["/api/public/profile-photos/a107ec60-6859-4f4b-abcd-8feca3947894", "https://images.localpro.lt/work.jpg"], reviews: [],
   status: "approved", publicStatus: "public", publicContactConsentAt: "2026-08-01T00:00:00Z", isDemo: false, source: "self-registration"
 };
 const proof = { verified_name: "MB Tvirti namai", verified_at: "2026-01-01T00:00:00Z", revoked_at: null };
@@ -40,12 +40,14 @@ describe("public specialist structured data", () => {
   it("keeps an individual Person and uses public trade/service labels without inferred specialties", () => {
     const data = parsed(individual);
     expect(data["@type"]).toBe("ProfilePage");
-    expect(data.mainEntity).toMatchObject({ "@type": "Person", name: individual.name, jobTitle: individual.trade, description: individual.description });
+    expect(data.mainEntity).toMatchObject({ "@type": "Person", name: individual.name, description: individual.description });
+    expect(data.mainEntity).not.toHaveProperty("jobTitle");
+    expect(data.mainEntity.makesOffer[0].itemOffered.category).toBe(individual.trade);
     expect(data.mainEntity.knowsAbout).toEqual(individual.subcategoryNames);
     expect(data.mainEntity.makesOffer.map((offer: { itemOffered: { name: string } }) => offer.itemOffered.name)).toEqual(individual.subcategoryNames);
     expect(data.mainEntity.makesOffer[0].itemOffered.areaServed).toEqual(individual.operatingCities.map((name) => ({ "@type": "Place", name })));
     expect(data.mainEntity).not.toHaveProperty("areaServed"); // areaServed belongs to Service, not Person
-    expect(data.mainEntity.image).toEqual([`${SITE_URL}/api/public/profile-photos/photo-public`, "https://images.localpro.lt/work.jpg"]);
+    expect(data.mainEntity.image).toEqual([`${SITE_URL}/api/public/profile-photos/a107ec60-6859-4f4b-abcd-8feca3947894`]);
     expect(data.url).toBe(profileMetadata(individual).alternates?.canonical);
     expect(data.mainEntity["@id"]).toBe(`${data.url}#specialist`);
     expect(data.mainEntity.makesOffer[0].itemOffered.provider).toEqual({ "@id": data.mainEntity["@id"] });
@@ -111,8 +113,8 @@ describe("public specialist structured data", () => {
     expect(entity).not.toHaveProperty("makesOffer");
     expect(entity).not.toHaveProperty("image");
   });
-  it("excludes malformed, credential-bearing, signed/private and executable image URLs", () => {
-    const entity = parsed({ ...individual, photoUrls: ["https://[invalid", "javascript:alert(1)", "data:image/png,x", "https://user:pass@host.lt/p.jpg", "https://host.lt/storage/v1/object/sign/profile-photos/x?token=secret", "https://host.lt/photo?X-Amz-Signature=secret", individual.photoUrls![0]] }).mainEntity;
+  it("allows only the first-party public-photo route, excluding Azure SAS and other private capabilities", () => {
+    const entity = parsed({ ...individual, photoUrls: ["https://[invalid", "javascript:alert(1)", "data:image/png,x", "https://user:pass@host.lt/p.jpg", "https://host.lt/storage/v1/object/sign/profile-photos/x?token=secret", "https://host.lt/photo?X-Amz-Signature=secret", "https://example.blob.core.windows.net/private/work.jpg?sv=2026-01-01&sig=FAKE_TEST_SIGNATURE", "https://host.lt/photo?opaqueSecret=unknown", `${SITE_URL}${individual.photoUrls![0]}?sig=FAKE_TEST_SIGNATURE`, `${SITE_URL}${individual.photoUrls![0]}#secret`, "//evil.lt/api/public/profile-photos/a107ec60-6859-4f4b-abcd-8feca3947894", individual.photoUrls![0]] }).mainEntity;
     expect(entity.image).toEqual([`${SITE_URL}${individual.photoUrls![0]}`]);
   });
   it("escapes script termination in structured data while retaining the original JSON text", () => {

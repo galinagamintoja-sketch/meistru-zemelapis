@@ -20,7 +20,7 @@ const karolina: Specialist = {
   verification: ["contact", "portfolio"], verificationLabel: "Kontaktas patvirtintas", rating: 5, reviewCount: 1,
   color: "#37503f", phone: "+37060000000", email: "private@localpro.lt", whatsapp: "37060000000",
   serviceArea: "Vilnius ir Lentvaris", description: "Profesionaliai atlieku vidaus dažymo, glaistymo ir sienų paruošimo darbus Vilniuje bei Lentvaryje.",
-  photos: ["Darbas"], photoUrls: ["https://images.localpro.lt/approved.jpg"], reviews: [["Rasa", 5, "Puikus darbas"]],
+  photos: ["Darbas"], photoUrls: ["/api/public/profile-photos/a107ec60-6859-4f4b-abcd-8feca3947894"], reviews: [["Rasa", 5, "Puikus darbas"]],
   status: "approved", source: "self-registration", isDemo: false, publicContactConsentAt: "2026-08-01T10:00:00Z"
 };
 
@@ -87,7 +87,7 @@ describe("LocalPro SEO architecture", () => {
   it("includes only public visible information in JSON-LD", () => {
     const json = safeJsonLd(profileJsonLd(karolina));
     expect(json).toContain("Karolina Marcinkutė");
-    expect(json).toContain("approved.jpg");
+    expect(json).toContain("/api/public/profile-photos/a107ec60-6859-4f4b-abcd-8feca3947894");
     expect(json).not.toContain(karolina.email);
     expect(json).not.toContain(karolina.phone);
     expect(json).not.toContain(karolina.id);

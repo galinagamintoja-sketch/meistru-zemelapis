@@ -157,9 +157,10 @@ export function isPublicProfile(profile: Specialist) {
 function publicImageUrl(value: string) {
   try {
     const url = new URL(value, SITE_URL);
-    if (!["https:", "http:"].includes(url.protocol) || url.username || url.password ||
-        url.pathname.includes("/storage/v1/object/sign/") ||
-        Array.from(url.searchParams.keys()).some((key) => /token|signature|credential|apikey|x-amz/i.test(key))) return null;
+    // Only this first-party route enforces photo/profile approval and consent on every request.
+    // An arbitrary external URL may be a private capability even without familiar token names.
+    if (url.origin !== new URL(SITE_URL).origin || url.username || url.password || url.search || url.hash ||
+        !/^\/api\/public\/profile-photos\/[0-9a-f-]{36}$/i.test(url.pathname)) return null;
     return url.toString();
   } catch { return null; }
 }
@@ -182,12 +183,13 @@ export function profileJsonLd(profile: Specialist) {
     "@type": isBusiness ? "Organization" : "Person", "@id": entityId,
     name, url, description: profile.description, mainEntityOfPage: { "@id": url }
   };
-  if (!isBusiness && profile.trade.trim()) entity.jobTitle = profile.trade;
+  // A service category is not a verified personal job title; do not emit jobTitle.
   if (services.length) {
     entity.knowsAbout = services;
     entity.makesOffer = services.map((name) => ({
       "@type": "Offer", itemOffered: {
         "@type": "Service", name, serviceType: name, provider: { "@id": entityId },
+        ...(profile.trade.trim() ? { category: profile.trade } : {}),
         ...(areas.length ? { areaServed: areas } : {})
       }
     }));

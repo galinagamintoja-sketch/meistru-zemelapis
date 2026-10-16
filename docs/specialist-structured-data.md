@@ -7,9 +7,9 @@
 - Individuals remain `Person`; a company name, legal-form prefix, contact/WhatsApp/portfolio badge, approval, invoice claim or description is **not** business verification.
 - A business becomes `Organization` only after an authorized reviewer checks evidence that the named organization exists and that this profile legitimately represents it. The reviewed name must match the current public company name. Invalid/future timestamps, revoked or unavailable evidence fail closed to `Person`.
 - We deliberately do **not** emit `LocalBusiness` or a trade-specific subtype: operating areas are not proof of business premises, a public address, or specialist qualifications.
-- `Person.jobTitle` is the public profile's trade/category label, not an occupation inferred from the legacy landing-page slug. Public service labels are used without internal slug fallbacks.
+- `Person.jobTitle` is omitted: the current model stores a service category, not a separately supported public occupation. The visible category belongs on `Service.category`; public service labels are used without internal slug fallbacks.
 - Service operating areas are `Place` values (the stored values can be cities, villages or districts), not invented business addresses. `areaServed` is on services/organizations, not on `Person`.
-- All publicly supplied profile photographs with valid public HTTP(S) URLs are eligible; placeholders, signed storage links, credential-bearing URLs and executable URL schemes are not used as entity images.
+- Only same-origin `/api/public/profile-photos/<id>` images without query strings or fragments are emitted. This route rechecks photo/profile approval and consent. Arbitrary external images are omitted from JSON-LD, even if displayed in the legacy gallery: an unfamiliar signed URL may be a private capability. This blocks Azure SAS, S3/Supabase signatures, opaque tokens, placeholders and executable URL schemes without relying on a parameter denylist.
 - No address, exact coordinates, phone/email fields, qualifications, certifications, company identifiers, legal names, reviews or aggregate ratings are added. The public description is preserved as text; claims inside it are not promoted to independently verified credentials.
 - Private, unapproved, unconsented, demo and obvious test profiles are blocked both by the page and by the JSON-LD generator. Thin but otherwise public profiles retain their existing noindex behavior.
 - Canonical profile URLs and legacy redirects are unchanged; `return` parameters never enter JSON-LD entity URLs. Native script rendering keeps the existing `<` escaping to prevent script termination.
@@ -33,7 +33,7 @@ A missing migration or database error must not break profile pages or promote a 
 
 - Full suite: **373 passed, 2 skipped** (the pre-existing opt-in local account-deletion integration tests).
 - Typecheck and optimized Next.js production build passed; lint: **0 errors, 8 existing warnings**.
-- Checked the used property domains/ranges against Schema.org's current JSON-LD vocabulary, including `areaServed`, `jobTitle`, `makesOffer` and `provider`.
+- Checked the used property domains/ranges against Schema.org's current JSON-LD vocabulary, including `areaServed`, `makesOffer`, `provider` and `category`. Independent review identified two additional issues (category-as-jobTitle and incomplete signed-image filtering); both are corrected and covered by regression assertions.
 - Fetched the public production specialists API (HTTP 200) and exercised the new generator locally against all **15 returned public profiles**. Canonical URLs, visible names/trade/descriptions and absence of unsupported/private fields passed. This was a read-only check, not a deployment or a business-verification backfill.
 - Verified business examples are explicitly synthetic local test fixtures. No actual business has been declared verified, and migration 036 has not been applied to production in this task.
 - No dependency versions were changed. `npm ci` reported existing dependency audit advisories (3 moderate, 10 high, 1 critical); dependency remediation is outside this structured-data change.
