@@ -5,6 +5,8 @@ export type Specialist = {
   id: string;
   name: string;
   companyName?: string | null;
+  /** Server-projected, evidence-reviewed identity. Never accepted from owner input. */
+  verifiedBusiness?: { name: string; verifiedAt: string };
   trade: string;
   categorySlug: string;
   categorySlugs?: string[];

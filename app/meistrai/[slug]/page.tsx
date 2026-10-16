@@ -6,7 +6,7 @@ import PublicProfileGallery from "../../../components/PublicProfileGallery";
 import { ProfileReportForm } from "../../../components/profile-report-form";
 import { formatVerificationSummary } from "../../../lib/display";
 import { getPublicSpecialistBySeoSlug } from "../../../lib/specialists";
-import { categoryLocationPath, isSeoEligible, profileJsonLd, profileMetadata, profilePath, profileSeoSlug, safeJsonLd } from "../../../lib/seo";
+import { categoryLocationPath, isPublicProfile, isSeoEligible, profileJsonLd, profileMetadata, profilePath, profileSeoSlug, safeJsonLd } from "../../../lib/seo";
 import { specialists as seedSpecialists } from "../../../lib/seed-data";
 
 type PageProps = { params: Promise<{ slug: string }>; searchParams: Promise<{ return?: string }> };
@@ -22,12 +22,13 @@ export default async function PublicTradespersonPage({ params, searchParams }: P
   const profile = await getProfile((await params).slug);
   if (!profile) notFound();
   if ((await params).slug !== profilePath(profile).split("/").pop()) permanentRedirect(profilePath(profile));
+  const jsonLd = profileJsonLd(profile);
   const whatsapp = profile.whatsapp.replace(/[^\d]/g, "");
   const landingLinks = profile.operatingCities.map((city) => ({ city, path: categoryLocationPath(profile, city) })).filter((item) => item.path);
   const requestedReturn = (await searchParams).return;
   const returnPath = requestedReturn?.startsWith("/") && !requestedReturn.startsWith("//") ? requestedReturn : "/#results";
   return <main className="public-profile-shell">
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(profileJsonLd(profile)) }} />
+    {jsonLd ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} /> : null}
     <nav className="public-profile-nav" aria-label="Profilio navigacija"><Link className="public-profile-brand" href="/" aria-label="LocalPro.lt pagrindinis puslapis"><LocalProPreviewBrand /></Link><Link href={returnPath}>← Meistrų paieška</Link></nav>
     <article className="public-profile-card">
       <header className="public-profile-header"><p className="eyebrow">LocalPro meistro profilis</p><h1>{profile.companyName || profile.name} – {profile.trade} {profile.town}</h1>{profile.companyName ? <p>{profile.name}</p> : null}<PublicProfileGallery name={profile.name} trade={profile.trade} categorySlug={profile.categorySlug} photoUrls={profile.photoUrls ?? []} /></header>
@@ -51,7 +52,7 @@ export default async function PublicTradespersonPage({ params, searchParams }: P
 
 async function getProfile(slug: string) {
   const storedProfile = await getPublicSpecialistBySeoSlug(slug).catch(() => null);
-  if (storedProfile) return storedProfile;
+  if (storedProfile) return isPublicProfile(storedProfile) ? storedProfile : null;
   if (process.env.NODE_ENV === "production" && process.env.LOCALPRO_SEED_MODE !== "true") return null;
-  return seedSpecialists.find((specialist) => specialist.status === "approved" && profileSeoSlug(specialist) === slug) ?? null;
+  return seedSpecialists.find((specialist) => isPublicProfile(specialist) && profileSeoSlug(specialist) === slug) ?? null;
 }

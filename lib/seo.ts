@@ -148,17 +148,58 @@ export function categoryMetadata(professionSlug: string, city: string, count: nu
   };
 }
 
+/** Publication gates also apply if this helper is called outside the page loader. */
+export function isPublicProfile(profile: Specialist) {
+  return profile.status === "approved" && profile.publicStatus === "public" && !profile.isDemo &&
+    Boolean(profile.publicContactConsentAt) && !isObviousPublicTestProfile(profile);
+}
+
+function publicImageUrl(value: string) {
+  try {
+    const url = new URL(value, SITE_URL);
+    if (!["https:", "http:"].includes(url.protocol) || url.username || url.password ||
+        url.pathname.includes("/storage/v1/object/sign/") ||
+        Array.from(url.searchParams.keys()).some((key) => /token|signature|credential|apikey|x-amz/i.test(key))) return null;
+    return url.toString();
+  } catch { return null; }
+}
+
 export function profileJsonLd(profile: Specialist) {
+  if (!isPublicProfile(profile)) return null;
   const url = `${SITE_URL}${profilePath(profile)}`;
-  const person: Record<string, unknown> = {
-    "@type": "Person", name: profile.name,
-    jobTitle: professionByCategorySlug(profile.categorySlug)?.singular || profile.trade,
-    url, description: profile.description,
-    areaServed: profile.operatingCities.map((name) => ({ "@type": "City", name })),
-    knowsAbout: profile.subcategoryNames?.length ? profile.subcategoryNames : profile.subcategorySlugs
+  const entityId = `${url}#specialist`;
+  const proof = profile.verifiedBusiness;
+  const isBusiness = Boolean(proof && proof.name.trim() && proof.name.trim() === profile.companyName?.trim() &&
+    Number.isFinite(Date.parse(proof.verifiedAt)) && Date.parse(proof.verifiedAt) <= Date.now());
+  const name = isBusiness ? proof!.name.trim() : profile.name.trim();
+  if (!name) return null;
+  // These are public service labels, not inferred qualifications or internal slugs.
+  const services = Array.from(new Set((profile.subcategoryNames ?? []).map((name) => name.trim()).filter(Boolean)));
+  // Operating-area text may describe a district or village, not necessarily a City or an address.
+  const areas = Array.from(new Set(profile.operatingCities.map((name) => name.trim()).filter(Boolean)))
+    .map((name) => ({ "@type": "Place", name }));
+  const entity: Record<string, unknown> = {
+    "@type": isBusiness ? "Organization" : "Person", "@id": entityId,
+    name, url, description: profile.description, mainEntityOfPage: { "@id": url }
   };
-  if (profile.photoUrls?.[0]) person.image = new URL(profile.photoUrls[0], SITE_URL).toString();
-  return { "@context": "https://schema.org", "@type": "ProfilePage", url, mainEntity: person };
+  if (!isBusiness && profile.trade.trim()) entity.jobTitle = profile.trade;
+  if (services.length) {
+    entity.knowsAbout = services;
+    entity.makesOffer = services.map((name) => ({
+      "@type": "Offer", itemOffered: {
+        "@type": "Service", name, serviceType: name, provider: { "@id": entityId },
+        ...(areas.length ? { areaServed: areas } : {})
+      }
+    }));
+  }
+  if (isBusiness && areas.length) entity.areaServed = areas;
+  const images = Array.from(new Set((profile.photoUrls ?? []).map(publicImageUrl).filter((url): url is string => Boolean(url))));
+  if (images.length) entity.image = images;
+  return {
+    "@context": "https://schema.org", "@type": "ProfilePage", "@id": url, url,
+    name: `${profile.companyName || profile.name} – ${profile.trade} ${profile.town}`,
+    mainEntity: entity
+  };
 }
 
 export function categoryJsonLd(professionSlug: string, city: string, profiles: Specialist[]) {

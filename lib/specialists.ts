@@ -6,6 +6,7 @@ import { createServerSupabase } from "./supabase";
 import { canonicalServiceSlug, categoriesFromAssignments, categoriesFromLegacy } from "./service-taxonomy";
 import type { Specialist } from "./types";
 import { isSeoEligible, legacyProfileSeoSlug, profileSeoSlug } from "./seo";
+import { withVerifiedBusinessIdentity } from "./profile-business-identity";
 
 type SpecialistFilters = {
   service?: string | null;
@@ -206,7 +207,8 @@ export async function getSeoSpecialist(slug: string) {
 
 export async function getPublicSpecialistBySeoSlug(slug: string) {
   const requested = decodeURIComponent(slug).toLowerCase();
-  return (await getSpecialists()).find((specialist) => profileSeoSlug(specialist) === requested || legacyProfileSeoSlug(specialist) === requested) ?? null;
+  const profile = (await getSpecialists()).find((specialist) => profileSeoSlug(specialist) === requested || legacyProfileSeoSlug(specialist) === requested);
+  return profile ? withVerifiedBusinessIdentity(profile) : null;
 }
 
 export function specialistSlug(specialist: Pick<Specialist, "id" | "name">) {
