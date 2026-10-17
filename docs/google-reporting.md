@@ -72,6 +72,8 @@ Exports for parent alerts/types: `GoogleReportingError`, `ReportingErrorCode`, `
 
 ## Local verification
 
+`npx playwright test --config=e2e/analytics-sdk.config.ts` downloads and executes the **real Google SDK** and checks no pre-opt-in requests and sanitized page-view collection. Collection requests are intercepted, so fixture traffic never enters the property. This verifies SDK transport construction, **not GA ingestion or Realtime/DebugView**. Hosted consent/persistence has separate coverage in `e2e/analytics-ui-live.spec.ts`; gallery tests use an explicit rejected preference.
+
 ```sh
 node node_modules/vitest/vitest.mjs run tests/google-reporting.test.ts
 node node_modules/typescript/bin/tsc --noEmit --incremental false --pretty false
