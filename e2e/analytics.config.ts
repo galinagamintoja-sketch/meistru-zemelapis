@@ -3,7 +3,7 @@ import { defineConfig } from "@playwright/test";
 // Offline browser harness: no application server/build, credentials, or production writes.
 export default defineConfig({
   testDir: ".",
-  testMatch: "analytics.spec.ts",
+  testMatch: ["analytics.spec.ts", "analytics-archive.spec.ts"],
   use: { browserName: "chromium", headless: true },
   reporter: "list",
   outputDir: "../tmp/analytics-browser-results"

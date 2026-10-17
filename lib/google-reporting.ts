@@ -8,6 +8,8 @@ const GSC_URL = "https://www.googleapis.com/webmasters/v3/sites/sc-domain%3Aloca
 const EMAIL = "localpro-analytics-reader@localpro-501816.iam.gserviceaccount.com";
 const SCOPES = "https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly";
 const CONVERSIONS = ["generate_lead", "sign_up", "contact_click"] as const;
+const FUNNEL_URL = "https://analyticsdata.googleapis.com/v1alpha/properties/559398175:runFunnelReport";
+const ARCHIVE_STEPS = ["archive_visit", "archive_registration_prompt", "archive_register_click", "archive_registration_complete"] as const;
 const TIMEOUT_MS = 8_000;
 const SNAPSHOT_TIMEOUT_MS = 45_000;
 type Budget = { deadline: number; signal: AbortSignal };
@@ -15,7 +17,7 @@ const MAX_DELAY_MS = 5_000;
 const MAX_RETRIES = 2;
 const MAX_BODY_BYTES = 512_000;
 
-export type ReportingErrorCode = "CONFIGURATION" | "AUTHENTICATION" | "FORBIDDEN" | "QUOTA" | "UPSTREAM_UNAVAILABLE" | "TIMEOUT" | "INVALID_RESPONSE" | "INVALID_REQUEST";
+export type ReportingErrorCode = "CONFIGURATION" | "AUTHENTICATION" | "FORBIDDEN" | "UNSUPPORTED" | "QUOTA" | "UPSTREAM_UNAVAILABLE" | "TIMEOUT" | "INVALID_RESPONSE" | "INVALID_REQUEST";
 export type ReportingFailure = { code: ReportingErrorCode; httpStatus: number | null; retryable: boolean };
 export class GoogleReportingError extends Error {
   readonly code: ReportingErrorCode;
@@ -41,6 +43,14 @@ export type PropertyQuota = Record<string, { consumed?: number; remaining?: numb
 export type GaDailyReport = { rows: { date: string; activeUsers: number; sessions: number; eventCount: number }[]; quota: PropertyQuota };
 export type GaEventReport = { rows: { eventName: string; eventCount: number }[]; quota: PropertyQuota };
 export type SearchDailyReport = { rows: { date: string; clicks: number; impressions: number; ctr: number; position: number }[] };
+export type ArchiveFunnelReport = {
+  dateRange: { startDate: string; endDate: string };
+  rows: { eventName: typeof ARCHIVE_STEPS[number]; activeUsers: number; completionRateToNext: number | null; dropoffRateToNext: number | null }[];
+  archiveToClickRate: number | null;
+  archiveToCompletedRate: number | null;
+  sampled: boolean;
+  quota: PropertyQuota;
+};
 export type GoogleReportingSnapshot = {
   status: "success" | "partial" | "error";
   window: ReportingWindow;
@@ -48,6 +58,7 @@ export type GoogleReportingSnapshot = {
   realtime: ReportResult<GaEventReport>;
   searchConsole: ReportResult<SearchDailyReport>;
   conversions?: ReportResult<GaEventReport>;
+  archiveFunnel: ReportResult<ArchiveFunnelReport>;
 };
 
 type Json = Record<string, unknown>;
@@ -93,6 +104,46 @@ function gaRows(body: Json, event: boolean, conversions = false): GaDailyReport 
     return { date: `${dimension.slice(0, 4)}-${dimension.slice(4, 6)}-${dimension.slice(6, 8)}`, activeUsers: metrics[0], sessions: metrics[1], eventCount: metrics[2] };
   });
   return { rows, quota: quota(body.propertyQuota) } as GaDailyReport | GaEventReport;
+}
+// Parse only STANDARD_FUNNEL visualization: one aggregate row per ordered step,
+// never daily uniques, breakdowns, next actions, user IDs or arbitrary dimensions.
+// Schema: https://developers.google.com/analytics/devguides/reporting/data/v1/rest/v1alpha/properties/runFunnelReport
+function archiveFunnelRows(body: Json, dateRange: ArchiveFunnelReport["dateRange"]): ArchiveFunnelReport {
+  const report = object(body.funnelVisualization);
+  const dimensions = array(report.dimensionHeaders).map(v => object(v).name);
+  const metrics = array(report.metricHeaders).map(v => object(v).name);
+  const reportedRows = array(report.rows);
+  // The real Viewer-authorized API repeats activeUsers headers for an empty
+  // STANDARD_FUNNEL. Accept that empty shape only; populated rows stay strict.
+  const validMetrics = metrics.length > 0 && metrics.every(name => name === "activeUsers") && (reportedRows.length === 0 || metrics.length === 1);
+  if (dimensions.length !== 1 || dimensions[0] !== "funnelStepName" || !validMetrics) throw new GoogleReportingError("INVALID_RESPONSE");
+  const counts = new Map<string, number>();
+  for (const raw of reportedRows) {
+    const row = object(raw);
+    const values = array(row.dimensionValues);
+    const measured = array(row.metricValues);
+    if (values.length !== 1 || measured.length !== 1) throw new GoogleReportingError("INVALID_RESPONSE");
+    const label = object(values[0]).value;
+    const index = ARCHIVE_STEPS.findIndex((event, i) => label === `${i + 1}. ${event}`);
+    const count = number(object(measured[0]).value);
+    if (index < 0 || counts.has(ARCHIVE_STEPS[index]) || !Number.isSafeInteger(count)) throw new GoogleReportingError("INVALID_RESPONSE");
+    counts.set(ARCHIVE_STEPS[index], count);
+  }
+  if (counts.size !== 0 && counts.size !== ARCHIVE_STEPS.length) throw new GoogleReportingError("INVALID_RESPONSE");
+  const users = ARCHIVE_STEPS.map(event => counts.get(event) ?? 0);
+  if (users.some((value, i) => i > 0 && value > users[i - 1])) throw new GoogleReportingError("INVALID_RESPONSE");
+  const ratio = (numerator: number, denominator: number) => denominator === 0 ? null : numerator / denominator;
+  return {
+    dateRange,
+    rows: ARCHIVE_STEPS.map((eventName, i) => {
+      const completionRateToNext = i === ARCHIVE_STEPS.length - 1 ? null : ratio(users[i + 1], users[i]);
+      return { eventName, activeUsers: users[i], completionRateToNext, dropoffRateToNext: completionRateToNext === null ? null : 1 - completionRateToNext };
+    }),
+    archiveToClickRate: ratio(users[2], users[0]),
+    archiveToCompletedRate: ratio(users[3], users[0]),
+    sampled: report.metadata !== undefined && array(object(report.metadata).samplingMetadatas).length > 0,
+    quota: quota(body.propertyQuota)
+  };
 }
 function searchRows(body: Json): SearchDailyReport {
   return { rows: array(body.rows).map(raw => {
@@ -243,6 +294,7 @@ export function createGoogleReportingClient(deps: Dependencies = {}) {
         remaining(budget);
         retryAfter = result.retryAfter;
         if (url === OAUTH_URL && result.status === 400) throw new GoogleReportingError("AUTHENTICATION", 400);
+        if (url === FUNNEL_URL && [404, 405, 501].includes(result.status)) throw new GoogleReportingError("UNSUPPORTED", result.status);
         if (result.status < 200 || result.status >= 300) throw failure(result.status, result.body);
         return object(result.body);
       } catch (error) {
@@ -294,7 +346,7 @@ export function createGoogleReportingClient(deps: Dependencies = {}) {
       }
     }
   }
-  async function cached<T extends { rows: unknown[] }>(key: string, ttl: number, budget: Budget, load: () => Promise<T>): Promise<ReportResult<T>> {
+  async function cached<T extends { rows: unknown[] }>(key: string, ttl: number, budget: Budget, load: () => Promise<T>, isEmpty: (data: T) => boolean = data => data.rows.length === 0): Promise<ReportResult<T>> {
     // Prevent expired date-window entries accumulating on long-lived Node hosts.
     for (const [cachedKey, entry] of cache) if (entry.expires <= now()) cache.delete(cachedKey);
     const existing = cache.get(key);
@@ -309,7 +361,7 @@ export function createGoogleReportingClient(deps: Dependencies = {}) {
         remaining(budget);
         const data = await load();
         remaining(budget);
-        const result: ReportResult<T> = { status: "success", empty: data.rows.length === 0, data, fetchedAt: new Date(now()).toISOString() };
+        const result: ReportResult<T> = { status: "success", empty: isEmpty(data), data, fetchedAt: new Date(now()).toISOString() };
         cache.set(key, { expires: now() + ttl, value: result });
         return result;
       } catch (error) { return { status: "error", error: sanitizeReportingError(error) }; }
@@ -336,15 +388,22 @@ export function createGoogleReportingClient(deps: Dependencies = {}) {
         const daily = dates(days, 1);
         // Search Console is delayed; use complete/final data ending three UTC days ago.
         const search = dates(days, 3);
-        const [ga4, realtime, searchConsole, conversions] = await Promise.all([
+        const [ga4, realtime, searchConsole, archiveFunnel, conversions] = await Promise.all([
           cached(`ga:${daily.startDate}:${daily.endDate}`, 300_000, budget, async () => gaRows(await api(`${GA_URL}runReport`, { dateRanges: [daily], dimensions: [{ name: "date" }], metrics: [{ name: "activeUsers" }, { name: "sessions" }, { name: "eventCount" }], orderBys: [{ dimension: { dimensionName: "date" } }], limit: 90, returnPropertyQuota: true }, budget), false) as GaDailyReport),
           cached("realtime", 30_000, budget, async () => gaRows(await api(`${GA_URL}runRealtimeReport`, { dimensions: [{ name: "eventName" }], metrics: [{ name: "eventCount" }], limit: 100, returnPropertyQuota: true }, budget), true) as GaEventReport),
           cached(`gsc:${search.startDate}:${search.endDate}`, 900_000, budget, async () => searchRows(await api(GSC_URL, { ...search, dimensions: ["date"], type: "web", dataState: "final", rowLimit: 90 }, budget))),
+          cached(`archiveFunnel:${daily.startDate}:${daily.endDate}`, 300_000, budget, async () => archiveFunnelRows(await api(FUNNEL_URL, {
+            dateRanges: [daily], funnelVisualizationType: "STANDARD_FUNNEL", limit: "4", returnPropertyQuota: true,
+            funnel: { isOpenFunnel: false, steps: ARCHIVE_STEPS.map((eventName, index) => ({
+              name: eventName, filterExpression: { funnelEventFilter: { eventName } },
+              ...(index > 0 ? { isDirectlyFollowedBy: false, withinDurationFromPriorStep: "1800s" } : {})
+            })) }
+          }, budget), daily), data => data.rows.every(row => row.activeUsers === 0)),
           options.includeConversions ? cached(`conversions:${daily.startDate}:${daily.endDate}`, 300_000, budget, async () => gaRows(await api(`${GA_URL}runReport`, { dateRanges: [daily], dimensions: [{ name: "eventName" }], metrics: [{ name: "eventCount" }], dimensionFilter: { filter: { fieldName: "eventName", inListFilter: { values: [...CONVERSIONS], caseSensitive: true } } }, limit: 3, returnPropertyQuota: true }, budget), true, true) as GaEventReport) : undefined
         ]);
-        const sources = [ga4, realtime, searchConsole, ...(conversions ? [conversions] : [])];
+        const sources = [ga4, realtime, searchConsole, archiveFunnel, ...(conversions ? [conversions] : [])];
         const successes = sources.filter(s => s.status === "success").length;
-        return { status: successes === sources.length ? "success" : successes === 0 ? "error" : "partial", window, ga4, realtime, searchConsole, ...(conversions ? { conversions } : {}) };
+        return { status: successes === sources.length ? "success" : successes === 0 ? "error" : "partial", window, ga4, realtime, searchConsole, archiveFunnel, ...(conversions ? { conversions } : {}) };
       } finally { clearTimeout(timer); }
     }
   };

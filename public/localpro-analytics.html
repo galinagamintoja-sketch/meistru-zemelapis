@@ -39,6 +39,9 @@
       params = { method: "specialist_registration" };
     } else if (name === "contact_click" && ["phone", "email"].includes(input.contact_method)) {
       params = { contact_method: input.contact_method };
+    } else if (["archive_visit", "archive_registration_prompt", "archive_register_click", "archive_registration_complete"].includes(name) &&
+      input && Object.keys(input).length === 1 && input.source === "facebook_archive") {
+      params = { source: "facebook_archive" };
     } else return;
     gtag("event", name, Object.assign({ send_to: id }, params));
   });

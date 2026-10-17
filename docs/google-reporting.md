@@ -45,6 +45,10 @@ Exports for parent alerts/types: `GoogleReportingError`, `ReportingErrorCode`, `
 - Search Console `searchAnalytics.query`: only dimension `date`, web search, final data, through three UTC days ago to account for processing lag, at most 90 rows. No query/page/user drilldown or indexing mutations. Search Console's date interpretation is its own reporting timezone. It does not prove indexing or represent all visits.
 - Every GA4 request sets `returnPropertyQuota: true`. Known numeric quota counters are returned under `data.quota`; missing quotas are `{}`. These counters are not an application-wide rate limiter.
 
+## Facebook archive registration funnel
+
+See [archive registration funnel](archive-registration-funnel.md) for the four consented stages, same-tab OAuth-return attribution, privacy limits and actual ordered GA4 funnel report. This is a closed sequential report, not ratios of unrelated event totals. Archive registration clicks remain distinct from newly completed specialist profiles and do not themselves become `sign_up`.
+
 ## Reliability and operational limits
 
 - OAuth renewal starts 60 seconds before expiry; expiry is anchored before the exchange. Refresh is single-flight per client. API HTTP 401 permits exactly one reauthentication; concurrent reports do not invalidate a newer token.

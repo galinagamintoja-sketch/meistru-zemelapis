@@ -2,7 +2,64 @@
 export const GA4_ID = "G-DE7XEQRBJC";
 export const CONSENT_KEY = "localpro.analytics-consent.v1";
 export type AnalyticsConsent = "accepted" | "rejected";
-type FrameEvent = { name: "page_view" | "generate_lead" | "sign_up" | "contact_click"; params: Record<string, string> };
+type ArchiveEvent = "archive_visit" | "archive_registration_prompt" | "archive_register_click" | "archive_registration_complete";
+type FrameEvent = { name: "page_view" | "generate_lead" | "sign_up" | "contact_click" | ArchiveEvent; params: Record<string, string> };
+export const ARCHIVE_JOURNEY_KEY = "localpro.archive-journey.v1";
+const JOURNEY_TTL = 30 * 60 * 1000;
+type Journey = { v: 1; expires: number; stage: 1 | 2 | 3 | 4 };
+let journey: Journey | null = null;
+let journeyLoaded = false;
+
+function clearJourney(): boolean {
+  journey = null;
+  journeyLoaded = true; // Never restore an older journey after rejection in this document.
+  try { window.sessionStorage.removeItem(ARCHIVE_JOURNEY_KEY); return true; }
+  catch {
+    // A denied remove may still allow overwriting. Invalid data always fails closed.
+    try { window.sessionStorage.setItem(ARCHIVE_JOURNEY_KEY, "null"); return true; }
+    catch { return false; }
+  }
+}
+
+function currentJourney(): Journey | null {
+  if (!allowed) return null;
+  if (!journeyLoaded) {
+    journeyLoaded = true;
+    try {
+      const raw = window.sessionStorage.getItem(ARCHIVE_JOURNEY_KEY);
+      if (raw !== null) {
+        const value = JSON.parse(raw);
+        if (!value || Object.keys(value).sort().join(",") !== "expires,stage,v" || value.v !== 1 ||
+          ![1, 2, 3, 4].includes(value.stage) || !Number.isSafeInteger(value.expires) ||
+          value.expires <= Date.now() || value.expires > Date.now() + JOURNEY_TTL) {
+          clearJourney();
+        } else journey = value;
+      }
+    } catch { clearJourney(); }
+  }
+  if (journey && (journey.expires <= Date.now() || journey.expires > Date.now() + JOURNEY_TTL)) clearJourney();
+  return journey;
+}
+
+function advanceArchive(stage: Journey["stage"], name: ArchiveEvent) {
+  if (!allowed) return;
+  const previous = currentJourney();
+  if (stage === 1 ? previous !== null : previous?.stage !== stage - 1) return;
+  const next: Journey = { v: 1, expires: previous?.expires ?? Date.now() + JOURNEY_TTL, stage };
+  // Fail closed if persistence is unavailable: never leave a replayable earlier stage.
+  try { window.sessionStorage.setItem(ARCHIVE_JOURNEY_KEY, JSON.stringify(next)); }
+  catch { clearJourney(); return; }
+  journey = next;
+  emit({ name, params: { source: "facebook_archive" } });
+}
+
+// Only call these at the actual dialog-show and explicit Google CTA boundaries.
+export function trackArchiveRegistrationPrompt() {
+  advanceArchive(2, "archive_registration_prompt");
+}
+export function trackArchiveRegisterClick() {
+  advanceArchive(3, "archive_register_click");
+}
 
 // Never return input strings: even unknown/private routes collapse to a constant.
 export function analyticsPath(path: string): string {
@@ -57,11 +114,15 @@ function removeAnalyticsCookies() {
 
 export function setAnalyticsConsent(choice: AnalyticsConsent, persist = true) {
   if (typeof window === "undefined") return;
-  if (persist) {
-    try { window.localStorage.setItem(CONSENT_KEY, choice); } catch { /* In-memory consent still works. */ }
+  // If storage cannot erase a rejected/stale journey, acceptance may work in memory,
+  // but must not persist across reload and resurrect that old attribution record.
+  const unsafeRestore = choice === "accepted" && journeyLoaded && !journey && !clearJourney();
+  if (persist || unsafeRestore) {
+    try { window.localStorage.setItem(CONSENT_KEY, unsafeRestore ? "rejected" : choice); } catch { /* In-memory consent still works. */ }
   }
   if (choice !== "accepted") {
     allowed = false;
+    clearJourney();
     pending = [];
     ready = false;
     lastPath = null;
@@ -78,7 +139,11 @@ export function setAnalyticsConsent(choice: AnalyticsConsent, persist = true) {
     removeAnalyticsCookies();
     return;
   }
-  if (!["localpro.lt", "www.localpro.lt"].includes(window.location.hostname) || window.location.protocol !== "https:") return;
+  if (!["localpro.lt", "www.localpro.lt"].includes(window.location.hostname) || window.location.protocol !== "https:") {
+    allowed = false;
+    clearJourney();
+    return;
+  }
   allowed = true;
   if (frame) return;
   frame = document.createElement("iframe");
@@ -98,6 +163,7 @@ export function trackPage(path: string) {
   // Compare pathname only (never query/hash). Different profiles remain distinct navigations,
   // but their identifying slug stays in memory and is never sent or persisted.
   const navigation = path.split(/[?#]/, 1)[0];
+  if (navigation === "/darbu-skelbimai") advanceArchive(1, "archive_visit");
   if (navigation === lastPath) return;
   lastPath = navigation;
   emit({ name: "page_view", params: { page_location: `https://localpro.lt${safe}`, page_title: "LocalPro.lt", page_referrer: "" } });
@@ -118,5 +184,8 @@ export function trackConfirmedConversion(kind: "enquiry" | "registration", respo
   if (completed.has(key)) return;
   completed.add(key); // Do not replay conversions later if consent was absent at completion.
   if (kind === "enquiry") emit({ name: "generate_lead", params: { method: "job_request" } });
-  else if (kind === "registration") emit({ name: "sign_up", params: { method: "specialist_registration" } });
+  else if (kind === "registration") {
+    emit({ name: "sign_up", params: { method: "specialist_registration" } });
+    advanceArchive(4, "archive_registration_complete");
+  }
 }

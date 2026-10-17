@@ -38,7 +38,7 @@ export function createReportingLimiter(now: () => number = Date.now) {
 export const reportingRequestAllowed = createReportingLimiter();
 
 export function reportingHealth(snapshot: GoogleReportingSnapshot) {
-  const sources = { ga4: snapshot.ga4, realtime: snapshot.realtime, searchConsole: snapshot.searchConsole, conversions: snapshot.conversions };
+  const sources = { ga4: snapshot.ga4, realtime: snapshot.realtime, searchConsole: snapshot.searchConsole, conversions: snapshot.conversions, archiveFunnel: snapshot.archiveFunnel };
   return { status: snapshot.status, checkedAt: new Date().toISOString(), sources: Object.fromEntries(Object.entries(sources).map(([source, result]) => [source,
     result?.status === "success" ? { status: "success", empty: result.empty, rows: result.data.rows.length, fetchedAt: result.fetchedAt }
       : { status: "error", code: result?.status === "error" ? result.error.code : "NOT_CHECKED" }])) };

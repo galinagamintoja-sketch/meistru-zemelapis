@@ -11,6 +11,12 @@ const env = { GOOGLE_REPORTING_CREDENTIALS_JSON: JSON.stringify(credentials), GO
 const epoch = Date.UTC(2026, 9, 17, 12);
 const json = (value: unknown, status = 200, headers: Record<string, string> = {}) => new Response(JSON.stringify(value), { status, headers });
 const oauth = (url: string) => url === "https://oauth2.googleapis.com/token";
+const steps = ["archive_visit", "archive_registration_prompt", "archive_register_click", "archive_registration_complete"];
+const funnelBody = (counts: number[] = []) => ({ funnelVisualization: {
+  dimensionHeaders: [{ name: "funnelStepName" }], metricHeaders: [{ name: "activeUsers", type: "TYPE_INTEGER" }],
+  rows: counts.map((count, i) => ({ dimensionValues: [{ value: `${i + 1}. ${steps[i]}` }], metricValues: [{ value: String(count) }] }))
+} });
+const emptyResponse = { rows: [], ...funnelBody() };
 function harness(handler?: (url: string, init: RequestInit) => Response | Promise<Response>) {
   let clock = epoch;
   let tokenCount = 0;
@@ -19,7 +25,7 @@ function harness(handler?: (url: string, init: RequestInit) => Response | Promis
     const url = String(input);
     if (handler) return handler(url, init!);
     if (oauth(url)) return json({ access_token: `synthetic-token-${++tokenCount}`, expires_in: 3600, token_type: "Bearer" });
-    return json({ rows: [] });
+    return json(emptyResponse);
   });
   const client = createGoogleReportingClient({ fetch: fetcher as typeof fetch, env, now: () => clock, sleep: async ms => { sleeps.push(ms); }, random: () => 1 });
   return { client, fetcher, sleeps, advance: (ms: number) => { clock += ms; } };
@@ -36,6 +42,81 @@ const timeoutResult = { status: "error", error: { code: "TIMEOUT", httpStatus: n
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe("server Google reporting", () => {
+  it("requests only four allowlisted event steps in a closed ordered aggregate funnel for the selected window", async () => {
+    const h = harness();
+    await h.client.getSnapshot();
+    const call = h.fetcher.mock.calls.find(([url]) => String(url).endsWith("runFunnelReport"))!;
+    expect(call[0]).toBe("https://analyticsdata.googleapis.com/v1alpha/properties/559398175:runFunnelReport");
+    expect(JSON.parse(call[1]!.body as string)).toEqual({
+      dateRanges: [{ startDate: "2026-09-19", endDate: "2026-10-16" }],
+      funnelVisualizationType: "STANDARD_FUNNEL", limit: "4", returnPropertyQuota: true,
+      funnel: { isOpenFunnel: false, steps: steps.map((eventName, i) => ({ name: eventName,
+        filterExpression: { funnelEventFilter: { eventName } },
+        ...(i ? { isDirectlyFollowedBy: false, withinDurationFromPriorStep: "1800s" } : {})
+      })) }
+    });
+    expect(call[1]!.body).not.toMatch(/userId|sessionId|pagePath|pageTitle|customEvent|segments|funnelNextAction|funnelBreakdown/);
+  });
+
+  it("parses actual visualization headers and numbered step labels, orders rows, computes rates without unrelated totals, strips private fields", async () => {
+    const body = funnelBody([100, 60, 20, 5]);
+    body.funnelVisualization.rows.reverse();
+    const h = harness(url => oauth(url) ? json({ access_token: "PRIVATE_TOKEN", expires_in: 3600 }) : url.endsWith("runFunnelReport") ? json({ ...body, funnelTable: { privateData: pem }, privateData: pem }) : json(emptyResponse));
+    const result = await h.client.getSnapshot();
+    expect(result.archiveFunnel).toMatchObject({ status: "success", empty: false, data: {
+      dateRange: { startDate: "2026-09-19", endDate: "2026-10-16" }, archiveToClickRate: 0.2, archiveToCompletedRate: 0.05, sampled: false,
+      rows: [{ eventName: steps[0], activeUsers: 100, completionRateToNext: 0.6, dropoffRateToNext: 0.4 },
+        { eventName: steps[1], activeUsers: 60 }, { eventName: steps[2], activeUsers: 20, completionRateToNext: 0.25, dropoffRateToNext: 0.75 },
+        { eventName: steps[3], activeUsers: 5, completionRateToNext: null, dropoffRateToNext: null }]
+    } });
+    expect(JSON.stringify(result)).not.toMatch(/PRIVATE_TOKEN|PRIVATE KEY|privateData|funnelTable/);
+  });
+
+  it.each([{ counts: [] }, { counts: [0, 0, 0, 0] }])("treats valid empty funnel $counts as healthy with null zero-denominator rates", async ({ counts }) => {
+    const h = harness(url => oauth(url) ? json({ access_token: "token", expires_in: 3600 }) : url.endsWith("runFunnelReport") ? json(funnelBody(counts)) : json(emptyResponse));
+    const result = await h.client.getSnapshot();
+    expect(result.status).toBe("success");
+    expect(result.archiveFunnel).toMatchObject({ status: "success", empty: true, data: { archiveToClickRate: null, archiveToCompletedRate: null } });
+    if (result.archiveFunnel.status === "success") expect(result.archiveFunnel.data.rows.every(row => row.activeUsers === 0 && row.completionRateToNext === null && row.dropoffRateToNext === null)).toBe(true);
+  });
+
+  it.each([403, 404, 405, 501, 400])("keeps funnel-only HTTP %i explicit, sanitized, uncached and separate from healthy sources", async status => {
+    const h = harness(url => oauth(url) ? json({ access_token: "token", expires_in: 3600 }) : url.endsWith("runFunnelReport") ? json({ error: { message: `PRIVATE ${pem}` } }, status) : json(emptyResponse));
+    const result = await h.client.getSnapshot();
+    expect(result.status).toBe("partial");
+    expect(result.ga4.status).toBe("success");
+    expect(result.archiveFunnel).toEqual({ status: "error", error: { code: status === 403 ? "FORBIDDEN" : status === 400 ? "INVALID_REQUEST" : "UNSUPPORTED", httpStatus: status, retryable: false } });
+    await h.client.getSnapshot();
+    expect(h.fetcher.mock.calls.filter(([url]) => String(url).endsWith("runFunnelReport"))).toHaveLength(2);
+    expect(h.sleeps).toEqual([]);
+    expect(JSON.stringify(result)).not.toMatch(/PRIVATE|message/);
+  });
+
+  it.each([
+    {}, { funnelVisualization: {} }, funnelBody([10, 5]), funnelBody([10, 11, 5, 1]), funnelBody([10, 5, 2, -1]), funnelBody([10, 5, 2, 0.5]),
+    { funnelVisualization: { ...funnelBody([10, 5, 2, 1]).funnelVisualization, dimensionHeaders: [{ name: "userId" }] } },
+    { funnelVisualization: { ...funnelBody([10, 5, 2, 1]).funnelVisualization, metricHeaders: [{ name: "eventCount" }] } },
+    { funnelVisualization: { ...funnelBody([10, 5, 2, 1]).funnelVisualization, rows: Array(4).fill(funnelBody([10]).funnelVisualization.rows[0]) } }
+  ])("rejects malformed, unrelated, duplicate or non-monotonic funnel responses %# rather than inventing empty", async body => {
+    const h = harness(url => oauth(url) ? json({ access_token: "token", expires_in: 3600 }) : url.endsWith("runFunnelReport") ? json(body) : json(emptyResponse));
+    const result = await h.client.getSnapshot();
+    expect(result.status).toBe("partial");
+    expect(result.archiveFunnel).toEqual({ status: "error", error: { code: "INVALID_RESPONSE", httpStatus: null, retryable: false } });
+  });
+
+  it("single-flights funnel reads, clones cached rows and retains sampling disclosure", async () => {
+    const body = funnelBody([20, 10, 0, 0]);
+    const h = harness(url => oauth(url) ? json({ access_token: "token", expires_in: 3600 }) : url.endsWith("runFunnelReport") ? json({ funnelVisualization: { ...body.funnelVisualization, metadata: { samplingMetadatas: [{ samplesReadCount: "10", samplingSpaceSize: "20", privateData: pem }] } } }) : json(emptyResponse));
+    const results = await Promise.all([h.client.getSnapshot(), h.client.getSnapshot()]);
+    expect(results[0].archiveFunnel).toMatchObject({ data: { sampled: true } });
+    if (results[0].archiveFunnel.status === "success") results[0].archiveFunnel.data.rows[0].activeUsers = 999;
+    expect((await h.client.getSnapshot()).archiveFunnel).toEqual(results[1].archiveFunnel);
+    expect(h.fetcher.mock.calls.filter(([url]) => String(url).endsWith("runFunnelReport"))).toHaveLength(1);
+    h.advance(300_001);
+    await h.client.getSnapshot();
+    expect(h.fetcher.mock.calls.filter(([url]) => String(url).endsWith("runFunnelReport"))).toHaveLength(2);
+  });
+
   it("signs real RS256 JWT with only read-only scopes, fixed audience/endpoints, allowlisted reports", async () => {
     const h = harness();
     const result = await h.client.getSnapshot({ window: "7d", includeConversions: true });
@@ -48,9 +129,9 @@ describe("server Google reporting", () => {
     const claims = JSON.parse(Buffer.from(payload, "base64url").toString());
     expect(claims).toEqual({ iss: credentials.client_email, aud: url, scope: "https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly", iat: epoch / 1000, exp: epoch / 1000 + 3600 });
     expect(verify("RSA-SHA256", Buffer.from(`${head}.${payload}`), publicKey, Buffer.from(signature, "base64url"))).toBe(true);
-    expect(h.fetcher).toHaveBeenCalledTimes(5);
+    expect(h.fetcher).toHaveBeenCalledTimes(6);
     const reports = h.fetcher.mock.calls.slice(1).map(([u, i]) => ({ url: String(u), body: JSON.parse(i!.body as string), init: i! }));
-    const daily = reports.find(r => r.body.dimensions[0]?.name === "date")!;
+    const daily = reports.find(r => r.body.dimensions?.[0]?.name === "date")!;
     expect(daily.body).toMatchObject({ dateRanges: [{ startDate: "2026-10-10", endDate: "2026-10-16" }], metrics: [{ name: "activeUsers" }, { name: "sessions" }, { name: "eventCount" }], returnPropertyQuota: true });
     const conversion = reports.find(r => r.body.dimensionFilter)!;
     expect(conversion.body.dimensionFilter.filter.inListFilter.values).toEqual(["generate_lead", "sign_up", "contact_click"]);
@@ -65,7 +146,7 @@ describe("server Google reporting", () => {
   });
 
   it("distinguishes 200 zero rows (including omitted rows) from source failures", async () => {
-    const h = harness((url) => oauth(url) ? json({ access_token: "token", expires_in: 3600 }) : url.includes("webmasters") ? json({ error: { message: "upstream secret" } }, 403) : json({}));
+    const h = harness((url) => oauth(url) ? json({ access_token: "token", expires_in: 3600 }) : url.includes("webmasters") ? json({ error: { message: "upstream secret" } }, 403) : json(emptyResponse));
     const result = await h.client.getSnapshot();
     expect(result.status).toBe("partial");
     expect(result.ga4).toMatchObject({ status: "success", empty: true, data: { rows: [] } });
@@ -78,6 +159,7 @@ describe("server Google reporting", () => {
   it("normalizes rows and quotas without returning arbitrary upstream fields", async () => {
     const h = harness(url => {
       if (oauth(url)) return json({ access_token: "TOKEN_SECRET", expires_in: 3600 });
+      if (url.endsWith("runFunnelReport")) return json(funnelBody());
       if (url.includes("webmasters")) return json({ rows: [{ keys: ["2026-10-10"], clicks: 2, impressions: 20, ctr: 0.1, position: 3, secret: pem }], secret: pem });
       if (url.endsWith("runRealtimeReport")) return json({ rows: [{ dimensionValues: [{ value: "page_view" }], metricValues: [{ value: "5" }] }] });
       return json({ rows: [{ dimensionValues: [{ value: "20261010" }], metricValues: [{ value: "2" }, { value: "3" }, { value: "5" }] }], propertyQuota: { tokensPerDay: { consumed: 3, remaining: 199997, secret: pem }, unknown: pem }, secret: pem });
@@ -92,17 +174,17 @@ describe("server Google reporting", () => {
   it("single-flights concurrent OAuth and identical report requests; caches and clones successes", async () => {
     const h = harness();
     const results = await Promise.all(Array.from({ length: 12 }, () => h.client.getSnapshot()));
-    expect(h.fetcher).toHaveBeenCalledTimes(4);
+    expect(h.fetcher).toHaveBeenCalledTimes(5);
     expect(results.every(r => r.status === "success")).toBe(true);
     if (results[0].ga4.status === "success") results[0].ga4.data.rows.push({ date: "bad", activeUsers: 1, sessions: 1, eventCount: 1 });
     expect((await h.client.getSnapshot()).ga4).toMatchObject({ empty: true, data: { rows: [] } });
-    expect(h.fetcher).toHaveBeenCalledTimes(4);
+    expect(h.fetcher).toHaveBeenCalledTimes(5);
     h.advance(30_001);
     await h.client.getSnapshot();
-    expect(h.fetcher).toHaveBeenCalledTimes(5); // realtime only
+    expect(h.fetcher).toHaveBeenCalledTimes(6); // realtime only
     h.advance(300_000);
     await h.client.getSnapshot();
-    expect(h.fetcher).toHaveBeenCalledTimes(7); // GA daily + realtime; GSC still cached
+    expect(h.fetcher).toHaveBeenCalledTimes(9); // GA daily + funnel + realtime; GSC still cached
   });
 
   it("renews before expiry and single-flights renewal across different reports", async () => {
@@ -121,7 +203,7 @@ describe("server Google reporting", () => {
     const h = harness((url, init) => {
       if (oauth(url)) return json({ access_token: `token${++tokenCalls}`, expires_in: 3600 });
       if ((init.headers as Record<string, string>).Authorization === "Bearer token1") return json({ error: { message: pem } }, 401);
-      return json({ rows: [] });
+      return json(emptyResponse);
     });
     expect((await h.client.getSnapshot()).status).toBe("success");
     expect(tokenCalls).toBe(2);
@@ -135,15 +217,15 @@ describe("server Google reporting", () => {
     expect(tokens).toBe(2);
     expect(result.status).toBe("error");
     expect(result.ga4).toEqual({ status: "error", error: { code: "AUTHENTICATION", httpStatus: 401, retryable: false } });
-    expect(h.fetcher).toHaveBeenCalledTimes(8);
+    expect(h.fetcher).toHaveBeenCalledTimes(10);
   });
 
   it.each([429, 500, 503])("caps Retry-After and retries %i at most twice", async status => {
     const h = harness(url => oauth(url) ? json({ access_token: "token", expires_in: 3600 }) : json({ error: { message: "SECRET" } }, status, { "Retry-After": "999999999" }));
     const result = await h.client.getSnapshot();
     expect(result.status).toBe("error");
-    expect(h.sleeps).toEqual(Array(6).fill(5000));
-    expect(h.fetcher).toHaveBeenCalledTimes(10);
+    expect(h.sleeps).toEqual(Array(8).fill(5000));
+    expect(h.fetcher).toHaveBeenCalledTimes(13);
     expect(JSON.stringify(result)).not.toContain("SECRET");
   });
 
@@ -152,7 +234,7 @@ describe("server Google reporting", () => {
     const h = harness(url => {
       if (oauth(url)) return json({ access_token: "token", expires_in: 3600 });
       if (url.endsWith("runReport") && attempts++ < 2) return json({}, 503, { "Retry-After": new Date(epoch + 2000).toUTCString() });
-      return json({});
+      return json(emptyResponse);
     });
     expect((await h.client.getSnapshot()).status).toBe("success");
     expect(h.sleeps).toEqual([2000, 2000]);
@@ -161,7 +243,7 @@ describe("server Google reporting", () => {
   it("retries network failures with bounded exponential jitter and sanitizes thrown errors", async () => {
     const h = harness(url => { if (oauth(url)) return json({ access_token: "token", expires_in: 3600 }); throw new Error(`NETWORK_SECRET ${pem}`); });
     const result = await h.client.getSnapshot();
-    expect(h.sleeps.sort((a, b) => a - b)).toEqual([375, 375, 375, 750, 750, 750]);
+    expect(h.sleeps.sort((a, b) => a - b)).toEqual([375, 375, 375, 375, 750, 750, 750, 750]);
     expect(result.status).toBe("error");
     expect(result.ga4).toEqual({ status: "error", error: { code: "UPSTREAM_UNAVAILABLE", httpStatus: null, retryable: true } });
     expect(JSON.stringify(result)).not.toMatch(/NETWORK_SECRET|PRIVATE KEY/);
@@ -170,9 +252,9 @@ describe("server Google reporting", () => {
   it.each(["forbidden", "dailyLimitExceeded", "insufficientPermissions"])("does not retry 403 %s or cache failures", async reason => {
     const h = harness(url => oauth(url) ? json({ access_token: "token", expires_in: 3600 }) : json({ error: { errors: [{ reason }], message: pem } }, 403));
     await h.client.getSnapshot();
-    expect(h.fetcher).toHaveBeenCalledTimes(4);
+    expect(h.fetcher).toHaveBeenCalledTimes(5);
     await h.client.getSnapshot();
-    expect(h.fetcher).toHaveBeenCalledTimes(7);
+    expect(h.fetcher).toHaveBeenCalledTimes(9);
     expect(h.sleeps).toEqual([]);
   });
 
@@ -181,7 +263,7 @@ describe("server Google reporting", () => {
     const h = harness(url => {
       if (oauth(url)) return json({ access_token: "token", expires_in: 3600 });
       if (url.includes("webmasters") && count++ === 0) return json({ error: { errors: [{ reason: "userRateLimitExceeded" }] } }, 403);
-      return json({});
+      return json(emptyResponse);
     });
     expect((await h.client.getSnapshot()).status).toBe("success");
     expect(h.sleeps).toEqual([375]);
@@ -195,7 +277,7 @@ describe("server Google reporting", () => {
     const result = await pending;
     expect(result.status).toBe("error");
     expect(result.ga4).toEqual({ status: "error", error: { code: "TIMEOUT", httpStatus: null, retryable: true } });
-    expect(h.fetcher).toHaveBeenCalledTimes(10);
+    expect(h.fetcher).toHaveBeenCalledTimes(13);
     expect(h.fetcher.mock.calls.slice(1).every(([, init]) => init!.signal!.aborted)).toBe(true);
   });
 
@@ -262,7 +344,7 @@ describe("server Google reporting", () => {
         return stalled === "fetch" ? new Promise<Response>(() => {}) : new Response(new ReadableStream({ cancel }));
       }
       if ((init.headers as Record<string, string>).Authorization === "Bearer refreshed") return new Promise<Response>(() => {});
-      if (url.endsWith("runRealtimeReport") || url.includes("webmasters")) return json({});
+      if (url.endsWith("runRealtimeReport") || url.includes("webmasters")) return json(emptyResponse);
       return later(7000, json({ error: "SECRET" }, 401));
     });
     let settled = false;
@@ -278,6 +360,7 @@ describe("server Google reporting", () => {
     expect(result.status).toBe("partial");
     expect(result.ga4).toEqual(timeoutResult);
     expect(result.conversions).toEqual(timeoutResult);
+    expect(result.archiveFunnel).toEqual(timeoutResult);
     expect(result.realtime.status).toBe("success");
     expect(result.searchConsole.status).toBe("success");
     expect(active.aborted).toBe(true);
@@ -288,7 +371,7 @@ describe("server Google reporting", () => {
     await vi.advanceTimersByTimeAsync(100_000);
     expect(h.fetcher).toHaveBeenCalledTimes(calls);
     // Timeout failures are not cached; successful per-source caches are intact.
-    h.fetcher.mockImplementation(async () => json({ access_token: "fresh", expires_in: 3600, rows: [] }));
+    h.fetcher.mockImplementation(async () => json({ access_token: "fresh", expires_in: 3600, ...emptyResponse }));
     const next = await h.client.getSnapshot();
     expect(next.status).toBe("success");
     expect(next.searchConsole).toEqual(result.searchConsole);
@@ -315,15 +398,16 @@ describe("server Google reporting", () => {
     expect(result.ga4).toEqual(timeoutResult);
     expect(result.realtime).toEqual(timeoutResult);
     expect(result.searchConsole).toEqual(timeoutResult);
-    expect([...attempts.values()]).toEqual([2, 2, 2]);
-    if (stage !== "backoff") expect(h.fetcher.mock.calls.slice(-3).every(([, init]) => init!.signal!.aborted)).toBe(true);
-    expect(cancel).toHaveBeenCalledTimes(stage === "body" ? 3 : 0);
+    expect(result.archiveFunnel).toEqual(timeoutResult);
+    expect([...attempts.values()]).toEqual([2, 2, 2, 2]);
+    if (stage !== "backoff") expect(h.fetcher.mock.calls.slice(-4).every(([, init]) => init!.signal!.aborted)).toBe(true);
+    expect(cancel).toHaveBeenCalledTimes(stage === "body" ? 4 : 0);
     expect(vi.getTimerCount()).toBe(0);
     // Even an abort-ignoring transport that resolves later cannot start a body read or retry.
     for (const resolve of lateResponses) resolve(new Response(new ReadableStream({ cancel })));
     await vi.advanceTimersByTimeAsync(60_000);
-    expect([...attempts.values()]).toEqual([2, 2, 2]);
-    expect(cancel).toHaveBeenCalledTimes(stage === "backoff" ? 0 : 3);
+    expect([...attempts.values()]).toEqual([2, 2, 2, 2]);
+    expect(cancel).toHaveBeenCalledTimes(stage === "backoff" ? 0 : 4);
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -338,7 +422,7 @@ describe("server Google reporting", () => {
       }
       const body = JSON.parse(init.body as string);
       const newer = body.dateRanges?.[0].startDate === "2026-10-10" || body.startDate === "2026-10-08";
-      if ((init.headers as Record<string, string>).Authorization === "Bearer new") return json({});
+      if ((init.headers as Record<string, string>).Authorization === "Bearer new") return json(emptyResponse);
       if (newer) return json({}, 401); // owns renewal from t=35s until t=66s
       const n = (counts.get(url) ?? 0) + 1;
       counts.set(url, n);
@@ -374,13 +458,13 @@ describe("server Google reporting", () => {
     const h = harness(() => json({ error, error_description: `SECRET ${pem}` }, 400));
     const result = await h.client.getSnapshot({ includeConversions: true });
     const failure = { status: "error", error: { code: "AUTHENTICATION", httpStatus: 400, retryable: false } };
-    expect([result.ga4, result.realtime, result.searchConsole, result.conversions]).toEqual(Array(4).fill(failure));
+    expect([result.ga4, result.realtime, result.searchConsole, result.conversions, result.archiveFunnel]).toEqual(Array(5).fill(failure));
     expect(h.fetcher).toHaveBeenCalledTimes(1);
     expect(h.sleeps).toEqual([]);
     expect(JSON.stringify(result)).not.toMatch(/SECRET|PRIVATE KEY|invalid_grant|invalid_client/);
     const reporting = harness(url => oauth(url) ? json({ access_token: "token", expires_in: 3600 }) : json({ error: "SECRET" }, 400));
     expect((await reporting.client.getSnapshot()).ga4).toEqual({ status: "error", error: { code: "INVALID_REQUEST", httpStatus: 400, retryable: false } });
-    expect(reporting.fetcher).toHaveBeenCalledTimes(4);
+    expect(reporting.fetcher).toHaveBeenCalledTimes(5);
     expect(reporting.sleeps).toEqual([]);
   });
 

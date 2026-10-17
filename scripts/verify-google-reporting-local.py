@@ -44,7 +44,7 @@ try:
         raise RuntimeError('Authenticated local reporting verification failed; raw body deliberately suppressed')
     result = r.json()
     assert result['status'] == 'success'
-    assert set(result['sources']) == {'ga4', 'realtime', 'searchConsole', 'conversions'}
+    assert set(result['sources']) == {'ga4', 'realtime', 'searchConsole', 'conversions', 'archiveFunnel'}
     assert all(s['status'] == 'success' for s in result['sources'].values())
     assert r.headers.get('Cache-Control') == 'private, no-store'
     print('Actual Next route + actual Google APIs:', json.dumps(result), flush=True)

@@ -19,6 +19,7 @@ beforeEach(async () => {
   vi.stubGlobal("window", {
     location: { hostname: "localpro.lt", origin: "https://localpro.lt", protocol: "https:" },
     localStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) },
+    sessionStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) },
     addEventListener: (_: string, callback: typeof listener) => { listener = callback; },
     removeEventListener: vi.fn()
   });
@@ -157,6 +158,105 @@ describe("actual consent and analytics controller", () => {
   });
 });
 
+const archiveEvents = () => (posted as Array<{ name: string }>).map((event) => event.name).filter((name) => name.startsWith("archive_"));
+function archiveClick() {
+  analytics.trackPage("/darbu-skelbimai?email=private@example.lt");
+  analytics.trackArchiveRegistrationPrompt();
+  analytics.trackArchiveRegisterClick();
+}
+function register(id = "new-private-id") {
+  analytics.trackConfirmedConversion("registration", { ok: true }, { ok: true, profile: { id, name: "Private" }, email: "private@example.lt" });
+}
+
+describe("ordered archive registration attribution", () => {
+  it("requires every preceding stage, deduplicates effects/clicks/completions and stores no identifiers", () => {
+    accept();
+    analytics.trackArchiveRegistrationPrompt(); analytics.trackArchiveRegisterClick();
+    register("direct");
+    expect(archiveEvents()).toEqual([]);
+    analytics.trackPage("/darbu-skelbimai");
+    analytics.trackArchiveRegisterClick(); register("without-prompt");
+    expect(archiveEvents()).toEqual(["archive_visit"]);
+    analytics.trackArchiveRegistrationPrompt(); register("without-click");
+    analytics.trackPage("/darbu-skelbimai"); analytics.trackArchiveRegistrationPrompt();
+    analytics.trackArchiveRegisterClick(); analytics.trackArchiveRegisterClick();
+    register(); register(); register("another");
+    expect(archiveEvents()).toEqual(["archive_visit", "archive_registration_prompt", "archive_register_click", "archive_registration_complete"]);
+    const raw = storage.get(analytics.ARCHIVE_JOURNEY_KEY)!;
+    expect(Object.keys(JSON.parse(raw)).sort()).toEqual(["expires", "stage", "v"]);
+    expect(raw).not.toMatch(/private|@|https|google/i);
+    expect(JSON.stringify(posted)).not.toMatch(/new-private-id|private@example|Private/);
+  });
+  it("preserves a fixed expiry through full OAuth reload and dedupes completion across reloads", async () => {
+    accept(); archiveClick();
+    const expires = JSON.parse(storage.get(analytics.ARCHIVE_JOURNEY_KEY)!).expires;
+    vi.resetModules(); analytics = await import("../lib/analytics"); accept();
+    register();
+    expect(JSON.parse(storage.get(analytics.ARCHIVE_JOURNEY_KEY)!).expires).toBe(expires);
+    vi.resetModules(); analytics = await import("../lib/analytics"); accept(); register();
+    expect(archiveEvents().filter((name) => name === "archive_registration_complete")).toHaveLength(1);
+  });
+  it("does not store/replay pre-consent actions, and withdrawal/reacceptance cannot revive attribution", () => {
+    archiveClick(); register("before-consent");
+    expect(storage.has(analytics.ARCHIVE_JOURNEY_KEY)).toBe(false);
+    accept(); analytics.trackArchiveRegisterClick(); register("before-consent");
+    expect(archiveEvents()).toEqual([]);
+    archiveClick();
+    analytics.setAnalyticsConsent("rejected");
+    expect(storage.has(analytics.ARCHIVE_JOURNEY_KEY)).toBe(false);
+    analytics.trackArchiveRegistrationPrompt(); analytics.trackArchiveRegisterClick();
+    accept(); register("after-withdrawal");
+    expect(archiveEvents()).not.toContain("archive_registration_complete");
+  });
+  it("never revives rejected memory even when removal and overwriting both fail", async () => {
+    accept(); archiveClick();
+    window.sessionStorage.removeItem = () => { throw Error("denied"); };
+    window.sessionStorage.setItem = () => { throw Error("denied"); };
+    analytics.setAnalyticsConsent("rejected"); accept(); register();
+    expect(archiveEvents()).not.toContain("archive_registration_complete");
+    expect(analytics.readAnalyticsConsent()).toBe("rejected");
+    vi.resetModules(); analytics = await import("../lib/analytics");
+    analytics.setAnalyticsConsent(analytics.readAnalyticsConsent() ?? "rejected", false);
+    register("reload");
+    expect(archiveEvents()).not.toContain("archive_registration_complete");
+  });
+  it.each(["not json", "null", JSON.stringify({ v: 2, stage: 3, expires: Date.now() + 60000 }),
+    JSON.stringify({ v: 1, stage: 3, expires: 1 }),
+    JSON.stringify({ v: 1, stage: 3, expires: Date.now() + 3600000 }),
+    JSON.stringify({ v: 1, stage: 3, expires: Date.now() + 60000, email: "private@example.lt" }),
+    JSON.stringify({ v: 1, stage: "3", expires: Date.now() + 60000 })
+  ])("fails closed on stale/corrupt storage: %s", (raw) => {
+    storage.set(analytics.ARCHIVE_JOURNEY_KEY, raw); accept(); register();
+    expect(archiveEvents()).toEqual([]);
+    expect(storage.has(analytics.ARCHIVE_JOURNEY_KEY)).toBe(false);
+  });
+  it("expires without extending the visit window, and unavailable storage does not crash", () => {
+    const now = Date.now(); vi.spyOn(Date, "now").mockReturnValue(now);
+    accept(); archiveClick();
+    vi.mocked(Date.now).mockReturnValue(now + 30 * 60 * 1000);
+    register(); expect(archiveEvents()).not.toContain("archive_registration_complete");
+    window.sessionStorage.setItem = () => { throw Error("denied"); };
+    expect(() => archiveClick()).not.toThrow();
+    vi.restoreAllMocks();
+  });
+  it.each(["preview.localpro.lt", "leonamai.lt"])("excludes %s", (hostname) => {
+    Object.assign(window.location, { hostname });
+    analytics.setAnalyticsConsent("accepted"); archiveClick(); register();
+    expect(posted).toEqual([]); expect(storage.has(analytics.ARCHIVE_JOURNEY_KEY)).toBe(false);
+  });
+  it("actual registration helper excludes failed/existing/seed responses even with preceding click", async () => {
+    accept(); archiveClick();
+    const { submitRegistrationDraft } = await import("../components/LocalProApp");
+    const draft = { address: "Vilnius", town: "Vilnius", phone: "063601230", categorySlugs: ["apdaila"], photoUrls: [], photoUploads: [] } as unknown as import("../components/LocalProApp").RegistrationDraft;
+    for (const [ok, data] of [[false, { error: "failed" }], [true, { ok: true, existingProfile: true, profile: { id: "old" } }], [true, { ok: true, mode: "seed", profile: { id: "seed" } }]] as const) {
+      await submitRegistrationDraft(draft, { googlePlacesApiKeyConfigured: false, fetcher: vi.fn(async () => ({ ok, json: async () => data }) as Response) });
+    }
+    expect(archiveEvents()).not.toContain("archive_registration_complete");
+    await submitRegistrationDraft(draft, { googlePlacesApiKeyConfigured: false, fetcher: vi.fn(async () => ({ ok: true, json: async () => ({ ok: true, profile: { id: "persisted" } }) }) as Response) });
+    expect(archiveEvents().at(-1)).toBe("archive_registration_complete");
+  });
+});
+
 describe("actual isolated Google frame script", () => {
   it("executes real frame script with manual views only and a constant-only event boundary", () => {
     const html = readFileSync(new URL("../public/localpro-analytics.html", import.meta.url), "utf8");
@@ -173,6 +273,11 @@ describe("actual isolated Google frame script", () => {
     function send(name: string, params: object, source = parent) { handler({ source, origin: "https://localpro.lt", data: { type: "localpro:analytics", name, params } }); }
     send("page_view", { page_location: "https://localpro.lt/private-name?email=secret" });
     send("custom_pii", { email: "secret" });
+    send("archive_register_click", { source: "facebook_archive", email: "secret" });
+    send("archive_registration_complete", { source: "https://facebook.com/private" });
+    send("archive_visit", {});
+    send("archive_fake", { source: "facebook_archive" });
+    send("archive_visit", { source: "facebook_archive" }, {} as typeof parent);
     send("generate_lead", { email: "secret" }, {} as typeof parent);
     expect(commands().filter((args) => args[0] === "event")).toHaveLength(0);
     send("page_view", { page_location: "https://localpro.lt/request", page_title: "Private", page_referrer: "https://secret", email: "secret" });
@@ -183,5 +288,9 @@ describe("actual isolated Google frame script", () => {
       ["event", "generate_lead", { send_to: "G-DE7XEQRBJC", method: "job_request" }],
       ["event", "contact_click", { send_to: "G-DE7XEQRBJC", contact_method: "email" }]
     ]);
+    for (const name of ["archive_visit", "archive_registration_prompt", "archive_register_click", "archive_registration_complete"]) send(name, { source: "facebook_archive" });
+    expect(commands().filter((args) => args[0] === "event").slice(-4)).toEqual(
+      ["archive_visit", "archive_registration_prompt", "archive_register_click", "archive_registration_complete"].map((name) => ["event", name, { send_to: "G-DE7XEQRBJC", source: "facebook_archive" }])
+    );
   });
 });
