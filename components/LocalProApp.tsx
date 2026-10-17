@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import AddressAutocomplete, { geocodeLithuanianAddress } from "./AddressAutocomplete";
 import SafeProfileImage from "./SafeProfileImage";
 import { specialistPhotoCandidates } from "../lib/specialist-photos";
+import { specialistPhotoAlt } from "../lib/photo-alt";
 import LocalProBrand from "./LocalProBrand";
 import type { Category, Specialist } from "../lib/types";
 import { formatReviewCount, formatVerificationBadge, formatVerificationSummary } from "../lib/display";
@@ -511,7 +512,7 @@ export default function LocalProApp({
       return imageUrls.map((url, index) => ({
         id: `${url}-${index}`,
         url,
-        label: index === 0 ? "Pagrindinė darbų nuotrauka" : "Darbų nuotrauka"
+        label: specialistPhotoAlt(activeSpecialist, url)
       }));
     }
 
@@ -1395,7 +1396,8 @@ export default function LocalProApp({
                   <SafeProfileImage
                     src={activePhotoUrl}
                     fallbackSrcs={specialistPhotoCandidates(activeSpecialist).filter((url) => url !== activePhotoUrl)}
-                    alt={`${activeSpecialist.name} darbų nuotrauka`}
+                    alt={specialistPhotoAlt(activeSpecialist, activePhotoUrl)}
+                    altForSrc={(src) => specialistPhotoAlt(activeSpecialist, src)}
                     specialistName={activeSpecialist.name}
                     trade={activeSpecialist.trade}
                     className="selected-card-photo"

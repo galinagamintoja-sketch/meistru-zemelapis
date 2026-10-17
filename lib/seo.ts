@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { isObviousPublicTestProfile } from "./display";
 import type { Specialist } from "./types";
 import { canonicalCategorySlug } from "./service-taxonomy";
+import { isPublicLocality } from "./validators";
 
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://localpro.lt").replace(/\/$/, "");
 
@@ -112,15 +113,69 @@ export function locationLocative(city: string) {
   return locationForms[slug] || city;
 }
 
+export function publicProfileName(profile: Specialist) {
+  return profile.companyName?.trim() || profile.name.trim();
+}
+
+export function publicProfileServices(profile: Specialist) {
+  return Array.from(new Set((profile.subcategoryNames ?? []).map((name) => name.trim()).filter(Boolean)));
+}
+
+/** Public wording, not an occupation inferred from the stable legacy URL. */
+export function publicProfileCategories(profile: Specialist): string[] {
+  return [...new Set([profile.trade, ...(profile.categoryNames ?? []), ...publicProfileServices(profile).map((name) => profile.serviceCategoryNames?.[name] || "")].map((name) => name.trim()).filter(Boolean))];
+}
+
+export function profileHeading(profile: Specialist) {
+  return [publicProfileName(profile), [profile.trade.trim(), profile.town.trim()].filter(Boolean).join(" · ")].filter(Boolean).join(" – ");
+}
+
+/** The route itself uses these same eligibility and membership predicates. */
+export function profileLandingLinks(profile: Specialist) {
+  if (!isSeoEligible(profile) || !profile.trade.trim()) return [];
+  const cities = Array.from(new Set(profile.operatingCities.map((city) => city.trim()).filter(isPublicLocality)));
+  const ordered = [...cities.filter((city) => slugify(city) === slugify(profile.town)),
+    ...cities.filter((city) => slugify(city) !== slugify(profile.town))];
+  const seen = new Set<string>();
+  return ordered.flatMap((city) => {
+    const path = categoryLocationPath(profile, city);
+    const parts = path?.split("/");
+    if (!path || !parts || !parts[2] || seen.has(path) || !matchesCategoryLocation(profile, parts[1], parts[2])) return [];
+    seen.add(path);
+    return [{ name: `${profile.trade.trim()} – ${city}`, city, path }];
+  });
+}
+
+export function profileBreadcrumbJsonLd(profile: Specialist) {
+  if (!isPublicProfile(profile) || !publicProfileName(profile)) return null;
+  const url = `${SITE_URL}${profilePath(profile)}`;
+  const parent = profileLandingLinks(profile)[0];
+  const items = [{ name: "LocalPro", item: SITE_URL },
+    ...(parent ? [{ name: parent.name, item: `${SITE_URL}${parent.path}` }] : []),
+    { name: publicProfileName(profile), item: url }];
+  return {
+    "@context": "https://schema.org", "@type": "BreadcrumbList", "@id": `${url}#breadcrumb`,
+    itemListElement: items.map((item, index) => ({ "@type": "ListItem", position: index + 1, ...item }))
+  };
+}
+
 export function profileMetadata(profile: Specialist): Metadata {
-  const name = profile.companyName || profile.name;
-  const profession = professionByCategorySlug(profile.categorySlug)?.singular || profile.trade;
-  const place = locationLocative(profile.town);
+  const name = publicProfileName(profile);
   const canonical = `${SITE_URL}${profilePath(profile)}`;
-  const services = (profile.subcategoryNames?.length ? profile.subcategoryNames : profile.subcategorySlugs).slice(0, 3).join(", ");
-  const title = `${name} – ${profession} ${place} | LocalPro`;
-  const description = `${name} teikia ${services} paslaugas ${place}. Peržiūrėkite darbus, aptarnaujamą teritoriją ir profilį LocalPro.`.slice(0, 160);
-  const socialDescription = profile.description.slice(0, 160);
+  const services = publicProfileServices(profile);
+  const title = `${profileHeading(profile)} | LocalPro`;
+  const areas = Array.from(new Set(profile.operatingCities.map((city) => city.trim()).filter(Boolean)));
+  // Keep complete public place/service labels rather than cutting a locality into a different word.
+  let description = `${[name, profile.trade.trim()].filter(Boolean).join(". ")}.`;
+  for (const [label, values] of [["Aptarnaujama teritorija", areas], ["Paslaugos", services]] as [string, string[]][]) {
+    const included: string[] = [];
+    for (const value of values) {
+      if (`${description} ${label}: ${[...included, value].join(", ")}.`.length > 160) break;
+      included.push(value);
+    }
+    if (included.length) description += ` ${label}: ${included.join(", ")}.`;
+  }
+  const socialDescription = description;
   return {
     title,
     description,
@@ -148,17 +203,61 @@ export function categoryMetadata(professionSlug: string, city: string, count: nu
   };
 }
 
+/** Publication gates also apply if this helper is called outside the page loader. */
+export function isPublicProfile(profile: Specialist) {
+  return profile.status === "approved" && profile.publicStatus === "public" && !profile.isDemo &&
+    Boolean(profile.publicContactConsentAt) && !isObviousPublicTestProfile(profile);
+}
+
+function publicImageUrl(value: string) {
+  try {
+    const url = new URL(value, SITE_URL);
+    // Only this first-party route enforces photo/profile approval and consent on every request.
+    // An arbitrary external URL may be a private capability even without familiar token names.
+    if (url.origin !== new URL(SITE_URL).origin || url.username || url.password || url.search || url.hash ||
+        !/^\/api\/public\/profile-photos\/[0-9a-f-]{36}$/i.test(url.pathname)) return null;
+    return url.toString();
+  } catch { return null; }
+}
+
 export function profileJsonLd(profile: Specialist) {
+  if (!isPublicProfile(profile)) return null;
   const url = `${SITE_URL}${profilePath(profile)}`;
-  const person: Record<string, unknown> = {
-    "@type": "Person", name: profile.name,
-    jobTitle: professionByCategorySlug(profile.categorySlug)?.singular || profile.trade,
-    url, description: profile.description,
-    areaServed: profile.operatingCities.map((name) => ({ "@type": "City", name })),
-    knowsAbout: profile.subcategoryNames?.length ? profile.subcategoryNames : profile.subcategorySlugs
+  const entityId = `${url}#specialist`;
+  const proof = profile.verifiedBusiness;
+  const isBusiness = Boolean(proof && proof.name.trim() && proof.name.trim() === profile.companyName?.trim() &&
+    Number.isFinite(Date.parse(proof.verifiedAt)) && Date.parse(proof.verifiedAt) <= Date.now());
+  const name = isBusiness ? proof!.name.trim() : profile.name.trim();
+  if (!name) return null;
+  // These are public service labels, not inferred qualifications or internal slugs.
+  const services = publicProfileServices(profile);
+  // Operating-area text may describe a district or village, not necessarily a City or an address.
+  const areas = Array.from(new Set(profile.operatingCities.map((name) => name.trim()).filter(Boolean)))
+    .map((name) => ({ "@type": "Place", name }));
+  const entity: Record<string, unknown> = {
+    "@type": isBusiness ? "Organization" : "Person", "@id": entityId,
+    name, url, description: profile.description, mainEntityOfPage: { "@id": url }
   };
-  if (profile.photoUrls?.[0]) person.image = new URL(profile.photoUrls[0], SITE_URL).toString();
-  return { "@context": "https://schema.org", "@type": "ProfilePage", url, mainEntity: person };
+  // A service category is not a verified personal job title; do not emit jobTitle.
+  if (services.length) {
+    entity.knowsAbout = services;
+    entity.makesOffer = services.map((name) => ({
+      "@type": "Offer", itemOffered: {
+        "@type": "Service", name, serviceType: name, provider: { "@id": entityId },
+        ...(profile.serviceCategoryNames?.[name] ? { category: profile.serviceCategoryNames[name] } : {}),
+        ...(areas.length ? { areaServed: areas } : {})
+      }
+    }));
+  }
+  if (isBusiness && areas.length) entity.areaServed = areas;
+  const images = Array.from(new Set((profile.photoUrls ?? []).map(publicImageUrl).filter((url): url is string => Boolean(url))));
+  if (images.length) entity.image = images;
+  return {
+    "@context": "https://schema.org", "@type": "ProfilePage", "@id": url, url,
+    name: profileHeading(profile),
+    breadcrumb: profileBreadcrumbJsonLd(profile),
+    mainEntity: entity
+  };
 }
 
 export function categoryJsonLd(professionSlug: string, city: string, profiles: Specialist[]) {

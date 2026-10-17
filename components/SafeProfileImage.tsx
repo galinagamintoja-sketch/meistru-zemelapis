@@ -9,6 +9,7 @@ type Props = {
   src?: string | null;
   fallbackSrcs?: string[];
   alt: string;
+  altForSrc?: (src: string) => string;
   specialistName?: string;
   trade?: string;
   className?: string;
@@ -34,6 +35,7 @@ export default function SafeProfileImage({
   src: preferredSrc,
   fallbackSrcs = [],
   alt,
+  altForSrc,
   specialistName,
   trade,
   className = "",
@@ -58,7 +60,7 @@ export default function SafeProfileImage({
       ) : (
         <Image
           src={src}
-          alt={alt}
+          alt={altForSrc ? altForSrc(src) : alt}
           fill
           // Managed photos are already resized. Serve them directly: Vercel
           // rejects optimisation of these dynamic API URLs. External legacy

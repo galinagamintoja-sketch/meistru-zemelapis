@@ -60,6 +60,10 @@ test("every enlarged photo is visible, contained and navigable", async ({ page }
   const count = await thumbnails.count();
   expect(count).toBeGreaterThan(1);
   await expect(page.locator("[data-gallery-ready=true]")).toBeVisible();
+  const thumbnailAlts = await thumbnails.locator("img").evaluateAll((images) => images.map((image) => image.getAttribute("alt")));
+  expect(thumbnailAlts).toHaveLength(count);
+  expect(thumbnailAlts.every((alt) => Boolean(alt?.trim()))).toBe(true);
+  await expect(page.locator(".public-profile-hero-photo img")).toHaveAttribute("alt", thumbnailAlts[0]!);
   const opener = thumbnails.nth(count - 2);
   await opener.click();
   const dialog = page.getByRole("dialog");
@@ -67,6 +71,8 @@ test("every enlarged photo is visible, contained and navigable", async ({ page }
   await expect(counter).toHaveText(`${count - 1} / ${count}`);
   for (let i = 0; i < count; i++) {
     await assertPhotoFits(page);
+    // Labelled and unlabelled photos must retain their alt as the viewer moves.
+    await expect(dialog.locator("img")).toHaveAttribute("alt", thumbnailAlts[(count - 2 + i) % count]!);
     await dialog.getByRole("button", { name: "Kita nuotrauka" }).click();
   }
   await expect(counter).toHaveText(`${count - 1} / ${count}`);

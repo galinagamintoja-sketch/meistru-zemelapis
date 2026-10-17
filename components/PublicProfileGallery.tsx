@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import SafeProfileImage from "./SafeProfileImage";
 import { defaultTradePhoto } from "../lib/default-trade-photo";
+import { profilePhotoAlt } from "../lib/photo-alt";
 
-type Props = { name: string; trade: string; categorySlug: string; photoUrls: string[] };
+type Props = { name: string; trade: string; categorySlug: string; photoUrls: string[]; photoLabels?: Record<string, string> };
 
-export default function PublicProfileGallery({ name, trade, categorySlug, photoUrls }: Props) {
+export default function PublicProfileGallery({ name, trade, categorySlug, photoUrls, photoLabels }: Props) {
+  const photoAlt = (index: number) => profilePhotoAlt(name, photoLabels?.[photoUrls[index]], index);
   const [hydrated, setHydrated] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -56,7 +58,7 @@ export default function PublicProfileGallery({ name, trade, categorySlug, photoU
 
   return <>
     <button className="public-profile-hero-photo" type="button" data-gallery-ready={hydrated || undefined} onClick={(event) => photoUrls.length && openGallery(0, event.currentTarget)} aria-label={photoUrls.length ? `Atidaryti ${name} darbų galeriją` : `${trade} iliustracinė nuotrauka`} disabled={!photoUrls.length || !hydrated}>
-      <SafeProfileImage src={photoUrls[0] ?? defaultTradePhoto(categorySlug)} alt={photoUrls.length ? `${name} pagrindinė darbų nuotrauka` : `${trade} iliustracinė nuotrauka`} specialistName={name} trade={trade} loading="eager" sizes="(max-width: 620px) 58vw, 220px" fallbackText="Nuotraukos nėra" />
+      <SafeProfileImage src={photoUrls[0] ?? defaultTradePhoto(categorySlug)} alt={photoUrls.length ? photoAlt(0) : `${trade} iliustracinė nuotrauka`} specialistName={name} trade={trade} loading="eager" sizes="(max-width: 620px) 58vw, 220px" fallbackText="Nuotraukos nėra" />
       {photoUrls.length ? <span>Peržiūrėti darbus</span> : null}
       {!photoUrls.length ? <span>Iliustracinė nuotrauka</span> : null}
     </button>
@@ -64,7 +66,7 @@ export default function PublicProfileGallery({ name, trade, categorySlug, photoU
       <h2 id="public-profile-gallery-title">Darbų nuotraukos</h2>
       <div className="photo-grid">
         {photoUrls.map((url, index) => <button type="button" disabled={!hydrated} className="public-profile-gallery-button" key={`${url}-${index}`} onClick={(event) => openGallery(index, event.currentTarget)} aria-label={`Atidaryti nuotrauką ${index + 1} iš ${photoUrls.length}`}>
-          <SafeProfileImage src={url} alt={`${name} darbų nuotrauka ${index + 1}`} specialistName={name} trade={trade} className="public-profile-photo" sizes="(max-width: 620px) 100vw, 50vw" fallbackText="Nuotraukos nėra" />
+          <SafeProfileImage src={url} alt={photoAlt(index)} specialistName={name} trade={trade} className="public-profile-photo" sizes="(max-width: 620px) 100vw, 50vw" fallbackText="Nuotraukos nėra" />
         </button>)}
       </div>
     </section> : null}
@@ -88,7 +90,7 @@ export default function PublicProfileGallery({ name, trade, categorySlug, photoU
             const dy = event.clientY - start.y;
             if (Math.abs(dx) >= 50 && Math.abs(dx) > Math.abs(dy) * 1.5) navigate(dx < 0 ? 1 : -1);
           }}>
-          <SafeProfileImage key={photoUrls[activeIndex]} src={photoUrls[activeIndex]} alt={`${name} darbų nuotrauka ${activeIndex + 1}`} specialistName={name} trade={trade} loading="eager" sizes="(max-width: 960px) 100vw, 920px" fallbackText="Nuotraukos nėra" />
+          <SafeProfileImage key={photoUrls[activeIndex]} src={photoUrls[activeIndex]} alt={photoAlt(activeIndex)} specialistName={name} trade={trade} loading="eager" sizes="(max-width: 960px) 100vw, 920px" fallbackText="Nuotraukos nėra" />
         </div>
         <div className="profile-lightbox-controls">
           <button type="button" onClick={() => navigate(-1)} aria-label="Ankstesnė nuotrauka">←</button>

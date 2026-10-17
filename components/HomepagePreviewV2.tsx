@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { usePathname, useSearchParams } from "next/navigation";
 import SafeProfileImage from "./SafeProfileImage";
 import { specialistPhotoCandidates } from "../lib/specialist-photos";
+import { specialistPhotoAlt } from "../lib/photo-alt";
 import type { Category, Specialist } from "../lib/types";
 import type { HomepageAccountState } from "../lib/homepage-account-state";
 import { profileSeoSlug } from "../lib/seo";
@@ -324,12 +325,13 @@ export default function HomepagePreviewV2({
         if (photoUrl) {
           const photo = document.createElement("img");
           photo.src = photoUrl;
-          photo.alt = specialistPhoto(specialist) ? `${specialist.name} darbų nuotrauka` : `${specialist.trade} iliustracinė nuotrauka`;
+          photo.alt = specialistPhotoAlt(specialist, photoUrl);
           let candidateIndex = 0;
           photo.addEventListener("error", () => {
             candidateIndex += 1;
             if (candidates[candidateIndex]) {
               photo.src = candidates[candidateIndex];
+              photo.alt = specialistPhotoAlt(specialist, candidates[candidateIndex]);
               return;
             }
             photo.remove();
@@ -484,7 +486,8 @@ export default function HomepagePreviewV2({
                     <SafeProfileImage
                       src={photo ?? defaultTradePhoto(specialist.categorySlug)}
                       fallbackSrcs={specialistPhotoCandidates(specialist).slice(1)}
-                      alt={photo ? `${specialist.name} darbų nuotrauka` : `${specialist.trade} iliustracinė nuotrauka`}
+                      alt={specialistPhotoAlt(specialist, photo ?? defaultTradePhoto(specialist.categorySlug))}
+                      altForSrc={(src) => specialistPhotoAlt(specialist, src)}
                       specialistName={specialist.name}
                       trade={specialist.trade}
                       className={styles.specialistPhoto}
