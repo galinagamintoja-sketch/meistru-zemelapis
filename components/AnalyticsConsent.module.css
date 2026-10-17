@@ -1,0 +1,8 @@
+.change { display: block; margin: 1rem auto; padding: .65rem 1rem; border: 1px solid #475569; border-radius: .5rem; color: #0f172a; background: #fff; cursor: pointer; }
+.panel { position: fixed; z-index: 10000; inset: auto 1rem 1rem; max-width: 42rem; margin-inline: auto; max-height: calc(100dvh - 2rem); overflow-y: auto; padding: 1.25rem; border: 2px solid #475569; border-radius: .75rem; background: #fff; color: #0f172a; box-shadow: 0 8px 40px #0003; }
+.panel h2 { font-size: 1.2rem; margin: 0 0 .75rem; }
+.panel p { line-height: 1.5; margin-bottom: .75rem; }
+.panel a { color: #174f3c; text-decoration: underline; }
+.actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
+.actions button { flex: 1 1 12rem; padding: .75rem; border: 2px solid #174f3c; border-radius: .5rem; color: #174f3c; background: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.change:focus-visible, .panel button:focus-visible, .panel a:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }

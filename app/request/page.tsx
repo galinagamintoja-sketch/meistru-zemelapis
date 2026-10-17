@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { submitEnquiry } from "../../lib/client-enquiry";
 import Link from "next/link";
 import AddressAutocomplete from "../../components/AddressAutocomplete";
 import type { Category } from "../../lib/types";
@@ -27,6 +28,7 @@ export default function JobRequestPage() {
   const [requestId, setRequestId] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const submissionInFlight = useRef(false);
   const [matches, setMatches] = useState<Array<{ specialist: Specialist; reason: string; distanceKm: number }>>([]);
   const [selectedMatches, setSelectedMatches] = useState<string[]>([]);
 
@@ -55,16 +57,17 @@ export default function JobRequestPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submissionInFlight.current) return;
+    submissionInFlight.current = true;
     setSubmitting(true);
     setMessage("");
     try {
-      const response = await fetch("/api/job-requests", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ categorySlug, subcategorySlug, address, ...place, description, urgency, preferredContactMethod, clientName, clientPhone, clientEmail, photoUploads, privacyConsent }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? "Užklausos išsaugoti nepavyko.");
+      const data = await submitEnquiry({ categorySlug, subcategorySlug, address, ...place, description, urgency, preferredContactMethod, clientName, clientPhone, clientEmail, photoUploads, privacyConsent });
       setRequestId(data.requestId);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
+      submissionInFlight.current = false;
       setSubmitting(false);
     }
   }
