@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
 import SiteFooter from "../components/SiteFooter";
+import AnalyticsConsentControls from "../components/AnalyticsConsent";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://localpro.lt"),
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="lt">
-      <body>{children}<SiteFooter /></body>
+      <body>{children}<SiteFooter /><AnalyticsConsentControls /></body>
     </html>
   );
 }

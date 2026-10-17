@@ -55,6 +55,9 @@ async function swipe(page: Page, direction: "left" | "right", native: boolean) {
 test("every enlarged photo is visible, contained and navigable", async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  // Gallery regression tests use an explicit rejected analytics preference; the
+  // initial choice/persistence/revocation UI is exercised by analytics-ui-live.
+  await page.addInitScript(() => localStorage.setItem("localpro.analytics-consent.v1", "rejected"));
   await page.goto(profile);
   const thumbnails = page.locator(".public-profile-gallery-button");
   const count = await thumbnails.count();

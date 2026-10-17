@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./JobsPageClient.module.css";
+import { trackArchiveRegistrationPrompt, trackArchiveRegisterClick } from "../lib/analytics";
 import type { FirstJobPage, PublicJob, PublicJobFilters, PublicJobTaxonomy } from "../lib/public-jobs-first-page";
 
 type Taxonomy = PublicJobTaxonomy;
@@ -39,7 +40,10 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
   const moreButton = useRef<HTMLButtonElement>(null);
   useEffect(() => { currentFilters.current = filters; }, [filters]);
   useEffect(() => {
-    if (gated && !registrationDialog.current?.open) registrationDialog.current?.showModal();
+    if (gated && registrationDialog.current && !registrationDialog.current.open) {
+      registrationDialog.current.showModal();
+      trackArchiveRegistrationPrompt();
+    }
   }, [gated]);
 
   const load = useCallback(async (nextCursor: string | null, replace: boolean, values = currentFilters.current, replayAction?: string): Promise<Feed | null> => {
@@ -192,7 +196,7 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
       <p className={styles.dialogEyebrow}>Daugiau galimybių</p>
       <h2 id="jobs-registration-title">Atraskite daugiau darbų skelbimų</h2>
       <p>Nemokamai tęskite su Google ir atraskite daugiau jums tinkamų darbų.</p>
-      <a className={styles.googleButton} href={`/auth/google?next=${encodeURIComponent(loginNext)}`} onClick={rememberScroll}>Tęsti su Google nemokamai <span aria-hidden="true">↗</span></a>
+      <a className={styles.googleButton} href={`/auth/google?next=${encodeURIComponent(loginNext)}`} onClick={() => { trackArchiveRegisterClick(); rememberScroll(); }}>Tęsti su Google nemokamai <span aria-hidden="true">↗</span></a>
       <button className={styles.notNow} type="button" onClick={() => registrationDialog.current?.close()}>Dabar ne</button>
     </dialog>}
   </main>;

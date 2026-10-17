@@ -1,0 +1,32 @@
+name: Private analytics reporting health
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: private-analytics-health
+  cancel-in-progress: false
+jobs:
+  reporting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check authenticated production reporting after bounded API retries
+        env:
+          MONITOR_TOKEN: ${{ secrets.LOCALPRO_REPORTING_MONITOR_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          const token = process.env.MONITOR_TOKEN;
+          if (!token || token.length < 32) throw new Error('Private reporting monitor secret is not configured');
+          const response = await fetch('https://localpro.lt/api/internal/analytics/health', {
+            headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(90000), redirect: 'error'
+          });
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok || body.status !== 'success') throw new Error(`Production reporting health failed: HTTP ${response.status}`);
+          console.log('Authenticated production reporting: GA4, Realtime, Search Console and event report successful (empty results allowed).');
+          NODE
