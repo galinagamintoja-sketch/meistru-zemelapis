@@ -9,6 +9,8 @@ const EMAIL = "localpro-analytics-reader@localpro-501816.iam.gserviceaccount.com
 const SCOPES = "https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/webmasters.readonly";
 const CONVERSIONS = ["generate_lead", "sign_up", "contact_click"] as const;
 const TIMEOUT_MS = 8_000;
+const SNAPSHOT_TIMEOUT_MS = 45_000;
+type Budget = { deadline: number; signal: AbortSignal };
 const MAX_DELAY_MS = 5_000;
 const MAX_RETRIES = 2;
 const MAX_BODY_BYTES = 512_000;
@@ -113,7 +115,30 @@ export function createGoogleReportingClient(deps: Dependencies = {}) {
   const fetcher = deps.fetch ?? fetch;
   const env = deps.env ?? process.env;
   const now = deps.now ?? Date.now;
-  const sleep = deps.sleep ?? (ms => new Promise(resolve => setTimeout(resolve, ms)));
+  function remaining(budget: Budget): number {
+    const ms = budget.deadline - now();
+    if (budget.signal.aborted || ms <= 0) throw new GoogleReportingError("TIMEOUT", null, true);
+    return ms;
+  }
+  // A joining snapshot can stop waiting without cancelling another snapshot's work.
+  async function within<T>(budget: Budget, work: Promise<T>): Promise<T> {
+    remaining(budget);
+    let abort: (() => void) | undefined;
+    try {
+      return await Promise.race([work, new Promise<never>((_, reject) => {
+        abort = () => reject(new GoogleReportingError("TIMEOUT", null, true));
+        budget.signal.addEventListener("abort", abort, { once: true });
+      })]);
+    } finally { if (abort) budget.signal.removeEventListener("abort", abort); }
+  }
+  async function pause(ms: number, budget: Budget) {
+    const delay = Math.min(ms, remaining(budget));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await within(budget, deps.sleep ? deps.sleep(delay) : new Promise<void>(resolve => { timer = setTimeout(resolve, delay); }));
+      remaining(budget);
+    } finally { if (timer !== undefined) clearTimeout(timer); }
+  }
   const random = deps.random ?? Math.random;
   let credentials: { email: string; key: ReturnType<typeof createPrivateKey> } | undefined;
   let token: { value: string; expiresAt: number } | undefined;
@@ -135,14 +160,20 @@ export function createGoogleReportingClient(deps: Dependencies = {}) {
     } catch { throw new GoogleReportingError("CONFIGURATION"); }
   }
 
-  async function attempt(url: string, init: RequestInit): Promise<{ status: number; body: unknown; retryAfter: string | null }> {
+  async function attempt(url: string, init: RequestInit, budget: Budget): Promise<{ status: number; body: unknown; retryAfter: string | null }> {
+    const timeout = Math.min(TIMEOUT_MS, remaining(budget));
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let activeReader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let abort: (() => void) | undefined;
     try {
       return await Promise.race([
         (async () => {
           const response = await fetcher(url, { ...init, signal: controller.signal, redirect: "error", cache: "no-store" });
+          if (controller.signal.aborted) {
+            void response.body?.cancel().catch(() => {});
+            throw new GoogleReportingError("TIMEOUT", null, true);
+          }
           // Bound response reads, including error bodies; nothing raw crosses the client boundary.
           let text = "";
           let size = 0;
@@ -169,17 +200,22 @@ export function createGoogleReportingClient(deps: Dependencies = {}) {
           return { status: response.status, body, retryAfter: response.headers.get("retry-after") };
         })(),
         new Promise<never>((_, reject) => {
-          timer = setTimeout(() => {
+          abort = () => {
             reject(new GoogleReportingError("TIMEOUT", null, true));
             controller.abort();
             void activeReader?.cancel().catch(() => {});
-          }, TIMEOUT_MS);
+          };
+          budget.signal.addEventListener("abort", abort, { once: true });
+          timer = setTimeout(abort, timeout);
         })
       ]);
     } catch (error) {
       if (error instanceof GoogleReportingError) throw error;
       throw new GoogleReportingError("UPSTREAM_UNAVAILABLE", null, true);
-    } finally { if (timer) clearTimeout(timer); }
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+      if (abort) budget.signal.removeEventListener("abort", abort);
+    }
   }
 
   function failure(status: number, body: unknown): GoogleReportingError {
@@ -198,26 +234,31 @@ export function createGoogleReportingClient(deps: Dependencies = {}) {
     if (status === 403) return new GoogleReportingError("FORBIDDEN", status);
     return new GoogleReportingError(status >= 500 ? "UPSTREAM_UNAVAILABLE" : "INVALID_REQUEST", status, status >= 500 && status <= 599);
   }
-  async function request(url: string, init: RequestInit): Promise<Json> {
+  async function request(url: string, init: RequestInit, budget: Budget): Promise<Json> {
     for (let retry = 0; ; retry++) {
+      remaining(budget);
       let retryAfter: string | null = null;
       try {
-        const result = await attempt(url, init);
+        const result = await attempt(url, init, budget);
+        remaining(budget);
         retryAfter = result.retryAfter;
+        if (url === OAUTH_URL && result.status === 400) throw new GoogleReportingError("AUTHENTICATION", 400);
         if (result.status < 200 || result.status >= 300) throw failure(result.status, result.body);
         return object(result.body);
       } catch (error) {
+        remaining(budget);
         const safe = error instanceof GoogleReportingError ? error : new GoogleReportingError("UPSTREAM_UNAVAILABLE", null, true);
         if (!safe.retryable || retry >= MAX_RETRIES) throw safe;
         const parsed = retryAfter === null ? NaN : /^\d+(\.\d+)?$/.test(retryAfter) ? Number(retryAfter) * 1000 : Date.parse(retryAfter) - now();
         const backoff = Math.min(MAX_DELAY_MS, 250 * 2 ** retry * (0.5 + Math.max(0, Math.min(1, random()))));
-        await sleep(Math.min(MAX_DELAY_MS, Math.max(backoff, Number.isFinite(parsed) ? parsed : 0)));
+        await pause(Math.min(MAX_DELAY_MS, Math.max(backoff, Number.isFinite(parsed) ? parsed : 0)), budget);
       }
     }
   }
-  async function accessToken(): Promise<string> {
+  async function accessToken(budget: Budget): Promise<string> {
+    remaining(budget);
     if (token && token.expiresAt - 60_000 > now()) return token.value;
-    if (refreshing) return refreshing;
+    if (refreshing) return within(budget, refreshing);
     refreshing = (async () => {
       const creds = getCredentials();
       const issuedAt = Math.floor(now() / 1000);
@@ -230,18 +271,20 @@ export function createGoogleReportingClient(deps: Dependencies = {}) {
       } catch { throw new GoogleReportingError("CONFIGURATION"); }
       // Anchor expiry before the network call, not afterwards.
       const started = now();
-      const body = await request(OAUTH_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }).toString() });
+      const body = await request(OAUTH_URL, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }).toString() }, budget);
       if (typeof body.access_token !== "string" || !/^[\x21-\x7e]{1,8192}$/.test(body.access_token) || typeof body.expires_in !== "number" || body.expires_in <= 60 || body.expires_in > 3600 || (body.token_type !== undefined && body.token_type !== "Bearer")) throw new GoogleReportingError("INVALID_RESPONSE");
       token = { value: body.access_token, expiresAt: started + body.expires_in * 1000 };
       return token.value;
     })();
+    // Only the owner clears the shared renewal; joiners only bound their own wait.
     try { return await refreshing; } finally { refreshing = undefined; }
   }
-  async function api(url: string, body: Json): Promise<Json> {
+  async function api(url: string, body: Json, budget: Budget): Promise<Json> {
     for (let authAttempt = 0; ; authAttempt++) {
-      const usedToken = await accessToken();
+      const usedToken = await accessToken(budget);
+      remaining(budget);
       try {
-        const result = await request(url, { method: "POST", headers: { Authorization: `Bearer ${usedToken}`, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const result = await request(url, { method: "POST", headers: { Authorization: `Bearer ${usedToken}`, "Content-Type": "application/json" }, body: JSON.stringify(body) }, budget);
         if ("error" in result) throw new GoogleReportingError("INVALID_RESPONSE", 200);
         return result;
       } catch (error) {
@@ -251,16 +294,21 @@ export function createGoogleReportingClient(deps: Dependencies = {}) {
       }
     }
   }
-  async function cached<T extends { rows: unknown[] }>(key: string, ttl: number, load: () => Promise<T>): Promise<ReportResult<T>> {
+  async function cached<T extends { rows: unknown[] }>(key: string, ttl: number, budget: Budget, load: () => Promise<T>): Promise<ReportResult<T>> {
     // Prevent expired date-window entries accumulating on long-lived Node hosts.
     for (const [cachedKey, entry] of cache) if (entry.expires <= now()) cache.delete(cachedKey);
     const existing = cache.get(key);
     if (existing && existing.expires > now()) return structuredClone(existing.value) as ReportResult<T>;
     const current = inflight.get(key);
-    if (current) return structuredClone(await current) as ReportResult<T>;
+    if (current) {
+      try { return structuredClone(await within(budget, current)) as ReportResult<T>; }
+      catch (error) { return { status: "error", error: sanitizeReportingError(error) }; }
+    }
     const promise = (async (): Promise<ReportResult<T>> => {
       try {
+        remaining(budget);
         const data = await load();
+        remaining(budget);
         const result: ReportResult<T> = { status: "success", empty: data.rows.length === 0, data, fetchedAt: new Date(now()).toISOString() };
         cache.set(key, { expires: now() + ttl, value: result });
         return result;
@@ -280,19 +328,24 @@ export function createGoogleReportingClient(deps: Dependencies = {}) {
     async getSnapshot(options: { window?: ReportingWindow; includeConversions?: boolean } = {}): Promise<GoogleReportingSnapshot> {
       const window = options.window ?? "28d";
       if (!["7d", "28d", "90d"].includes(window) || (options.includeConversions !== undefined && typeof options.includeConversions !== "boolean")) throw new GoogleReportingError("INVALID_REQUEST");
-      const days = window === "7d" ? 7 : window === "28d" ? 28 : 90;
-      const daily = dates(days, 1);
-      // Search Console is delayed; use complete/final data ending three UTC days ago.
-      const search = dates(days, 3);
-      const [ga4, realtime, searchConsole, conversions] = await Promise.all([
-        cached(`ga:${daily.startDate}:${daily.endDate}`, 300_000, async () => gaRows(await api(`${GA_URL}runReport`, { dateRanges: [daily], dimensions: [{ name: "date" }], metrics: [{ name: "activeUsers" }, { name: "sessions" }, { name: "eventCount" }], orderBys: [{ dimension: { dimensionName: "date" } }], limit: 90, returnPropertyQuota: true }), false) as GaDailyReport),
-        cached("realtime", 30_000, async () => gaRows(await api(`${GA_URL}runRealtimeReport`, { dimensions: [{ name: "eventName" }], metrics: [{ name: "eventCount" }], limit: 100, returnPropertyQuota: true }), true) as GaEventReport),
-        cached(`gsc:${search.startDate}:${search.endDate}`, 900_000, async () => searchRows(await api(GSC_URL, { ...search, dimensions: ["date"], type: "web", dataState: "final", rowLimit: 90 }))),
-        options.includeConversions ? cached(`conversions:${daily.startDate}:${daily.endDate}`, 300_000, async () => gaRows(await api(`${GA_URL}runReport`, { dateRanges: [daily], dimensions: [{ name: "eventName" }], metrics: [{ name: "eventCount" }], dimensionFilter: { filter: { fieldName: "eventName", inListFilter: { values: [...CONVERSIONS], caseSensitive: true } } }, limit: 3, returnPropertyQuota: true }), true, true) as GaEventReport) : undefined
-      ]);
-      const sources = [ga4, realtime, searchConsole, ...(conversions ? [conversions] : [])];
-      const successes = sources.filter(s => s.status === "success").length;
-      return { status: successes === sources.length ? "success" : successes === 0 ? "error" : "partial", window, ga4, realtime, searchConsole, ...(conversions ? { conversions } : {}) };
+      const controller = new AbortController();
+      const budget: Budget = { deadline: now() + SNAPSHOT_TIMEOUT_MS, signal: controller.signal };
+      const timer = setTimeout(() => controller.abort(), SNAPSHOT_TIMEOUT_MS);
+      try {
+        const days = window === "7d" ? 7 : window === "28d" ? 28 : 90;
+        const daily = dates(days, 1);
+        // Search Console is delayed; use complete/final data ending three UTC days ago.
+        const search = dates(days, 3);
+        const [ga4, realtime, searchConsole, conversions] = await Promise.all([
+          cached(`ga:${daily.startDate}:${daily.endDate}`, 300_000, budget, async () => gaRows(await api(`${GA_URL}runReport`, { dateRanges: [daily], dimensions: [{ name: "date" }], metrics: [{ name: "activeUsers" }, { name: "sessions" }, { name: "eventCount" }], orderBys: [{ dimension: { dimensionName: "date" } }], limit: 90, returnPropertyQuota: true }, budget), false) as GaDailyReport),
+          cached("realtime", 30_000, budget, async () => gaRows(await api(`${GA_URL}runRealtimeReport`, { dimensions: [{ name: "eventName" }], metrics: [{ name: "eventCount" }], limit: 100, returnPropertyQuota: true }, budget), true) as GaEventReport),
+          cached(`gsc:${search.startDate}:${search.endDate}`, 900_000, budget, async () => searchRows(await api(GSC_URL, { ...search, dimensions: ["date"], type: "web", dataState: "final", rowLimit: 90 }, budget))),
+          options.includeConversions ? cached(`conversions:${daily.startDate}:${daily.endDate}`, 300_000, budget, async () => gaRows(await api(`${GA_URL}runReport`, { dateRanges: [daily], dimensions: [{ name: "eventName" }], metrics: [{ name: "eventCount" }], dimensionFilter: { filter: { fieldName: "eventName", inListFilter: { values: [...CONVERSIONS], caseSensitive: true } } }, limit: 3, returnPropertyQuota: true }, budget), true, true) as GaEventReport) : undefined
+        ]);
+        const sources = [ga4, realtime, searchConsole, ...(conversions ? [conversions] : [])];
+        const successes = sources.filter(s => s.status === "success").length;
+        return { status: successes === sources.length ? "success" : successes === 0 ? "error" : "partial", window, ga4, realtime, searchConsole, ...(conversions ? { conversions } : {}) };
+      } finally { clearTimeout(timer); }
     }
   };
 }

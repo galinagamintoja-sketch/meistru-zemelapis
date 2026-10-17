@@ -1,6 +1,20 @@
 import "server-only";
 import { timingSafeEqual } from "node:crypto";
+import { requireAdminSession } from "./auth-session";
 import type { GoogleReportingSnapshot } from "./google-reporting";
+
+// Leave room for the 45-second Google snapshot within the 60-second route limit.
+// Reuse the existing admin boundary; an unavailable/slow auth service fails closed.
+export async function getReportingAdminSession(request?: Request) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      requireAdminSession(request),
+      new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), 8_000); })
+    ]);
+  } catch { return null; }
+  finally { if (timer) clearTimeout(timer); }
+}
 
 export function isReportingMonitorAuthorized(request: Request) {
   const secret = process.env.GOOGLE_REPORTING_MONITOR_TOKEN;

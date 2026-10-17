@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "../../../../lib/auth-session";
-import { reportingRequestAllowed } from "../../../../lib/reporting-health";
+import { getReportingAdminSession, reportingRequestAllowed } from "../../../../lib/reporting-health";
 import { getGoogleReportingSnapshot, type ReportingWindow } from "../../../../lib/google-reporting";
 
 export const runtime = "nodejs";
@@ -8,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 const headers = { "Cache-Control": "private, no-store", "X-Robots-Tag": "noindex, nofollow" };
 export async function GET(request: Request) {
-  if (!await requireAdminSession(request).catch(() => null)) return NextResponse.json({ error: "unauthorized" }, { status: 401, headers });
+  if (!await getReportingAdminSession(request)) return NextResponse.json({ error: "unauthorized" }, { status: 401, headers });
   const window = new URL(request.url).searchParams.get("window") ?? "28d";
   if (!["7d", "28d", "90d"].includes(window)) return NextResponse.json({ error: "invalid_window" }, { status: 400, headers });
   if (!reportingRequestAllowed("admin")) return NextResponse.json({ error: "rate_limited" }, { status: 429, headers: { ...headers, "Retry-After": "60" } });

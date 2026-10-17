@@ -24,6 +24,15 @@ function harness(handler?: (url: string, init: RequestInit) => Response | Promis
   const client = createGoogleReportingClient({ fetch: fetcher as typeof fetch, env, now: () => clock, sleep: async ms => { sleeps.push(ms); }, random: () => 1 });
   return { client, fetcher, sleeps, advance: (ms: number) => { clock += ms; } };
 }
+function timedHarness(handler: (url: string, init: RequestInit) => Response | Promise<Response>) {
+  vi.useFakeTimers();
+  vi.setSystemTime(epoch);
+  const fetcher = vi.fn((input: string | URL | Request, init?: RequestInit) => handler(String(input), init!));
+  const client = createGoogleReportingClient({ fetch: fetcher as typeof fetch, env, random: () => 1 });
+  return { client, fetcher };
+}
+const later = (ms: number, response: Response) => new Promise<Response>(resolve => setTimeout(() => resolve(response), ms));
+const timeoutResult = { status: "error", error: { code: "TIMEOUT", httpStatus: null, retryable: true } };
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
 describe("server Google reporting", () => {
@@ -239,6 +248,140 @@ describe("server Google reporting", () => {
     expect(h.fetcher.mock.calls.every(([url]) => oauth(String(url)))).toBe(true);
     expect(h.sleeps).toEqual([5000, 5000]);
     expect(JSON.stringify(result)).not.toMatch(/invalid_grant|PRIVATE KEY/);
+  });
+
+  it.each(["fetch", "body", "post-refresh fetch"])("shares one 45s deadline across token retries, reports and 401 renewal; aborts hung %s and retains successes", async stalled => {
+    let tokens = 0;
+    const cancel = vi.fn();
+    const h = timedHarness((url, init) => {
+      if (oauth(url)) {
+        tokens++;
+        if (tokens <= 2) return later(7000, json({ error: "SECRET" }, 503, { "Retry-After": "5" }));
+        if (tokens === 3) return later(7000, json({ access_token: "token", expires_in: 3600 }));
+        if (stalled === "post-refresh fetch") return later(6000, json({ access_token: "refreshed", expires_in: 3600 }));
+        return stalled === "fetch" ? new Promise<Response>(() => {}) : new Response(new ReadableStream({ cancel }));
+      }
+      if ((init.headers as Record<string, string>).Authorization === "Bearer refreshed") return new Promise<Response>(() => {});
+      if (url.endsWith("runRealtimeReport") || url.includes("webmasters")) return json({});
+      return later(7000, json({ error: "SECRET" }, 401));
+    });
+    let settled = false;
+    const pending = h.client.getSnapshot({ includeConversions: true }).then(result => { settled = true; return result; });
+    await vi.advanceTimersByTimeAsync(44_999);
+    expect(settled).toBe(false);
+    expect(tokens).toBe(4); // one shared renewal, not one per 401 source
+    const active = h.fetcher.mock.calls.at(-1)![1]!.signal!;
+    expect(active.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    const result = await pending;
+    expect(Date.now()).toBe(epoch + 45_000);
+    expect(result.status).toBe("partial");
+    expect(result.ga4).toEqual(timeoutResult);
+    expect(result.conversions).toEqual(timeoutResult);
+    expect(result.realtime.status).toBe("success");
+    expect(result.searchConsole.status).toBe("success");
+    expect(active.aborted).toBe(true);
+    expect(cancel).toHaveBeenCalledTimes(stalled === "body" ? 1 : 0);
+    expect(JSON.stringify(result)).not.toContain("SECRET");
+    expect(vi.getTimerCount()).toBe(0);
+    const calls = h.fetcher.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(100_000);
+    expect(h.fetcher).toHaveBeenCalledTimes(calls);
+    // Timeout failures are not cached; successful per-source caches are intact.
+    h.fetcher.mockImplementation(async () => json({ access_token: "fresh", expires_in: 3600, rows: [] }));
+    const next = await h.client.getSnapshot();
+    expect(next.status).toBe("success");
+    expect(next.searchConsole).toEqual(result.searchConsole);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(["attempt", "body", "backoff"])("limits reporting %s to the budget left after OAuth, without later retries", async stage => {
+    let tokens = 0;
+    const cancel = vi.fn();
+    const lateResponses: ((response: Response) => void)[] = [];
+    const attempts = new Map<string, number>();
+    const h = timedHarness(url => {
+      if (oauth(url)) return later(7000, ++tokens < 3 ? json({}, 503, { "Retry-After": "5" }) : json({ access_token: "token", expires_in: 3600 }));
+      const n = (attempts.get(url) ?? 0) + 1;
+      attempts.set(url, n);
+      if (n === 1) return later(7000, json({}, 503, { "Retry-After": "5" }));
+      if (stage === "attempt") return new Promise<Response>(resolve => { lateResponses.push(resolve); });
+      if (stage === "body") return new Response(new ReadableStream({ cancel }));
+      return json({}, 503, { "Retry-After": "5" });
+    });
+    const pending = h.client.getSnapshot();
+    await vi.advanceTimersByTimeAsync(45_000);
+    const result = await pending;
+    expect(result.ga4).toEqual(timeoutResult);
+    expect(result.realtime).toEqual(timeoutResult);
+    expect(result.searchConsole).toEqual(timeoutResult);
+    expect([...attempts.values()]).toEqual([2, 2, 2]);
+    if (stage !== "backoff") expect(h.fetcher.mock.calls.slice(-3).every(([, init]) => init!.signal!.aborted)).toBe(true);
+    expect(cancel).toHaveBeenCalledTimes(stage === "body" ? 3 : 0);
+    expect(vi.getTimerCount()).toBe(0);
+    // Even an abort-ignoring transport that resolves later cannot start a body read or retry.
+    for (const resolve of lateResponses) resolve(new Response(new ReadableStream({ cancel })));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect([...attempts.values()]).toEqual([2, 2, 2]);
+    expect(cancel).toHaveBeenCalledTimes(stage === "backoff" ? 0 : 3);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("bounds an older snapshot waiting on a newer snapshot's shared renewal without cancelling its work", async () => {
+    let tokens = 0;
+    const counts = new Map<string, number>();
+    const h = timedHarness((url, init) => {
+      if (oauth(url)) {
+        tokens++;
+        if (tokens === 1) return later(7000, json({ access_token: "old", expires_in: 3600 }));
+        return later(7000, tokens < 4 ? json({}, 503, { "Retry-After": "5" }) : json({ access_token: "new", expires_in: 3600 }));
+      }
+      const body = JSON.parse(init.body as string);
+      const newer = body.dateRanges?.[0].startDate === "2026-10-10" || body.startDate === "2026-10-08";
+      if ((init.headers as Record<string, string>).Authorization === "Bearer new") return json({});
+      if (newer) return json({}, 401); // owns renewal from t=35s until t=66s
+      const n = (counts.get(url) ?? 0) + 1;
+      counts.set(url, n);
+      return later(7000, json({}, n < 3 ? 503 : 401, { "Retry-After": "5" }));
+    });
+    const older = h.client.getSnapshot();
+    await vi.advanceTimersByTimeAsync(35_000);
+    const newer = h.client.getSnapshot({ window: "7d" });
+    const coalesced = h.client.getSnapshot({ window: "7d" });
+    await vi.advanceTimersByTimeAsync(10_000);
+    const oldResult = await older;
+    expect(oldResult.ga4).toEqual(timeoutResult);
+    expect(oldResult.realtime).toEqual(timeoutResult);
+    expect(oldResult.searchConsole).toEqual(timeoutResult);
+    expect(Date.now()).toBe(epoch + 45_000);
+    // The renewal belongs to the newer snapshot and remains live after the older wait expires.
+    expect(h.fetcher.mock.calls.filter(([url]) => oauth(String(url)))).toHaveLength(2);
+    expect(h.fetcher.mock.calls.findLast(([url]) => oauth(String(url)))![1]!.signal!.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(21_000);
+    const [newResult, joinedResult] = await Promise.all([newer, coalesced]);
+    expect(newResult.status).toBe("partial"); // realtime was coalesced with the older owner's work
+    expect(newResult.ga4.status).toBe("success");
+    expect(newResult.searchConsole.status).toBe("success");
+    expect(newResult.realtime).toEqual(timeoutResult);
+    expect(joinedResult).toEqual(newResult);
+    expect(tokens).toBe(4);
+    expect(vi.getTimerCount()).toBe(0);
+    expect((await h.client.getSnapshot({ window: "7d" })).status).toBe("success");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(["invalid_grant", "invalid_client"])("classifies OAuth 400 %s as sanitized authentication, not a reporting request error", async error => {
+    const h = harness(() => json({ error, error_description: `SECRET ${pem}` }, 400));
+    const result = await h.client.getSnapshot({ includeConversions: true });
+    const failure = { status: "error", error: { code: "AUTHENTICATION", httpStatus: 400, retryable: false } };
+    expect([result.ga4, result.realtime, result.searchConsole, result.conversions]).toEqual(Array(4).fill(failure));
+    expect(h.fetcher).toHaveBeenCalledTimes(1);
+    expect(h.sleeps).toEqual([]);
+    expect(JSON.stringify(result)).not.toMatch(/SECRET|PRIVATE KEY|invalid_grant|invalid_client/);
+    const reporting = harness(url => oauth(url) ? json({ access_token: "token", expires_in: 3600 }) : json({ error: "SECRET" }, 400));
+    expect((await reporting.client.getSnapshot()).ga4).toEqual({ status: "error", error: { code: "INVALID_REQUEST", httpStatus: 400, retryable: false } });
+    expect(reporting.fetcher).toHaveBeenCalledTimes(4);
+    expect(reporting.sleeps).toEqual([]);
   });
 
   it("rejects arbitrary date windows before any network call", async () => {

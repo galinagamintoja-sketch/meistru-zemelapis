@@ -14,6 +14,17 @@ function snapshot(): GoogleReportingSnapshot {
 }
 beforeEach(() => { vi.resetAllMocks(); vi.stubEnv("GOOGLE_REPORTING_MONITOR_TOKEN", token); });
 describe("private reporting boundaries", () => {
+  it("fails closed within eight seconds when the existing auth service stalls", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(requireAdminSession).mockReturnValue(new Promise(() => {}));
+      const pending = report(new Request("https://localpro.lt/api/admin/analytics"));
+      await vi.advanceTimersByTimeAsync(8_000);
+      expect((await pending).status).toBe(401);
+      expect(getGoogleReportingSnapshot).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
   it("fails closed on authentication service errors without touching reporting", async () => {
     vi.mocked(requireAdminSession).mockRejectedValue(Error("auth upstream private payload"));
     const response = await report(new Request("https://localpro.lt/api/admin/analytics"));

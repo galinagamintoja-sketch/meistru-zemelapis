@@ -13,6 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
       - name: Check authenticated production reporting after bounded API retries
         env:
           MONITOR_TOKEN: ${{ secrets.LOCALPRO_REPORTING_MONITOR_TOKEN }}
