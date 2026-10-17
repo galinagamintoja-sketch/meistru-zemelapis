@@ -6,7 +6,7 @@ import PublicProfileGallery from "../../../components/PublicProfileGallery";
 import { ProfileReportForm } from "../../../components/profile-report-form";
 import { formatVerificationSummary } from "../../../lib/display";
 import { getPublicSpecialistBySeoSlug } from "../../../lib/specialists";
-import { isPublicProfile, isSeoEligible, profileBreadcrumbJsonLd, profileHeading, profileJsonLd, profileLandingLinks, profileMetadata, profilePath, profileSeoSlug, publicProfileName, safeJsonLd } from "../../../lib/seo";
+import { isPublicProfile, isSeoEligible, profileBreadcrumbJsonLd, profileHeading, profileJsonLd, profileLandingLinks, profileMetadata, publicProfileCategories, profilePath, profileSeoSlug, publicProfileName, safeJsonLd } from "../../../lib/seo";
 import { specialists as seedSpecialists } from "../../../lib/seed-data";
 
 type PageProps = { params: Promise<{ slug: string }>; searchParams: Promise<{ return?: string }> };
@@ -26,6 +26,7 @@ export default async function PublicTradespersonPage({ params, searchParams }: P
   const breadcrumbs = profileBreadcrumbJsonLd(profile);
   const whatsapp = profile.whatsapp.replace(/[^\d]/g, "");
   const landingLinks = profileLandingLinks(profile);
+  const categories = publicProfileCategories(profile);
   const requestedReturn = (await searchParams).return;
   const returnPath = requestedReturn?.startsWith("/") && !requestedReturn.startsWith("//") ? requestedReturn : "/#results";
   return <main className="public-profile-shell">
@@ -39,7 +40,7 @@ export default async function PublicTradespersonPage({ params, searchParams }: P
       <header className="public-profile-header"><p className="eyebrow">LocalPro meistro profilis</p><h1>{profileHeading(profile)}</h1>{profile.companyName ? <p>{profile.name}</p> : null}<PublicProfileGallery name={publicProfileName(profile)} trade={profile.trade} categorySlug={profile.categorySlug} photoUrls={profile.photoUrls ?? []} photoLabels={profile.photoLabels} /></header>
       <section className="public-profile-grid"><div className="public-profile-main">
         <section><h2>Apie meistrą</h2><p>{profile.description}</p></section>
-        {(profile.categoryNames?.length ?? 0) > 1 ? <section><h2>Kategorijos</h2><p>{profile.categoryNames!.join(" · ")}</p></section> : null}
+        {categories.length > 1 ? <section><h2>Kategorijos</h2><p>{categories.join(" · ")}</p></section> : null}
         <section><h2>Paslaugos</h2><ul>{(profile.subcategoryNames || []).map((service) => <li key={service}>{service}</li>)}</ul></section>
         {profile.labourRateUnit ? <section><h2>Darbo kainos</h2>
           {profile.labourRateUnit === "hour" ? <p><strong>nuo €{profile.labourRateAmount}/val.</strong></p> : null}

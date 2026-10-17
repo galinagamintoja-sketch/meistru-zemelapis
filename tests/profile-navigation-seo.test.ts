@@ -123,6 +123,24 @@ describe("public profile SEO consistency", () => {
     vi.mocked(getPublicSpecialistBySeoSlug).mockResolvedValue(p);
     expect((await generateMetadata(props(p))).robots).toEqual({ index: false, follow: true });
   });
+  it("fits complete locality and service labels instead of slicing them into misleading fragments", () => {
+    const p = { ...profile, operatingCities: ["Trakų Vokė", "Kaunas"], subcategoryNames: ["Ilga paslauga ".repeat(20), "Trumpa paslauga"] };
+    const description = profileMetadata(p).description!;
+    expect(description).toContain("Aptarnaujama teritorija: Trakų Vokė, Kaunas.");
+    expect(description).not.toContain("Ilga paslauga");
+    expect(description.length).toBeLessThanOrEqual(160);
+    expect(description).toMatch(/\.$/);
+    expect(profileJsonLd(p)!.mainEntity.makesOffer as unknown[]).toHaveLength(2);
+  });
+  it("shows selected service categories missing from legacy profile-category selections without removing other selections", async () => {
+    const p = { ...profile, categoryNames: ["Vidaus apdaila", "Meistras į namus"], subcategoryNames: ["Vidaus durų montavimas"],
+      serviceCategoryNames: { "Vidaus durų montavimas": "Langai, durys ir laiptai", "Nesirinkta paslauga": "Nerodoma kategorija" } };
+    vi.mocked(getPublicSpecialistBySeoSlug).mockResolvedValue(p);
+    const html = renderToStaticMarkup(await Page(props(p)));
+    expect(html).toContain("Vidaus apdaila · Meistras į namus · Langai, durys ir laiptai");
+    expect(html).not.toContain("Nerodoma kategorija");
+    expect(html).toContain("Vidaus durų montavimas");
+  });
   it("preserves all valid multi-trade service labels and visible categories", async () => {
     const p = { ...profile, categoryNames: ["Vidaus apdaila", "Santechnika"], categorySlugs: ["vidaus-apdaila", "santechnika"],
       subcategoryNames: [...profile.subcategoryNames!, "Vamzdynų montavimas"], subcategorySlugs: [...profile.subcategorySlugs, "vamzdynu-montavimas"] };

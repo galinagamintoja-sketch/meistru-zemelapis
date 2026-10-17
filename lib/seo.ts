@@ -122,6 +122,10 @@ export function publicProfileServices(profile: Specialist) {
 }
 
 /** Public wording, not an occupation inferred from the stable legacy URL. */
+export function publicProfileCategories(profile: Specialist): string[] {
+  return [...new Set([profile.trade, ...(profile.categoryNames ?? []), ...publicProfileServices(profile).map((name) => profile.serviceCategoryNames?.[name] || "")].map((name) => name.trim()).filter(Boolean))];
+}
+
 export function profileHeading(profile: Specialist) {
   return [publicProfileName(profile), [profile.trade.trim(), profile.town.trim()].filter(Boolean).join(" · ")].filter(Boolean).join(" – ");
 }
@@ -158,11 +162,19 @@ export function profileBreadcrumbJsonLd(profile: Specialist) {
 export function profileMetadata(profile: Specialist): Metadata {
   const name = publicProfileName(profile);
   const canonical = `${SITE_URL}${profilePath(profile)}`;
-  const services = publicProfileServices(profile).slice(0, 3).join(", ");
+  const services = publicProfileServices(profile);
   const title = `${profileHeading(profile)} | LocalPro`;
-  const areas = Array.from(new Set(profile.operatingCities.map((city) => city.trim()).filter(Boolean))).join(", ");
-  const description = [name, profile.trade.trim(), services ? `Paslaugos: ${services}` : "",
-    areas ? `Aptarnaujama teritorija: ${areas}` : ""].filter(Boolean).join(". ").slice(0, 160);
+  const areas = Array.from(new Set(profile.operatingCities.map((city) => city.trim()).filter(Boolean)));
+  // Keep complete public place/service labels rather than cutting a locality into a different word.
+  let description = `${[name, profile.trade.trim()].filter(Boolean).join(". ")}.`;
+  for (const [label, values] of [["Aptarnaujama teritorija", areas], ["Paslaugos", services]] as [string, string[]][]) {
+    const included: string[] = [];
+    for (const value of values) {
+      if (`${description} ${label}: ${[...included, value].join(", ")}.`.length > 160) break;
+      included.push(value);
+    }
+    if (included.length) description += ` ${label}: ${included.join(", ")}.`;
+  }
   const socialDescription = description;
   return {
     title,
