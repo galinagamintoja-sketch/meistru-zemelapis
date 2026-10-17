@@ -21,6 +21,7 @@ const individual: Specialist = {
   trade: "Statyba ir konstrukcijos", categorySlug: "statyba-ir-konstrukcijos",
   subcategorySlugs: ["individualiu-namu-statyba", "pamatu-irengimas"],
   subcategoryNames: ["Individualių namų statyba", "Pamatų įrengimas"],
+  serviceCategoryNames: { "Individualių namų statyba": "Statyba ir konstrukcijos", "Pamatų įrengimas": "Statyba ir konstrukcijos" },
   town: "Vilnius", operatingCities: ["Vilnius", "Trakų rajonas"], radius: 50,
   lat: 54.6, lng: 25.2, registeredLat: 54.600001, registeredLng: 25.200001,
   streetArea: "Private street 99", verification: ["contact"], verificationLabel: "Kontaktas patvirtintas",

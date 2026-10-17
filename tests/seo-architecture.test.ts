@@ -63,7 +63,7 @@ describe("LocalPro SEO architecture", () => {
 
   it("creates correct canonical profile metadata", () => {
     const metadata = profileMetadata(karolina);
-    expect(metadata.title).toBe("Karolina Marcinkutė – Dažytojas Vilniuje | LocalPro");
+    expect(metadata.title).toBe("Karolina Marcinkutė – Apdaila · Vilnius | LocalPro");
     expect(metadata.alternates?.canonical).toBe(`https://localpro.lt${profilePath(karolina)}`);
     expect(metadata.description).toContain("dažymo, glaistymo");
   });

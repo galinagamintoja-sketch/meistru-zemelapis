@@ -14,6 +14,8 @@ export type Specialist = {
   publicStatus?: "public" | "private" | string;
   subcategorySlugs: string[];
   subcategoryNames?: string[];
+  /** Public service-name to selected category label; ambiguous associations are omitted. */
+  serviceCategoryNames?: Record<string, string>;
   town: string;
   district?: string;
   streetArea?: string;
@@ -38,6 +40,8 @@ export type Specialist = {
   description: string;
   photos: string[];
   photoUrls?: string[];
+  /** Meaningful labels keyed by visible original/card URL; no private photo metadata. */
+  photoLabels?: Record<string, string>;
   cardPhotoUrls?: string[];
   photoRecords?: Array<{
     id: string;

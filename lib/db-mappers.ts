@@ -2,6 +2,7 @@ import type { Specialist } from "./types";
 import { formatVerificationSummary } from "./display";
 import { profileCoordinates } from "./geo";
 import { canonicalServiceSlug } from "./service-taxonomy";
+import { descriptivePhotoLabel } from "./photo-alt";
 
 export type ProfileRow = {
   id: string;
@@ -82,6 +83,21 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
       )
       .filter((subcategory): subcategory is { name: string; slug: string } => Boolean(subcategory)) ?? [];
   const categorySlugs = Array.from(new Set(categories.map((item) => item.slug)));
+  const categoriesByService = new Map<string, Set<string>>();
+  for (const link of row.profile_services ?? []) {
+    const service = Array.isArray(link.service_subcategories) ? link.service_subcategories[0] : link.service_subcategories;
+    const selectedCategory = Array.isArray(link.service_categories) ? link.service_categories[0] : link.service_categories;
+    const name = service?.name.trim();
+    const categoryName = selectedCategory?.name.trim();
+    if (name && categoryName) {
+      const names = categoriesByService.get(name) ?? new Set<string>();
+      names.add(categoryName);
+      categoriesByService.set(name, names);
+    }
+  }
+  const serviceCategoryNames = Object.fromEntries([...categoriesByService]
+    .filter(([, names]) => names.size === 1)
+    .map(([name, names]) => [name, [...names][0]]));
   const visiblePhotoRows = (row.profile_photos ?? [])
     .filter((photo) => options.includeRemovedPhotos || !photo.removed_from_profile_at)
     .filter((photo) => options.includeUnapprovedPhotos || (photo.moderation_status ?? "approved") === "approved")
@@ -93,6 +109,10 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
     .map((photo) => photo.url || "")
     .filter(Boolean);
   const cardPhotoUrls = visiblePhotoRows.map((photo) => photo.card_url || photo.url || "").filter(Boolean);
+  const photoLabels = Object.fromEntries(visiblePhotoRows.flatMap((photo) => {
+    const label = descriptivePhotoLabel(photo.label);
+    return label ? [photo.url, photo.card_url].filter((url): url is string => Boolean(url)).map((url) => [url, label]) : [];
+  }));
   const photoRecords = visiblePhotoRows
     .filter((photo) => photo.id && photo.url)
     .map((photo) => ({
@@ -114,6 +134,7 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
     publicStatus: row.public_status,
     subcategorySlugs: Array.from(new Set(subcategories.map((subcategory) => canonicalServiceSlug(subcategory.slug) ?? subcategory.slug))),
     subcategoryNames: subcategories.map((subcategory) => subcategory.name),
+    serviceCategoryNames: Object.keys(serviceCategoryNames).length ? serviceCategoryNames : undefined,
     town: row.base_city,
     district: row.base_city,
     streetArea: undefined,
@@ -138,6 +159,7 @@ export function profileRowToSpecialist(row: ProfileRow, options: { includeUnappr
     photos: photos?.length ? photos : ["Darbų pavyzdžiai laukiami"],
     photoUrls: photoUrls?.length ? photoUrls : undefined,
     cardPhotoUrls: cardPhotoUrls.length ? cardPhotoUrls : undefined,
+    photoLabels: Object.keys(photoLabels).length ? photoLabels : undefined,
     photoRecords: photoRecords.length ? photoRecords : undefined,
     adminActions: (row.admin_actions ?? []).map((action) => ({
       id: String(action.id ?? `${action.action}-${action.created_at}`),

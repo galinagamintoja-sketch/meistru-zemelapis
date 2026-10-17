@@ -725,6 +725,7 @@
 }
 
 .public-profile-nav,
+.public-profile-breadcrumb,
 .public-profile-card {
   width: min(1120px, 100%);
   margin-inline: auto;
@@ -761,6 +762,10 @@
 }
 
 .public-profile-brand { color: inherit; text-decoration: none; }
+.public-profile-breadcrumb { margin-bottom: 18px; font-size: .9rem; color: var(--muted); }
+.public-profile-breadcrumb ol { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.public-profile-breadcrumb li { display: flex; min-width: 0; max-width: 100%; gap: 8px; overflow-wrap: anywhere; }
+.public-profile-breadcrumb a { color: var(--spruce); }
 
 .public-profile-card {
   padding: clamp(22px, 5vw, 54px);
