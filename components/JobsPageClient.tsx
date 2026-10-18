@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { MouseEvent } from "react";
 import styles from "./JobsPageClient.module.css";
+import { trackArchiveRegistrationPrompt, trackArchiveRegisterClick } from "../lib/analytics";
 import type { FirstJobPage, PublicJob, PublicJobFilters, PublicJobTaxonomy } from "../lib/public-jobs-first-page";
 
 type Taxonomy = PublicJobTaxonomy;
@@ -37,9 +39,13 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
   const currentFilters = useRef(filters);
   const registrationDialog = useRef<HTMLDialogElement>(null);
   const moreButton = useRef<HTMLButtonElement>(null);
+  const registering = useRef(false);
   useEffect(() => { currentFilters.current = filters; }, [filters]);
   useEffect(() => {
-    if (gated && !registrationDialog.current?.open) registrationDialog.current?.showModal();
+    if (gated && registrationDialog.current && !registrationDialog.current.open) {
+      registrationDialog.current.showModal();
+      trackArchiveRegistrationPrompt();
+    }
   }, [gated]);
 
   const load = useCallback(async (nextCursor: string | null, replace: boolean, values = currentFilters.current, replayAction?: string): Promise<Feed | null> => {
@@ -139,6 +145,24 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
 
   const loginNext = `/darbu-skelbimai${typeof window !== "undefined" ? window.location.search : ""}`;
   const rememberScroll = () => sessionStorage.setItem(`localpro-jobs-scroll:${historyKey(filters)}`, String(window.scrollY));
+  function continueWithGoogle(event: MouseEvent<HTMLAnchorElement>) {
+    try { rememberScroll(); } catch { /* Storage restrictions never block registration. */ }
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      void trackArchiveRegisterClick(false);
+      return;
+    }
+    if (registering.current) { event.preventDefault(); return; }
+    const delivery = trackArchiveRegisterClick();
+    if (!delivery) return; // Without eligible analytics, keep native anchor behavior.
+    event.preventDefault();
+    registering.current = true;
+    const href = event.currentTarget.href;
+    // No analytics response can hold the user's registration longer than 500ms.
+    void delivery.finally(() => {
+      registering.current = false; // A back/forward-cache return must not strand the link.
+      window.location.assign(href);
+    });
+  }
   const serviceOptions = (taxonomy.services ?? []).filter((item) => !filters.trade || item.category_id === filters.trade || item.id === filters.service);
   return <main className={styles.shell}>
     <div className={styles.top}><Link href="/">← LocalPro</Link></div>
@@ -192,7 +216,7 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
       <p className={styles.dialogEyebrow}>Daugiau galimybių</p>
       <h2 id="jobs-registration-title">Atraskite daugiau darbų skelbimų</h2>
       <p>Nemokamai tęskite su Google ir atraskite daugiau jums tinkamų darbų.</p>
-      <a className={styles.googleButton} href={`/auth/google?next=${encodeURIComponent(loginNext)}`} onClick={rememberScroll}>Tęsti su Google nemokamai <span aria-hidden="true">↗</span></a>
+      <a className={styles.googleButton} href={`/auth/google?next=${encodeURIComponent(loginNext)}`} onClick={continueWithGoogle}>Tęsti su Google nemokamai <span aria-hidden="true">↗</span></a>
       <button className={styles.notNow} type="button" onClick={() => registrationDialog.current?.close()}>Dabar ne</button>
     </dialog>}
   </main>;

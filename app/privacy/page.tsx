@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: "Privatumo politika | LocalPro", desc
 export default function PrivacyPage() {
   return <main className="legal-page">
     <h1>Privatumo politika</h1>
-    <p><strong>Atnaujinta: 2026 m. rugpjūčio 9 d.</strong></p>
+    <p><strong>Atnaujinta: 2026 m. spalio 18 d.</strong></p>
     <p><strong>Duomenų valdytojo juridinis vardas ir adresas: bus patvirtinti netrukus.</strong> LocalPro.lt platformos valdytojas tvarko asmens duomenis, reikalingus paskyroms, specialistų profiliams, klientų užklausoms, saugumui ir platformos administravimui. Privatumo klausimais kreipkitės <a href="mailto:pagalba@localpro.lt">pagalba@localpro.lt</a>.</p>
 
     <h2>Kokius duomenis tvarkome</h2>
@@ -24,6 +24,13 @@ export default function PrivacyPage() {
 
     <h2>Kam perduodame duomenis</h2>
     <p>Duomenis gali tvarkyti mūsų infrastruktūros, autentifikavimo, duomenų bazės, failų saugyklos, žemėlapių ir prieglobos paslaugų teikėjai tik tiek, kiek reikia jų paslaugoms. Duomenų neparduodame. Kai paslaugų teikėjas duomenis tvarko už Europos ekonominės erdvės ribų, taikomos teisės aktuose numatytos perdavimo apsaugos.</p>
+
+    <h2>Statistikos slapukai ir „Google Analytics 4“</h2>
+    <p>Statistikai naudojame „Google Analytics 4“ tik gavę jūsų sutikimą. Kol nepasirinkote „Sutinku su statistika“, „Google Analytics“ žyma neįkeliama. Atsisakymas netrukdo prisijungti, registruotis ar pateikti užklausos. Pasirinkimą galite pakeisti mygtuku „Slapukų nustatymai“; atšaukus sutikimą, tolesnis statistikos siuntimas sustabdomas ir svetainė pašalina pasiekiamus statistikos slapukus. Jau išsiųstų duomenų tai automatiškai neatšaukia.</p>
+    <p>Siunčiame apibendrintą puslapio tipą, sėkmingai pateiktos užklausos ar užbaigtos meistro registracijos įvykį ir atskirai telefono ar el. pašto nuorodos paspaudimą. Į šiuos įvykius neįtraukiame formų turinio, vardų, kontaktų, adresų, paskyrų identifikatorių, profilių pavadinimų, URL užklausos parametrų ar fragmentų. Kontaktinės nuorodos paspaudimas nelaikomas užbaigtu užsakymu.</p>
+    <p>Gavę sutikimą taip pat matuojame kelią nuo apsilankymo „Facebook“ darbų skelbimų archyve „LocalPro“ svetainėje iki registracijos pasiūlymo parodymo, mygtuko „Tęsti su Google nemokamai“ paspaudimo ir sėkmingo naujo meistro profilio sukūrimo. Viename naršyklės skirtuke iki 30 minučių saugome tik šio kelio etapą ir jo galiojimo laiką; šis statistikos įrašas neapima paskyros identifikatorių ar skelbimų turinio ir pašalinamas atšaukus sutikimą. Paspaudimas nėra užbaigta registracija; kitame įrenginyje ar skirtuke tęsiamas kelias gali nebūti susietas.</p>
+    <p>„Google“ gali tvarkyti slapukų priskirtus pseudoniminius identifikatorius ir techninę naršyklės informaciją; ryšio metu gaunamas ir IP adresas. Tai nėra anonimiškumo garantija. Reklamos personalizavimo ir „Google signals“ neįjungiame. Daugiau apie „Google“ tvarkymą: <a href="https://policies.google.com/technologies/partner-sites" rel="noreferrer">kaip „Google“ naudoja duomenis partnerių svetainėse</a>. Statistikos sutikimo pasirinkimą saugome jūsų naršyklėje; būtinieji autentifikavimo slapukai valdomi atskirai.</p>
+    <p>GA4 ir „Search Console“ suvestinės prieinamos tik įgaliotiems platformos administratoriams. Ataskaitų prieigos raktas laikomas privačioje serverio aplinkoje ir naršyklei neperduodamas.</p>
 
     <h2>Saugojimas</h2>
     <p>Aktyvios paskyros ir profilio duomenis saugome, kol naudojatės paslauga. Užklausas, sutikimų, moderavimo ir saugumo įrašus saugome tik tiek, kiek reikia paslaugai, ginčams, saugumui ar teisinei prievolei. Konkretūs privalomi apskaitos ar teisiniai terminai taikomi, kai jie aktualūs. Atsarginėse kopijose ištrinti duomenys gali išlikti iki įprasto kopijų galiojimo pabaigos ir nėra grąžinami į aktyvią sistemą įprastam naudojimui.</p>

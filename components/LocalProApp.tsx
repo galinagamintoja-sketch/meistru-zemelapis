@@ -1,5 +1,7 @@
 "use client";
 
+import { trackConfirmedConversion } from "../lib/analytics";
+
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AddressAutocomplete, { geocodeLithuanianAddress } from "./AddressAutocomplete";
 import SafeProfileImage from "./SafeProfileImage";
@@ -367,6 +369,7 @@ export async function submitRegistrationDraft(draft: RegistrationDraft, options:
     body: JSON.stringify(registrationPayload)
   });
   const data = await response.json().catch(() => ({ error: "Serveris grąžino netinkamą atsakymą. Bandykite dar kartą." }));
+  trackConfirmedConversion("registration", response, data);
 
   return {
     response,
@@ -492,6 +495,7 @@ export default function LocalProApp({
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const profileSectionRef = useRef<HTMLElement | null>(null);
   const registrationFormRef = useRef<HTMLFormElement | null>(null);
+  const registrationInFlight = useRef(false);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const markerLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
   const areaLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
@@ -922,7 +926,7 @@ export default function LocalProApp({
 
   async function submitRegistration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isSubmittingRegistration) return;
+    if (registrationInFlight.current) return;
 
     const normalizedPhone = normalizeLithuanianPhone(formState.phone);
     const nextDraft = isLithuanianPhone(normalizedPhone) ? { ...formState, phone: normalizedPhone } : formState;
@@ -937,6 +941,7 @@ export default function LocalProApp({
       return;
     }
 
+    registrationInFlight.current = true;
     setIsSubmittingRegistration(true);
     setSubmitMessage("Siunčiama registracija...");
     setSubmitTone("");
@@ -1009,6 +1014,7 @@ export default function LocalProApp({
       setSubmitTone("error");
       setSubmitMessage("Registracijos išsiųsti nepavyko. Patikrinkite ryšį ir bandykite dar kartą.");
     } finally {
+      registrationInFlight.current = false;
       setIsSubmittingRegistration(false);
     }
   }

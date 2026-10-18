@@ -1,0 +1,30 @@
+import { expect, test } from "@playwright/test";
+
+test("hydrated consent controls persist choices, respect rejection and keep previews untracked", async ({ page, request, baseURL }) => {
+  test.skip(!baseURL || new URL(baseURL).hostname === "localpro.lt", "This test intentionally verifies a nonproduction preview without emitting real analytics.");
+  const analyticsRequests: string[] = [];
+  page.on("request", request => { if (/googletagmanager\.com|google-analytics\.com/.test(request.url())) analyticsRequests.push(request.url()); });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  const banner = page.getByRole("region", { name: "Statistikos slapukai" });
+  await expect(banner).toBeVisible();
+  expect(analyticsRequests).toEqual([]);
+  await page.getByRole("button", { name: "Nesutinku su statistika", exact: true }).click();
+  await expect(banner).toHaveCount(0);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("button", { name: "Slapukų nustatymai", exact: true })).toBeVisible();
+  await expect(banner).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("localpro.analytics-consent.v1"))).toBe("rejected");
+  await page.getByRole("button", { name: "Slapukų nustatymai", exact: true }).click();
+  await page.getByRole("button", { name: "Sutinku su statistika", exact: true }).click();
+  expect(await page.evaluate(() => localStorage.getItem("localpro.analytics-consent.v1"))).toBe("accepted");
+  await expect(page.locator('iframe[src="/localpro-analytics.html"]')).toHaveCount(0);
+  expect(analyticsRequests).toEqual([]);
+  const report = await request.get("/api/admin/analytics");
+  expect(report.status()).toBe(401);
+  expect(report.headers()["cache-control"]).toBe("private, no-store");
+  const health = await request.get("/api/internal/analytics/health");
+  expect(health.status()).toBe(401);
+  const frame = await request.get("/localpro-analytics.html");
+  expect(frame.headers()["x-robots-tag"]).toContain("noindex");
+  expect(frame.headers()["x-frame-options"]).toBe("SAMEORIGIN");
+});

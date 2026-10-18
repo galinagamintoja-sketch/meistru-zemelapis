@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="lt"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>LocalPro.lt</title></head><body>
+<script>
+(function () {
+  "use strict";
+  // Fixed, empty document: GA cannot auto-observe application forms, contact links,
+  // personal document titles, profile slugs, query strings or App Router history.
+  if (window.parent === window || location.protocol !== "https:" || !["localpro.lt", "www.localpro.lt"].includes(location.hostname)) return;
+  // A different site must not turn this LocalPro-only frame into its own tag.
+  try { if (window.parent.location.origin !== location.origin) return; } catch (_) { return; }
+  var id = "G-DE7XEQRBJC";
+  window.dataLayer = [];
+  function gtag() { window.dataLayer.push(arguments); }
+  gtag("consent", "default", { analytics_storage: "denied", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
+  gtag("consent", "update", { analytics_storage: "granted" });
+  gtag("js", new Date());
+  gtag("config", id, {
+    send_page_view: false,
+    page_location: "https://localpro.lt/",
+    page_title: "LocalPro.lt",
+    page_referrer: "",
+    ignore_referrer: true,
+    allow_google_signals: false,
+    allow_ad_personalization_signals: false,
+    cookie_flags: "SameSite=Lax;Secure"
+  });
+  var paths = ["/", "/meistrai/profile", "/request", "/meistro-registracija", "/login", "/privacy", "/terms", "/darbu-skelbimai", "/meistras", "/admin", "/other"];
+  window.addEventListener("message", function (event) {
+    if (event.source !== window.parent || event.origin !== location.origin || !event.data || event.data.type !== "localpro:analytics") return;
+    var name = event.data.name;
+    var input = event.data.params || {};
+    var params;
+    if (name === "page_view" && paths.some(function (path) { return input.page_location === "https://localpro.lt" + path; })) {
+      params = { page_location: input.page_location, page_title: "LocalPro.lt", page_referrer: "" };
+      gtag("set", params);
+    } else if (name === "generate_lead") {
+      params = { method: "job_request" };
+    } else if (name === "sign_up") {
+      params = { method: "specialist_registration" };
+    } else if (name === "contact_click" && ["phone", "email"].includes(input.contact_method)) {
+      params = { contact_method: input.contact_method };
+    } else if (["archive_visit", "archive_registration_prompt", "archive_register_click", "archive_registration_complete"].includes(name) &&
+      input && Object.keys(input).length === 1 && input.source === "facebook_archive") {
+      params = { source: "facebook_archive" };
+    } else return;
+    if (name === "archive_register_click" && event.data.leaving === true) {
+      params.event_timeout = 250;
+      params.event_callback = function () {
+        // This isolated context is about to be discarded. Let the vendor's own
+        // page-leaving handler flush its batch BEFORE the parent is navigated.
+        // event_callback alone acknowledges queueing, not transmission.
+        window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: false }));
+        setTimeout(function () {
+          window.parent.postMessage({ type: "localpro:analytics-sent", name: "archive_register_click" }, location.origin);
+        }, 50);
+      };
+    }
+    gtag("event", name, Object.assign({ send_to: id }, params));
+  });
+  var script = document.createElement("script");
+  script.async = true;
+  script.referrerPolicy = "no-referrer";
+  script.src = "https://www.googletagmanager.com/gtag/js?id=" + id;
+  document.head.appendChild(script);
+  window.parent.postMessage({ type: "localpro:analytics-ready" }, location.origin);
+}());
+</script>
+</body></html>
