@@ -148,7 +148,7 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
   function continueWithGoogle(event: MouseEvent<HTMLAnchorElement>) {
     try { rememberScroll(); } catch { /* Storage restrictions never block registration. */ }
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-      void trackArchiveRegisterClick();
+      void trackArchiveRegisterClick(false);
       return;
     }
     if (registering.current) { event.preventDefault(); return; }

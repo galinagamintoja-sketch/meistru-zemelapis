@@ -3,7 +3,7 @@ export const GA4_ID = "G-DE7XEQRBJC";
 export const CONSENT_KEY = "localpro.analytics-consent.v1";
 export type AnalyticsConsent = "accepted" | "rejected";
 type ArchiveEvent = "archive_visit" | "archive_registration_prompt" | "archive_register_click" | "archive_registration_complete";
-type FrameEvent = { name: "page_view" | "generate_lead" | "sign_up" | "contact_click" | ArchiveEvent; params: Record<string, string> };
+type FrameEvent = { name: "page_view" | "generate_lead" | "sign_up" | "contact_click" | ArchiveEvent; params: Record<string, string>; leaving?: true };
 export const ARCHIVE_JOURNEY_KEY = "localpro.archive-journey.v1";
 const JOURNEY_TTL = 30 * 60 * 1000;
 type Journey = { v: 1; expires: number; stage: 1 | 2 | 3 | 4 };
@@ -41,7 +41,7 @@ function currentJourney(): Journey | null {
   return journey;
 }
 
-function advanceArchive(stage: Journey["stage"], name: ArchiveEvent): boolean {
+function advanceArchive(stage: Journey["stage"], name: ArchiveEvent, leaving = false): boolean {
   if (!allowed) return false;
   const previous = currentJourney();
   if (stage === 1 ? previous !== null : previous?.stage !== stage - 1) return false;
@@ -50,7 +50,7 @@ function advanceArchive(stage: Journey["stage"], name: ArchiveEvent): boolean {
   try { window.sessionStorage.setItem(ARCHIVE_JOURNEY_KEY, JSON.stringify(next)); }
   catch { clearJourney(); return false; }
   journey = next;
-  emit({ name, params: { source: "facebook_archive" } });
+  emit({ name, params: { source: "facebook_archive" }, ...(leaving ? { leaving: true as const } : {}) });
   return true;
 }
 
@@ -58,8 +58,9 @@ function advanceArchive(stage: Journey["stage"], name: ArchiveEvent): boolean {
 export function trackArchiveRegistrationPrompt() {
   advanceArchive(2, "archive_registration_prompt");
 }
-export function trackArchiveRegisterClick(): Promise<void> | null {
+export function trackArchiveRegisterClick(leaving = true): Promise<void> | null {
   if (!allowed || currentJourney()?.stage !== 2) return null;
+  if (!leaving) { advanceArchive(3, "archive_register_click"); return null; }
   return new Promise<void>(resolve => {
     const finish = () => {
       clearTimeout(timer);
@@ -68,7 +69,7 @@ export function trackArchiveRegisterClick(): Promise<void> | null {
     };
     const timer = setTimeout(finish, 500);
     clickDelivery = finish;
-    if (!advanceArchive(3, "archive_register_click")) finish();
+    if (!advanceArchive(3, "archive_register_click", true)) finish();
   });
 }
 

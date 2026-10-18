@@ -43,10 +43,16 @@
       input && Object.keys(input).length === 1 && input.source === "facebook_archive") {
       params = { source: "facebook_archive" };
     } else return;
-    if (name === "archive_register_click") {
+    if (name === "archive_register_click" && event.data.leaving === true) {
       params.event_timeout = 250;
       params.event_callback = function () {
-        window.parent.postMessage({ type: "localpro:analytics-sent", name: "archive_register_click" }, location.origin);
+        // This isolated context is about to be discarded. Let the vendor's own
+        // page-leaving handler flush its batch BEFORE the parent is navigated.
+        // event_callback alone acknowledges queueing, not transmission.
+        window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: false }));
+        setTimeout(function () {
+          window.parent.postMessage({ type: "localpro:analytics-sent", name: "archive_register_click" }, location.origin);
+        }, 50);
       };
     }
     gtag("event", name, Object.assign({ send_to: id }, params));

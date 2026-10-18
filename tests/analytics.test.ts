@@ -307,13 +307,13 @@ describe("actual isolated Google frame script", () => {
     let handler: (event: unknown) => void = () => {};
     const append = vi.fn();
     const parent = { postMessage: vi.fn(), location: { origin: "https://localpro.lt" } };
-    const frameWindow = { parent, dataLayer: [] as unknown[][], addEventListener: (_: string, callback: typeof handler) => { handler = callback; } };
-    vm.runInNewContext(script, { window: frameWindow, location: { protocol: "https:", hostname: "localpro.lt", origin: "https://localpro.lt" }, document: { createElement: () => ({}), head: { appendChild: append } } });
+    const frameWindow = { parent, dataLayer: [] as unknown[][], dispatchEvent: vi.fn(), addEventListener: (_: string, callback: typeof handler) => { handler = callback; } };
+    vm.runInNewContext(script, { window: frameWindow, setTimeout: (callback: () => void) => callback(), PageTransitionEvent: class { constructor(public type: string, public init: object) {} }, location: { protocol: "https:", hostname: "localpro.lt", origin: "https://localpro.lt" }, document: { createElement: () => ({}), head: { appendChild: append } } });
     const commands = () => frameWindow.dataLayer.map((args) => Array.from(args));
     expect(append).toHaveBeenCalledOnce();
     expect(append.mock.calls[0][0].src).toBe("https://www.googletagmanager.com/gtag/js?id=G-DE7XEQRBJC");
     expect(commands().find((args) => args[0] === "config")).toEqual(["config", "G-DE7XEQRBJC", expect.objectContaining({ send_page_view: false, page_location: "https://localpro.lt/", page_title: "LocalPro.lt", page_referrer: "", allow_google_signals: false })]);
-    function send(name: string, params: object, source = parent) { handler({ source, origin: "https://localpro.lt", data: { type: "localpro:analytics", name, params } }); }
+    function send(name: string, params: object, source = parent) { handler({ source, origin: "https://localpro.lt", data: { type: "localpro:analytics", name, params, leaving: name === "archive_register_click" } }); }
     send("page_view", { page_location: "https://localpro.lt/private-name?email=secret" });
     send("custom_pii", { email: "secret" });
     send("archive_register_click", { source: "facebook_archive", email: "secret" });
@@ -337,6 +337,7 @@ describe("actual isolated Google frame script", () => {
     );
     const click = commands().find(args => args[0] === "event" && args[1] === "archive_register_click")![2] as { event_callback: () => void };
     click.event_callback();
+    expect(frameWindow.dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "pagehide", init: { persisted: false } }));
     expect(parent.postMessage).toHaveBeenLastCalledWith({ type: "localpro:analytics-sent", name: "archive_register_click" }, "https://localpro.lt");
   });
 });
