@@ -5,6 +5,8 @@ import ts from "typescript";
 // Hydrate the exact hosted preview on an intercepted production origin so the
 // REAL production-only controller runs. Google collection never leaves this test.
 // Only the OAuth return and successful profile acknowledgment are fixtures.
+// The preview's archive API lacks access (503), so this test explicitly reads
+// the existing production PUBLIC feed with GET; it never writes production data.
 const controller = ts.transpileModule(readFileSync("lib/analytics.ts", "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
 }).outputText;
@@ -34,12 +36,19 @@ test("hosted archive dialog and real SDK preserve the consented funnel across an
     if (url.pathname === "/localpro-analytics.html") return route.fulfill({ contentType: "text/html", body: frameHtml });
     if (url.pathname === "/auth/google") {
       fixtureReturned = true;
-      return route.fulfill({ status: 302, headers: { location: "https://localpro.lt/meistro-registracija?private=PRIVATE_MARKER" } });
+      // A new document navigation (not a fulfilled HTTP redirect, whose final
+      // request Playwright may follow without re-entering this route handler).
+      return route.fulfill({ contentType: "text/html", body: '<!doctype html><script>location.replace("https://localpro.lt/meistro-registracija?private=PRIVATE_MARKER")</script>' });
     }
     if (fixtureReturned && url.pathname === "/meistro-registracija") {
       return route.fulfill({ contentType: "text/html", body: `<!doctype html><title>PRIVATE_MARKER</title><body><h1>Controlled OAuth-return fixture</h1><script>(function(){var exports={};${controller};window.analyticsTest=exports;window.analyticsTest.setAnalyticsConsent(window.analyticsTest.readAnalyticsConsent());window.analyticsTest.trackPage(location.pathname);})();</script></body>` });
     }
-    // These are GETs to public preview pages/assets only, never production mutations.
+    if (url.pathname === "/api/jobs/feed" && request.method() === "GET") {
+      const response = await route.fetch({ url: "https://localpro.lt/api/jobs/feed" + url.search, timeout: 30_000 });
+      expect(response.status()).toBe(200);
+      return route.fulfill({ response });
+    }
+    // Preview pages/assets only; production access above is a public read-only GET.
     if (request.method() !== "GET") return route.abort();
     return route.fulfill({ response: await route.fetch({ url: source.origin + url.pathname + url.search, timeout: 30_000 }) });
   });
@@ -61,6 +70,7 @@ test("hosted archive dialog and real SDK preserve the consented funnel across an
   await expect.poll(() => events().includes("archive_registration_prompt"), { timeout: 30_000 }).toBe(true);
   await page.getByRole("link", { name: /Tęsti su Google nemokamai/ }).click();
   await page.waitForURL("**/meistro-registracija?private=PRIVATE_MARKER");
+  await expect(page.getByRole("heading", { name: "Controlled OAuth-return fixture", exact: true })).toBeVisible();
   // Confirmed-response boundary only: no real profile or Google account is created.
   await page.evaluate(() => window.analyticsTest.trackConfirmedConversion("registration", { ok: true }, { ok: true, profile: { id: "PRIVATE_MARKER" } }));
   await expect.poll(() => events().filter(name => name && stageNames.includes(name)), { timeout: 30_000 }).toEqual(stageNames);

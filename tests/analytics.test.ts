@@ -257,6 +257,49 @@ describe("ordered archive registration attribution", () => {
   });
 });
 
+describe("bounded register-click delivery", () => {
+  it("preserves native navigation without eligible tracking and accepts only the collector acknowledgment", async () => {
+    vi.useFakeTimers();
+    try {
+      expect(analytics.trackArchiveRegisterClick()).toBeNull();
+      accept(); analytics.trackPage("/darbu-skelbimai");
+      expect(analytics.trackArchiveRegisterClick()).toBeNull();
+      analytics.trackArchiveRegistrationPrompt();
+      let resolved = false;
+      const delivery = analytics.trackArchiveRegisterClick()!;
+      void delivery.then(() => { resolved = true; });
+      expect(analytics.trackArchiveRegisterClick()).toBeNull();
+      const data = { type: "localpro:analytics-sent", name: "archive_register_click" };
+      listener({ source: frames[0].contentWindow, origin: "https://wrong.example", data });
+      listener({ source: {}, origin: "https://localpro.lt", data });
+      await Promise.resolve(); expect(resolved).toBe(false);
+      listener({ source: frames[0].contentWindow, origin: "https://localpro.lt", data });
+      await delivery; expect(resolved).toBe(true); expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+  it("releases navigation after at most 500ms when Google or the frame is blocked", async () => {
+    vi.useFakeTimers();
+    try {
+      accept(); analytics.trackPage("/darbu-skelbimai"); analytics.trackArchiveRegistrationPrompt();
+      let resolved = false;
+      const delivery = analytics.trackArchiveRegisterClick()!;
+      void delivery.then(() => { resolved = true; });
+      await vi.advanceTimersByTimeAsync(499); expect(resolved).toBe(false);
+      await vi.advanceTimersByTimeAsync(1); await delivery; expect(resolved).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+  it("releases a pending navigation immediately on consent withdrawal", async () => {
+    vi.useFakeTimers();
+    try {
+      accept(); analytics.trackPage("/darbu-skelbimai"); analytics.trackArchiveRegistrationPrompt();
+      const delivery = analytics.trackArchiveRegisterClick()!;
+      analytics.setAnalyticsConsent("rejected");
+      await delivery; expect(vi.getTimerCount()).toBe(0);
+      expect(storage.has(analytics.ARCHIVE_JOURNEY_KEY)).toBe(false);
+    } finally { vi.useRealTimers(); }
+  });
+});
+
 describe("actual isolated Google frame script", () => {
   it("executes real frame script with manual views only and a constant-only event boundary", () => {
     const html = readFileSync(new URL("../public/localpro-analytics.html", import.meta.url), "utf8");
@@ -290,7 +333,10 @@ describe("actual isolated Google frame script", () => {
     ]);
     for (const name of ["archive_visit", "archive_registration_prompt", "archive_register_click", "archive_registration_complete"]) send(name, { source: "facebook_archive" });
     expect(commands().filter((args) => args[0] === "event").slice(-4)).toEqual(
-      ["archive_visit", "archive_registration_prompt", "archive_register_click", "archive_registration_complete"].map((name) => ["event", name, { send_to: "G-DE7XEQRBJC", source: "facebook_archive" }])
+      ["archive_visit", "archive_registration_prompt", "archive_register_click", "archive_registration_complete"].map((name) => ["event", name, { send_to: "G-DE7XEQRBJC", source: "facebook_archive", ...(name === "archive_register_click" ? { event_timeout: 250, event_callback: expect.any(Function) } : {}) }])
     );
+    const click = commands().find(args => args[0] === "event" && args[1] === "archive_register_click")![2] as { event_callback: () => void };
+    click.event_callback();
+    expect(parent.postMessage).toHaveBeenLastCalledWith({ type: "localpro:analytics-sent", name: "archive_register_click" }, "https://localpro.lt");
   });
 });

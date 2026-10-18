@@ -41,24 +41,35 @@ function currentJourney(): Journey | null {
   return journey;
 }
 
-function advanceArchive(stage: Journey["stage"], name: ArchiveEvent) {
-  if (!allowed) return;
+function advanceArchive(stage: Journey["stage"], name: ArchiveEvent): boolean {
+  if (!allowed) return false;
   const previous = currentJourney();
-  if (stage === 1 ? previous !== null : previous?.stage !== stage - 1) return;
+  if (stage === 1 ? previous !== null : previous?.stage !== stage - 1) return false;
   const next: Journey = { v: 1, expires: previous?.expires ?? Date.now() + JOURNEY_TTL, stage };
   // Fail closed if persistence is unavailable: never leave a replayable earlier stage.
   try { window.sessionStorage.setItem(ARCHIVE_JOURNEY_KEY, JSON.stringify(next)); }
-  catch { clearJourney(); return; }
+  catch { clearJourney(); return false; }
   journey = next;
   emit({ name, params: { source: "facebook_archive" } });
+  return true;
 }
 
 // Only call these at the actual dialog-show and explicit Google CTA boundaries.
 export function trackArchiveRegistrationPrompt() {
   advanceArchive(2, "archive_registration_prompt");
 }
-export function trackArchiveRegisterClick() {
-  advanceArchive(3, "archive_register_click");
+export function trackArchiveRegisterClick(): Promise<void> | null {
+  if (!allowed || currentJourney()?.stage !== 2) return null;
+  return new Promise<void>(resolve => {
+    const finish = () => {
+      clearTimeout(timer);
+      if (clickDelivery === finish) clickDelivery = null;
+      resolve();
+    };
+    const timer = setTimeout(finish, 500);
+    clickDelivery = finish;
+    if (!advanceArchive(3, "archive_register_click")) finish();
+  });
 }
 
 // Never return input strings: even unknown/private routes collapse to a constant.
@@ -86,6 +97,7 @@ let ready = false;
 let pending: FrameEvent[] = [];
 let lastPath: string | null = null;
 const completed = new Set<string>(); // Internal dedupe only; IDs are NEVER sent/stored.
+let clickDelivery: (() => void) | null = null;
 
 function emit(event: FrameEvent) {
   if (!allowed || !frame) return;
@@ -94,7 +106,12 @@ function emit(event: FrameEvent) {
 }
 
 function receive(event: MessageEvent) {
-  if (!allowed || !frame || event.source !== frame.contentWindow || event.origin !== window.location.origin || event.data?.type !== "localpro:analytics-ready") return;
+  if (!allowed || !frame || event.source !== frame.contentWindow || event.origin !== window.location.origin) return;
+  if (event.data?.type === "localpro:analytics-sent" && event.data?.name === "archive_register_click") {
+    clickDelivery?.();
+    return;
+  }
+  if (event.data?.type !== "localpro:analytics-ready") return;
   ready = true;
   const events = pending;
   pending = [];
@@ -122,6 +139,7 @@ export function setAnalyticsConsent(choice: AnalyticsConsent, persist = true) {
   }
   if (choice !== "accepted") {
     allowed = false;
+    clickDelivery?.();
     clearJourney();
     pending = [];
     ready = false;
