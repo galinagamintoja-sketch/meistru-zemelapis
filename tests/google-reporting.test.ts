@@ -80,6 +80,28 @@ describe("server Google reporting", () => {
     if (result.archiveFunnel.status === "success") expect(result.archiveFunnel.data.rows.every(row => row.activeUsers === 0 && row.completionRateToNext === null && row.dropoffRateToNext === null)).toBe(true);
   });
 
+  it.each(["spaced", "compact"])("accepts a valid closed-funnel prefix with omitted trailing zero stages and %s numbered labels", async style => {
+    const body = funnelBody([10, 5, 2]);
+    if (style === "compact") for (const row of body.funnelVisualization.rows) row.dimensionValues[0].value = row.dimensionValues[0].value.replace(". ", ".");
+    body.funnelVisualization.rows.reverse();
+    const h = harness(url => oauth(url) ? json({ access_token: "token", expires_in: 3600 }) : url.endsWith("runFunnelReport") ? json(body) : json(emptyResponse));
+    const result = await h.client.getSnapshot();
+    expect(result.status).toBe("success");
+    expect(result.archiveFunnel).toMatchObject({ status: "success", empty: false, data: {
+      archiveToClickRate: 0.2, archiveToCompletedRate: 0,
+      rows: [{ activeUsers: 10 }, { activeUsers: 5 }, { activeUsers: 2, completionRateToNext: 0, dropoffRateToNext: 1 },
+        { eventName: steps[3], activeUsers: 0, completionRateToNext: null, dropoffRateToNext: null }]
+    } });
+  });
+
+  it.each([{ counts: [10] }, { counts: [10, 5] }, { counts: [0] }])("fills only the omitted zero suffix for prefix $counts", async ({ counts }) => {
+    const h = harness(url => oauth(url) ? json({ access_token: "token", expires_in: 3600 }) : url.endsWith("runFunnelReport") ? json(funnelBody(counts)) : json(emptyResponse));
+    const result = await h.client.getSnapshot();
+    expect(result.status).toBe("success");
+    expect(result.archiveFunnel).toMatchObject({ status: "success", empty: counts[0] === 0 });
+    if (result.archiveFunnel.status === "success") expect(result.archiveFunnel.data.rows.map(row => row.activeUsers)).toEqual([...counts, ...Array(4 - counts.length).fill(0)]);
+  });
+
   it.each([403, 404, 405, 501, 400])("keeps funnel-only HTTP %i explicit, sanitized, uncached and separate from healthy sources", async status => {
     const h = harness(url => oauth(url) ? json({ access_token: "token", expires_in: 3600 }) : url.endsWith("runFunnelReport") ? json({ error: { message: `PRIVATE ${pem}` } }, status) : json(emptyResponse));
     const result = await h.client.getSnapshot();
@@ -93,7 +115,10 @@ describe("server Google reporting", () => {
   });
 
   it.each([
-    {}, { funnelVisualization: {} }, funnelBody([10, 5]), funnelBody([10, 11, 5, 1]), funnelBody([10, 5, 2, -1]), funnelBody([10, 5, 2, 0.5]),
+    {}, { funnelVisualization: {} },
+    { funnelVisualization: { ...funnelBody([10, 5, 2]).funnelVisualization, rows: [funnelBody([10, 5, 2]).funnelVisualization.rows[0], funnelBody([10, 5, 2]).funnelVisualization.rows[2]] } },
+    { funnelVisualization: { ...funnelBody([10, 5]).funnelVisualization, rows: [funnelBody([10, 5]).funnelVisualization.rows[1]] } },
+    funnelBody([10, 11, 5, 1]), funnelBody([10, 5, 2, -1]), funnelBody([10, 5, 2, 0.5]),
     { funnelVisualization: { ...funnelBody([10, 5, 2, 1]).funnelVisualization, dimensionHeaders: [{ name: "userId" }] } },
     { funnelVisualization: { ...funnelBody([10, 5, 2, 1]).funnelVisualization, metricHeaders: [{ name: "eventCount" }] } },
     { funnelVisualization: { ...funnelBody([10, 5, 2, 1]).funnelVisualization, rows: Array(4).fill(funnelBody([10]).funnelVisualization.rows[0]) } }

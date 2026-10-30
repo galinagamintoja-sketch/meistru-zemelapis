@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { isObviousPublicTestProfile } from "./display";
 import type { Specialist } from "./types";
 import { canonicalCategorySlug } from "./service-taxonomy";
-import { isPublicLocality } from "./validators";
+import { isPublicSeoLocality } from "./public-seo-locality";
 
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://localpro.lt").replace(/\/$/, "");
 
@@ -31,6 +31,25 @@ export const HOME_METADATA: Metadata = {
   }
 };
 
+/** Platform identity only: no claims about a registered company or business premises. */
+export function homepageJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization", "@id": `${SITE_URL}/#organization`,
+        name: "LocalPro.lt", url: SITE_URL,
+        description: "LocalPro.lt – meistrų paieškos ir darbų užklausų platforma Lietuvoje."
+      },
+      {
+        "@type": "WebSite", "@id": `${SITE_URL}/#website`,
+        name: "LocalPro.lt", url: SITE_URL, inLanguage: "lt-LT",
+        publisher: { "@id": `${SITE_URL}/#organization` }
+      }
+    ]
+  };
+}
+
 const professionSeo: Record<string, { slug: string; plural: string; singular: string; searchName: string }> = {
   apdaila: { slug: "dazytojai", plural: "Dažytojai", singular: "Dažytojas", searchName: "Vidaus apdaila" },
   "staliaus-darbai": { slug: "staliai", plural: "Staliai", singular: "Stalius", searchName: "Medžio darbai ir baldai" },
@@ -56,7 +75,7 @@ export function isSeoEligible(profile: Specialist) {
   return profile.status === "approved" && profile.publicStatus === "public" && !profile.isDemo &&
     Boolean(profile.publicContactConsentAt) && !isObviousPublicTestProfile(profile) &&
     Boolean(profile.name.trim() || profile.companyName?.trim()) && Boolean(profile.categorySlug) &&
-    profile.operatingCities.some((city) => city.trim().length >= 2) && profile.radius > 0 &&
+    profile.operatingCities.some(isPublicSeoLocality) && profile.radius > 0 &&
     profile.subcategorySlugs.length >= 2 && profile.description.trim().length >= 80;
 }
 
@@ -99,13 +118,14 @@ export function categorySearchReturnPath(professionSlug: string, city: string) {
 
 export function categoryLocationPath(profile: Specialist, city: string) {
   const profession = professionByCategorySlug(profile.categorySlug);
-  return profession ? `/${profession.slug}/${slugify(city)}` : null;
+  return profession && isPublicSeoLocality(city) ? `/${profession.slug}/${slugify(city)}` : null;
 }
 
 export function matchesCategoryLocation(profile: Specialist, professionSlug: string, locationSlug: string) {
   const entry = professionByLandingSlug(professionSlug);
   return Boolean(entry && isSeoEligible(profile) && canonicalCategorySlug(profile.categorySlug) === canonicalCategorySlug(entry[0]) &&
-    profile.operatingCities.some((city) => slugify(city) === locationSlug));
+    isPublicSeoLocality(locationSlug) &&
+    profile.operatingCities.some((city) => isPublicSeoLocality(city) && slugify(city) === locationSlug));
 }
 
 export function locationLocative(city: string) {
@@ -133,7 +153,7 @@ export function profileHeading(profile: Specialist) {
 /** The route itself uses these same eligibility and membership predicates. */
 export function profileLandingLinks(profile: Specialist) {
   if (!isSeoEligible(profile) || !profile.trade.trim()) return [];
-  const cities = Array.from(new Set(profile.operatingCities.map((city) => city.trim()).filter(isPublicLocality)));
+  const cities = Array.from(new Set(profile.operatingCities.map((city) => city.trim()).filter(isPublicSeoLocality)));
   const ordered = [...cities.filter((city) => slugify(city) === slugify(profile.town)),
     ...cities.filter((city) => slugify(city) !== slugify(profile.town))];
   const seen = new Set<string>();
@@ -164,7 +184,7 @@ export function profileMetadata(profile: Specialist): Metadata {
   const canonical = `${SITE_URL}${profilePath(profile)}`;
   const services = publicProfileServices(profile);
   const title = `${profileHeading(profile)} | LocalPro`;
-  const areas = Array.from(new Set(profile.operatingCities.map((city) => city.trim()).filter(Boolean)));
+  const areas = Array.from(new Set(profile.operatingCities.map((city) => city.trim()).filter(isPublicSeoLocality)));
   // Keep complete public place/service labels rather than cutting a locality into a different word.
   let description = `${[name, profile.trade.trim()].filter(Boolean).join(". ")}.`;
   for (const [label, values] of [["Aptarnaujama teritorija", areas], ["Paslaugos", services]] as [string, string[]][]) {
@@ -188,7 +208,7 @@ export function profileMetadata(profile: Specialist): Metadata {
 
 export function categoryMetadata(professionSlug: string, city: string, count: number): Metadata {
   const entry = professionByLandingSlug(professionSlug);
-  if (!entry || count < 1) return { robots: { index: false, follow: true } };
+  if (!entry || !isPublicSeoLocality(city) || count < 1) return { robots: { index: false, follow: true } };
   const [, profession] = entry;
   const place = locationLocative(city);
   const canonical = `${SITE_URL}/${professionSlug}/${slugify(city)}`;
@@ -232,7 +252,7 @@ export function profileJsonLd(profile: Specialist) {
   // These are public service labels, not inferred qualifications or internal slugs.
   const services = publicProfileServices(profile);
   // Operating-area text may describe a district or village, not necessarily a City or an address.
-  const areas = Array.from(new Set(profile.operatingCities.map((name) => name.trim()).filter(Boolean)))
+  const areas = Array.from(new Set(profile.operatingCities.map((name) => name.trim()).filter(isPublicSeoLocality)))
     .map((name) => ({ "@type": "Place", name }));
   const entity: Record<string, unknown> = {
     "@type": isBusiness ? "Organization" : "Person", "@id": entityId,
@@ -261,6 +281,8 @@ export function profileJsonLd(profile: Specialist) {
 }
 
 export function categoryJsonLd(professionSlug: string, city: string, profiles: Specialist[]) {
+  const eligible = profiles.filter((profile) => matchesCategoryLocation(profile, professionSlug, slugify(city)));
+  if (!isPublicSeoLocality(city) || !eligible.length) return null;
   const url = `${SITE_URL}/${professionSlug}/${slugify(city)}`;
   return {
     "@context": "https://schema.org", "@graph": [
@@ -268,7 +290,7 @@ export function categoryJsonLd(professionSlug: string, city: string, profiles: S
         { "@type": "ListItem", position: 1, name: "LocalPro", item: SITE_URL },
         { "@type": "ListItem", position: 2, name: `${professionByLandingSlug(professionSlug)?.[1].plural} ${locationLocative(city)}`, item: url }
       ] },
-      { "@type": "ItemList", itemListElement: profiles.map((profile, index) => ({
+      { "@type": "ItemList", itemListElement: eligible.map((profile, index) => ({
         "@type": "ListItem", position: index + 1, name: profile.companyName || profile.name, url: `${SITE_URL}${profilePath(profile)}`
       })) }
     ]

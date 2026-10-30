@@ -3,7 +3,7 @@ import { countPublicJobFacets, publicJobSince } from "../lib/public-jobs-facets"
 
 const { db } = vi.hoisted(() => ({ db: { from: vi.fn() } }));
 vi.mock("../lib/supabase", () => ({ createServerSupabase: () => db }));
-import { getPublicJobPage, getPublicJobTaxonomy, publicJobFilters, publicJobFilterKey } from "../lib/public-jobs-first-page";
+import { getPublicJobPage, getPublicJobTaxonomy, clearPublicJobTaxonomyCache, publicJobFilters, publicJobFilterKey } from "../lib/public-jobs-first-page";
 const defaults = { trade: "", area: "", period: "all", contactOnly: false };
 const jobs = [
   { categoryIds: ["interior", "interior", "electrical"], areaIds: ["kaunas", "kaunas"] },
@@ -71,7 +71,7 @@ function query(data: unknown[]) {
 }
 
 describe("database filtering", () => {
-  beforeEach(() => { vi.clearAllMocks(); process.env.LOCALPRO_JOBS_CURSOR_SECRET = "filter-tests-only-secret-with-more-than-32-characters"; });
+  beforeEach(() => { vi.clearAllMocks(); clearPublicJobTaxonomyCache(); process.env.LOCALPRO_JOBS_CURSOR_SECRET = "filter-tests-only-secret-with-more-than-32-characters"; });
   it("filters by exact service relationship alongside category without truncating card metadata", async () => {
     const records = query([]); db.from.mockReturnValue(records);
     await getPublicJobPage({ ...defaults, trade: "category", service: "service" });

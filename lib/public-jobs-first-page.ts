@@ -1,4 +1,5 @@
 import { createServerSupabase } from "./supabase";
+import { createPublicTaxonomyCache } from "./public-job-taxonomy-cache";
 import { countPublicJobFacets, publicJobSince, type FacetJob } from "./public-jobs-facets";
 import { JOB_PAGE_SIZE } from "./public-jobs-import";
 import { signFeedCursor, type FeedCursor } from "./public-jobs-cursor";
@@ -84,7 +85,13 @@ export async function getPublicJobPage(filters: PublicJobFilters, cursor?: FeedC
 
 export const getFirstPublicJobPage = (filters: PublicJobFilters) => getPublicJobPage(filters);
 
-export async function getPublicJobTaxonomy(filters: PublicJobFilters = { trade: "", area: "", period: "all", contactOnly: false }): Promise<PublicJobTaxonomy | null> {
+const cachedTaxonomy = createPublicTaxonomyCache(loadPublicJobTaxonomy);
+export const clearPublicJobTaxonomyCache = () => cachedTaxonomy.clear();
+export function getPublicJobTaxonomy(filters: PublicJobFilters = { trade: "", area: "", period: "all", contactOnly: false }) {
+  return cachedTaxonomy(filters);
+}
+
+async function loadPublicJobTaxonomy(filters: PublicJobFilters): Promise<PublicJobTaxonomy | null> {
   const db = createServerSupabase();
   if (!db) return null;
   const [categories, areas, services] = await Promise.all([

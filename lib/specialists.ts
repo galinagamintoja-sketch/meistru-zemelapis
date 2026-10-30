@@ -159,7 +159,9 @@ export async function signManagedPhotoUrls(rows: ProfileRow[], includeUnapproved
     if (publicUrls) {
       if (!photo.id || row.public_status !== "public" || row.approval_status !== "approved" || row.is_demo || !row.public_contact_consent_at || photo.removed_from_profile_at) return;
       photo.url = `/api/public/profile-photos/${photo.id}`;
-      if (photo.card_storage_path) photo.card_url = `/api/public/profile-photos/${photo.id}?variant=card`;
+      // The public route can resize a legacy original too; do not send a
+      // full camera image to a small card merely because no derivative exists.
+      photo.card_url = `/api/public/profile-photos/${photo.id}?variant=card`;
       return;
     }
     const { data, error } = await supabase.storage.from("profile-photos").createSignedUrl(photo.storage_path, 600);

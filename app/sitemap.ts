@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getSeoSpecialists } from "../lib/specialists";
-import { categoryLocationPath, isSeoEligible, profilePath, SITE_URL } from "../lib/seo";
+import { isSeoEligible, profileLandingLinks, profilePath, SITE_URL } from "../lib/seo";
 
 // Read current approved public profiles on every sitemap request, not only at build time.
 // This also removes profiles automatically when they become private or unapproved.
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export function buildSeoSitemapEntries(profiles: Awaited<ReturnType<typeof getSeoSpecialists>>): MetadataRoute.Sitemap {
   const eligibleProfiles = profiles.filter(isSeoEligible);
   const profileEntries = eligibleProfiles.map((profile) => ({ url: `${SITE_URL}${profilePath(profile)}`, changeFrequency: "weekly" as const, priority: 0.8 }));
-  const landingPaths = Array.from(new Set(eligibleProfiles.flatMap((profile) => profile.operatingCities.map((city) => categoryLocationPath(profile, city))).filter((path): path is string => Boolean(path))));
+  const landingPaths = Array.from(new Set(eligibleProfiles.flatMap((profile) => profileLandingLinks(profile).map((link) => link.path))));
   return [
     { url: SITE_URL, changeFrequency: "daily", priority: 1 },
     ...landingPaths.map((path) => ({ url: `${SITE_URL}${path}`, changeFrequency: "daily" as const, priority: 0.9 })),
