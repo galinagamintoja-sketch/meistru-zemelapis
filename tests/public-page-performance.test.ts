@@ -12,8 +12,10 @@ const taxonomy = { trades: [{ id: "one", name: "Santechnika", count: 3 }], areas
 
 describe("public page performance boundaries", () => {
   it("keeps archive client navigation without background archive work during homepage loading", () => {
-    const source = readFileSync("components/HomepagePreviewV2.tsx", "utf8");
-    expect(source).toMatch(/<Link\b[^>]*href="\/darbu-skelbimai"[^>]*prefetch=\{false\}/);
+    for (const file of ["HomepagePreviewV2", "HomepageAnswers", "SiteFooter"]) {
+      const source = readFileSync(`components/${file}.tsx`, "utf8");
+      expect(source).toMatch(/<Link\b[^>]*href="\/darbu-skelbimai"[^>]*prefetch=\{false\}/);
+    }
   });
   it("resizes a real large legacy camera image to a small decodable card without changing the original", async () => {
     const buffer = await sharp({ create: { width: 3000, height: 2000, channels: 3, background: "#254a68" } }).jpeg({ quality: 95 }).toBuffer();

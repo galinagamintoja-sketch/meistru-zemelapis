@@ -15,7 +15,7 @@ export default function HomepageAnswers() {
       <h3>Kur aprašyti reikalingą darbą?</h3>
       <p><Link href="/request">Pateikite darbų užklausą</Link>: pasirinkite darbo sritį, nurodykite darbo vietą ir aprašykite, ką reikia atlikti. Užklausa ir pridėtos nuotraukos nėra viešinamos; užklausą pirmiausia peržiūri LocalPro administratorius.</p>
       <h3>Kur meistrams rasti darbų skelbimus?</h3>
-      <p><Link href="/darbu-skelbimai">Darbų skelbimų puslapyje</Link> galima ieškoti viešų užsakymų pagal amatą ir vietovę. Norėdami pristatyti savo paslaugas, pradėkite nuo <Link href="/meistro-registracija">meistro registracijos</Link>.</p>
+      <p><Link href="/darbu-skelbimai" prefetch={false}>Darbų skelbimų puslapyje</Link> galima ieškoti viešų užsakymų pagal amatą ir vietovę. Norėdami pristatyti savo paslaugas, pradėkite nuo <Link href="/meistro-registracija">meistro registracijos</Link>.</p>
     </div>
   </section>;
 }
