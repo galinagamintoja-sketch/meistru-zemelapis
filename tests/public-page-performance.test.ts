@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import sharp from "sharp";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -10,6 +11,10 @@ const filters = { trade: "", service: "", area: "", period: "all", contactOnly: 
 const taxonomy = { trades: [{ id: "one", name: "Santechnika", count: 3 }], areas: [], services: [] };
 
 describe("public page performance boundaries", () => {
+  it("keeps archive client navigation without background archive work during homepage loading", () => {
+    const source = readFileSync("components/HomepagePreviewV2.tsx", "utf8");
+    expect(source).toMatch(/<Link\b[^>]*href="\/darbu-skelbimai"[^>]*prefetch=\{false\}/);
+  });
   it("resizes a real large legacy camera image to a small decodable card without changing the original", async () => {
     const buffer = await sharp({ create: { width: 3000, height: 2000, channels: 3, background: "#254a68" } }).jpeg({ quality: 95 }).toBuffer();
     const original = new Blob([new Uint8Array(buffer)], { type: "image/jpeg" });

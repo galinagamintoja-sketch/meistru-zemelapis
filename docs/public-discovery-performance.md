@@ -49,6 +49,8 @@ OAuth start/callback failure recovery preserves only a validated local `next`
 destination and generic error code. Account ownership rules are unchanged.
 
 ## Additional server-path optimizations
+- The homepage archive link retains client navigation but disables speculative
+  prefetch so archive queries/downloads do not compete with initial homepage work.
 - Homepage and public category-display API opt into a 60-second warm-instance
   cache of public category/service labels. Overlapping loads share one request,
   returned objects are cloned, failed loads are evicted, and expiry does not slide.
