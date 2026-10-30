@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import sharp from "sharp";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -59,6 +59,10 @@ describe("public page performance boundaries", () => {
     const unavailable = createPublicTaxonomyCache(fail);
     expect(await unavailable(filters)).toBeNull(); expect(await unavailable(filters)).toBeNull();
     expect(fail).toHaveBeenCalledTimes(2);
+  });
+  it("does not gate real homepage search behind a root loading shell", () => {
+    expect(existsSync("app/loading.tsx")).toBe(false);
+    expect(readFileSync("app/darbu-skelbimai/loading.tsx", "utf8")).toContain("PublicPageLoading");
   });
   it("streams an accessible honest loading state rather than inventing profiles or jobs", () => {
     const html = renderToStaticMarkup(createElement(PublicPageLoading, { archive: true }));
