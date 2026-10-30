@@ -48,6 +48,25 @@ failed registration. No completion is inferred from an OAuth callback.
 OAuth start/callback failure recovery preserves only a validated local `next`
 destination and generic error code. Account ownership rules are unchanged.
 
+## Additional server-path optimizations
+- Homepage and public category-display API opt into a 60-second warm-instance
+  cache of public category/service labels. Overlapping loads share one request,
+  returned objects are cloned, failed loads are evicted, and expiry does not slide.
+  Default `getCategories()` calls remain fresh: job-submission validation must not
+  use stale display labels. Profiles, ownership and visibility are not cached.
+- Archive facet-job queries now start concurrently with the three independent
+  label queries, removing a sequential database round trip on a taxonomy miss.
+  A barrier-based regression test verifies the real integration's concurrency.
+  Existing filters, counts and 15-second public taxonomy caching are unchanged.
+- Hosted same-image check: production original 2,796,454 bytes (JPEG), candidate
+  card 38,344 bytes (WebP), both HTTP 200. This is one measured image, not a claim
+  about every original or page-load time.
+- An initial Chromium navigation spent 9,713 ms before DNS lookup began; response
+  start was 9,865 ms. A new context in the same browser began DNS at 1 ms. Record
+  pre-DNS, DNS, TCP/TLS and response timings before blaming a server cold start.
+- Preview feed availability remains a separate release gate; do not benchmark
+  an error state or remove cursor-signing checks to make it appear faster.
+
 ## Verification
 - Run `npm run test`, `npm run lint`, `npx tsc --noEmit --incremental false`,
   and `npm run build`.

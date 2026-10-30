@@ -72,6 +72,19 @@ function query(data: unknown[]) {
 
 describe("database filtering", () => {
   beforeEach(() => { vi.clearAllMocks(); clearPublicJobTaxonomyCache(); process.env.LOCALPRO_JOBS_CURSOR_SECRET = "filter-tests-only-secret-with-more-than-32-characters"; });
+  it("starts facet queries before unrelated label queries finish", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const labels = query([]);
+    const labelThen = labels.then;
+    labels.then = (resolve) => gate.then(() => labelThen(resolve));
+    db.from.mockImplementation((table: string) => table === "public_jobs" ? query([]) : labels);
+    const pending = getPublicJobTaxonomy(defaults);
+    try {
+      await vi.waitFor(() => expect(db.from).toHaveBeenCalledWith("public_jobs"), { timeout: 500 });
+    } finally { release(); }
+    expect(await pending).toEqual({ trades: [], services: [], areas: [] });
+  });
   it("filters by exact service relationship alongside category without truncating card metadata", async () => {
     const records = query([]); db.from.mockReturnValue(records);
     await getPublicJobPage({ ...defaults, trade: "category", service: "service" });

@@ -94,12 +94,26 @@ export function getPublicJobTaxonomy(filters: PublicJobFilters = { trade: "", ar
 async function loadPublicJobTaxonomy(filters: PublicJobFilters): Promise<PublicJobTaxonomy | null> {
   const db = createServerSupabase();
   if (!db) return null;
-  const [categories, areas, services] = await Promise.all([
+  const [categories, areas, services, facetJobs] = await Promise.all([
     db.from("service_categories").select("id,name,sort_order").eq("is_active", true).order("sort_order"),
     db.from("job_areas").select("id,name,kind").eq("is_active", true).order("name"),
-    db.from("service_subcategories").select("id,name,service_category_id").eq("is_active", true).order("name")
+    db.from("service_subcategories").select("id,name,service_category_id").eq("is_active", true).order("name"),
+    loadPublicFacetJobs(db, filters)
   ]);
-  if (categories.error || areas.error || services.error) return null;
+  if (categories.error || areas.error || services.error || facetJobs === null) return null;
+  const counts = countPublicJobFacets(facetJobs, filters);
+  const activeCategories = new Set((categories.data ?? []).map((item) => item.id));
+  return {
+    services: (services.data ?? []).filter((item) => activeCategories.has(item.service_category_id))
+      .map((item) => ({ id: item.id, name: item.name, category_id: item.service_category_id, count: counts.services.get(item.id) ?? 0 })),
+    trades: (categories.data ?? []).map((item) => ({ id: item.id, name: item.name, count: counts.trades.get(item.id) ?? 0 })),
+    areas: (areas.data ?? []).map((item) => ({ id: item.id, name: item.name, kind: item.kind, count: counts.areas.get(item.id) ?? 0 }))
+  };
+}
+
+// Facet relations do not depend on the label queries. Start them immediately,
+// rather than adding a second database round trip to first-page readiness.
+async function loadPublicFacetJobs(db: NonNullable<ReturnType<typeof createServerSupabase>>, filters: PublicJobFilters): Promise<FacetJob[] | null> {
   const facetJobs: FacetJob[] = [];
   const now = new Date().toISOString();
   const since = publicJobSince(filters.period, Date.parse(now));
@@ -120,12 +134,5 @@ async function loadPublicJobTaxonomy(filters: PublicJobFilters): Promise<PublicJ
     }
     if (data.length < 500) break;
   }
-  const counts = countPublicJobFacets(facetJobs, filters);
-  const activeCategories = new Set((categories.data ?? []).map((item) => item.id));
-  return {
-    services: (services.data ?? []).filter((item) => activeCategories.has(item.service_category_id))
-      .map((item) => ({ id: item.id, name: item.name, category_id: item.service_category_id, count: counts.services.get(item.id) ?? 0 })),
-    trades: (categories.data ?? []).map((item) => ({ id: item.id, name: item.name, count: counts.trades.get(item.id) ?? 0 })),
-    areas: (areas.data ?? []).map((item) => ({ id: item.id, name: item.name, kind: item.kind, count: counts.areas.get(item.id) ?? 0 }))
-  };
+  return facetJobs;
 }

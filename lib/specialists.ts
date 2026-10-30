@@ -7,6 +7,7 @@ import { canonicalServiceSlug, categoriesFromAssignments, categoriesFromLegacy }
 import type { Specialist } from "./types";
 import { isSeoEligible, legacyProfileSeoSlug, profileSeoSlug } from "./seo";
 import { withVerifiedBusinessIdentity } from "./profile-business-identity";
+import { createPublicReferenceCache } from "./public-reference-cache";
 
 type SpecialistFilters = {
   service?: string | null;
@@ -67,7 +68,16 @@ const LEGACY_PRICING_SELECT = LEGACY_SPECIALIST_SELECT
   .replace("  labour_rate_amount,\n", "")
   .replace("  profile_service_labour_rates(amount, service_subcategories(name, slug)),\n", "");
 
-export async function getCategories() {
+// Only service labels/identities, not profile data. Fixed one-minute expiry;
+// concurrent homepage/API requests share the same in-flight database lookup.
+const cachedCategories = createPublicReferenceCache(loadCategories, 60_000);
+export const clearPublicCategoriesCache = () => cachedCategories.clear();
+export function getCategories(options?: { publicLabelsOnly?: boolean }) {
+  // Validation callers keep a fresh read by default; only display callers opt in.
+  return options?.publicLabelsOnly ? cachedCategories() : loadCategories();
+}
+
+async function loadCategories() {
   const supabase = createServerSupabase();
 
   if (!supabase) {

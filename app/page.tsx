@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const [specialists, categories, auth] = await Promise.all([
     getSpecialists(),
-    getCategories(),
+    getCategories({ publicLabelsOnly: true }),
     createSupabaseAuthClient().then((client) => client.auth.getUser()).catch(() => ({ data: { user: null } }))
   ]);
 

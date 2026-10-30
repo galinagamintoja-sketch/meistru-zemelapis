@@ -23,8 +23,20 @@ vi.mock("../lib/supabase", () => ({
 }));
 
 describe("hosted category taxonomy", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    (await import("../lib/specialists")).clearPublicCategoriesCache();
     select.mockImplementation(() => query);
+  });
+
+  it("shares display-label loads but keeps validation reads fresh", async () => {
+    const { getCategories } = await import("../lib/specialists");
+    await Promise.all([getCategories({ publicLabelsOnly: true }), getCategories({ publicLabelsOnly: true })]);
+    expect(select).toHaveBeenCalledTimes(1);
+    await getCategories({ publicLabelsOnly: true });
+    expect(select).toHaveBeenCalledTimes(1);
+    await getCategories();
+    expect(select).toHaveBeenCalledTimes(2);
   });
 
   it("uses canonical category assignments and returns active services only", async () => {
