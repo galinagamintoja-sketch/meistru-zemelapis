@@ -147,7 +147,8 @@ export function publicProfileCategories(profile: Specialist): string[] {
 }
 
 export function profileHeading(profile: Specialist) {
-  return [publicProfileName(profile), [profile.trade.trim(), profile.town.trim()].filter(Boolean).join(" · ")].filter(Boolean).join(" – ");
+  const town = isPublicSeoLocality(profile.town) ? profile.town.trim() : "";
+  return [publicProfileName(profile), [profile.trade.trim(), town].filter(Boolean).join(" · ")].filter(Boolean).join(" – ");
 }
 
 /** The route itself uses these same eligibility and membership predicates. */

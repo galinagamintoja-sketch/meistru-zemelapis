@@ -51,7 +51,7 @@ describe("verified administrator routing without ownership changes", () => {
   it("keeps unauthenticated callback failures out of admin", async () => {
     mocks.user = null;
     const response = await GET(new Request("https://localpro.lt/auth/callback?code=valid"));
-    expect(response.headers.get("location")).toBe("https://localpro.lt/login?error=oauth_callback");
+    expect(response.headers.get("location")).toBe("https://localpro.lt/login?error=oauth_callback&next=%2Fmeistras");
   });
   it("authenticated admin login goes directly to admin rather than registration", async () => {
     await expect(LoginPage({ searchParams: Promise.resolve({ next: "/darbu-skelbimai" }) })).rejects.toThrow("REDIRECT:/admin");

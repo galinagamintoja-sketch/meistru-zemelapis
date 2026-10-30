@@ -3,7 +3,10 @@ export const GA4_ID = "G-DE7XEQRBJC";
 export const CONSENT_KEY = "localpro.analytics-consent.v1";
 export type AnalyticsConsent = "accepted" | "rejected";
 type ArchiveEvent = "archive_visit" | "archive_registration_prompt" | "archive_register_click" | "archive_registration_complete";
-type FrameEvent = { name: "page_view" | "generate_lead" | "sign_up" | "contact_click" | ArchiveEvent; params: Record<string, string>; leaving?: true };
+const progressEvents = { form: "archive_registration_form", submit: "archive_registration_submit", invalid: "archive_registration_invalid", failed: "archive_registration_failed" } as const;
+type ProgressPhase = keyof typeof progressEvents;
+type FrameEvent = { name: "page_view" | "generate_lead" | "sign_up" | "contact_click" | ArchiveEvent | (typeof progressEvents)[ProgressPhase]; params: Record<string, string>; leaving?: true };
+const progressSeen = new Set<ProgressPhase>();
 export const ARCHIVE_JOURNEY_KEY = "localpro.archive-journey.v1";
 const JOURNEY_TTL = 30 * 60 * 1000;
 type Journey = { v: 1; expires: number; stage: 1 | 2 | 3 | 4 };
@@ -11,6 +14,7 @@ let journey: Journey | null = null;
 let journeyLoaded = false;
 
 function clearJourney(): boolean {
+  progressSeen.clear();
   journey = null;
   journeyLoaded = true; // Never restore an older journey after rejection in this document.
   try { window.sessionStorage.removeItem(ARCHIVE_JOURNEY_KEY); return true; }
@@ -45,6 +49,7 @@ function advanceArchive(stage: Journey["stage"], name: ArchiveEvent, leaving = f
   if (!allowed) return false;
   const previous = currentJourney();
   if (stage === 1 ? previous !== null : previous?.stage !== stage - 1) return false;
+  if (stage === 1) progressSeen.clear();
   const next: Journey = { v: 1, expires: previous?.expires ?? Date.now() + JOURNEY_TTL, stage };
   // Fail closed if persistence is unavailable: never leave a replayable earlier stage.
   try { window.sessionStorage.setItem(ARCHIVE_JOURNEY_KEY, JSON.stringify(next)); }
@@ -71,6 +76,16 @@ export function trackArchiveRegisterClick(leaving = true): Promise<void> | null 
     clickDelivery = finish;
     if (!advanceArchive(3, "archive_register_click", true)) finish();
   });
+}
+
+// Diagnostic milestones, not additional closed-funnel steps or sign-ups. Only
+// the same consented, unexpired, explicitly clicked journey is eligible. No
+// input, error message, identifier or URL is ever accepted as a parameter.
+export function trackArchiveRegistrationProgress(phase: ProgressPhase) {
+  const name = progressEvents[phase];
+  if (typeof name !== "string" || !allowed || currentJourney()?.stage !== 3 || progressSeen.has(phase)) return;
+  progressSeen.add(phase);
+  emit({ name, params: { source: "facebook_archive" } });
 }
 
 // Never return input strings: even unknown/private routes collapse to a constant.

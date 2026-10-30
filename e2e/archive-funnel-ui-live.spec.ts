@@ -71,6 +71,12 @@ test("hosted archive dialog and real SDK preserve the consented funnel across an
   await page.getByRole("link", { name: /Tęsti su Google nemokamai/ }).click();
   await page.waitForURL("**/meistro-registracija?private=PRIVATE_MARKER");
   await expect(page.getByRole("heading", { name: "Controlled OAuth-return fixture", exact: true })).toBeVisible();
+  // Diagnostic fixtures exercise the real SDK without sending Google collection
+  // or claiming that these synthetic errors happened to real visitors.
+  await page.evaluate(() => {
+    for (const phase of ["form", "submit", "invalid", "failed"] as const) window.analyticsTest.trackArchiveRegistrationProgress(phase);
+  });
+  await expect.poll(() => events().filter(name => name && ["archive_registration_form", "archive_registration_submit", "archive_registration_invalid", "archive_registration_failed"].includes(name)), { timeout: 30_000 }).toEqual(["archive_registration_form", "archive_registration_submit", "archive_registration_invalid", "archive_registration_failed"]);
   // Confirmed-response boundary only: no real profile or Google account is created.
   await page.evaluate(() => window.analyticsTest.trackConfirmedConversion("registration", { ok: true }, { ok: true, profile: { id: "PRIVATE_MARKER" } }));
   await expect.poll(() => events().filter(name => name && stageNames.includes(name)), { timeout: 30_000 }).toEqual(stageNames);

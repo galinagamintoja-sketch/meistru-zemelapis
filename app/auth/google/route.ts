@@ -18,7 +18,10 @@ export async function GET(request: Request) {
   });
 
   if (error || !data.url) {
-    return NextResponse.redirect(new URL("/login?error=oauth_start", request.url));
+    const failed = new URL("/login", requestUrl.origin);
+    failed.searchParams.set("error", "oauth_start");
+    failed.searchParams.set("next", next);
+    return NextResponse.redirect(failed);
   }
   return NextResponse.redirect(data.url);
 }

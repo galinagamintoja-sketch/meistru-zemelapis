@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Specialist } from "../lib/types";
 import { isPublicSeoLocality } from "../lib/public-seo-locality";
-import { categoryJsonLd, categoryLocationPath, categoryMetadata, homepageJsonLd, isSeoEligible, matchesCategoryLocation, profileJsonLd, profileLandingLinks, profileMetadata, profilePath, SITE_URL, slugify } from "../lib/seo";
+import { categoryJsonLd, categoryLocationPath, categoryMetadata, homepageJsonLd, isSeoEligible, matchesCategoryLocation, profileJsonLd, profileLandingLinks, profileMetadata, profilePath, profileHeading, SITE_URL, slugify } from "../lib/seo";
 import { buildSeoSitemapEntries } from "../app/sitemap";
 import CategoryPage, { generateMetadata } from "../app/[profession]/[location]/page";
 import HomepageAnswers from "../components/HomepageAnswers";
@@ -27,6 +27,12 @@ const props = (location: string) => ({ params: Promise.resolve({ profession: "da
 beforeEach(() => vi.resetAllMocks());
 
 describe("shared public locality discovery gates", () => {
+  it("never presents a malformed base-town address as a town in public headings or metadata", () => {
+    const p = { ...profile, town: "Bažnyčios g.23", operatingCities: ["Vilnius"] };
+    expect(profileHeading(p)).toBe("Rasa Meistrė – Vidaus apdaila");
+    expect(profileMetadata(p).title).not.toContain("g.23");
+    expect(p.town).toBe("Bažnyčios g.23");
+  });
   it.each(["bažnyčios g.23", "baznycios-g-23", "Vilniaus gatvė", "Vilniaus g.", "Laisvės pr.", "Ąžuolų alėja", "Miško skersgatvis", "Gatvė", "", "   ", "https://example.lt", "!!!", "23"])("suppresses address/non-locality value %s at every SEO boundary", async (city) => {
     const p = { ...profile, operatingCities: [city] };
     vi.mocked(getSeoSpecialists).mockResolvedValue([p]);
