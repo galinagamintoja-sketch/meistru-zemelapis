@@ -4,20 +4,21 @@ import { notFound } from "next/navigation";
 import { SeoProfileCard } from "../../../components/seo-profile-card";
 import LocalProBrand from "../../../components/LocalProBrand";
 import { getSeoSpecialists } from "../../../lib/specialists";
+import { isPublicSeoLocality } from "../../../lib/public-seo-locality";
 import { categoryJsonLd, categoryMetadata, categorySearchReturnPath, locationLocative, matchesCategoryLocation, professionByLandingSlug, safeJsonLd, slugify } from "../../../lib/seo";
 
 type PageProps = { params: Promise<{ profession: string; location: string }> };
 
 async function matching(profession: string, location: string) {
   const entry = professionByLandingSlug(profession);
-  if (!entry) return [];
+  if (!entry || !isPublicSeoLocality(location)) return [];
   return (await getSeoSpecialists()).filter((profile) => matchesCategoryLocation(profile, profession, location));
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { profession, location } = await params;
   const profiles = await matching(profession, location);
-  const city = profiles.find(Boolean)?.operatingCities.find((item) => slugify(item) === location) || location;
+  const city = profiles.find(Boolean)?.operatingCities.find((item) => isPublicSeoLocality(item) && slugify(item) === location) || location;
   return categoryMetadata(profession, city, profiles.length);
 }
 
@@ -26,7 +27,7 @@ export default async function CategoryLocationPage({ params }: PageProps) {
   const entry = professionByLandingSlug(profession);
   const profiles = await matching(profession, location);
   if (!entry || !profiles.length) notFound();
-  const city = profiles[0].operatingCities.find((item) => slugify(item) === location) || location;
+  const city = profiles[0].operatingCities.find((item) => isPublicSeoLocality(item) && slugify(item) === location) || location;
   const heading = `${entry[1].plural} ${locationLocative(city)}`;
   return <main className="public-profile-shell">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(categoryJsonLd(profession, city, profiles)) }} />

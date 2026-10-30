@@ -1,4 +1,5 @@
 import HomepagePreviewV2 from "../components/HomepagePreviewV2";
+import HomepageAnswers from "../components/HomepageAnswers";
 import { getCategories, getSpecialists } from "../lib/specialists";
 import { createSupabaseAuthClient } from "../lib/supabase-ssr";
 import { getLinkedTradespersonProfile } from "../lib/tradesperson-account";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const [specialists, categories, auth] = await Promise.all([
     getSpecialists(),
-    getCategories(),
+    getCategories({ publicLabelsOnly: true }),
     createSupabaseAuthClient().then((client) => client.auth.getUser()).catch(() => ({ data: { user: null } }))
   ]);
 
@@ -25,5 +26,5 @@ export default async function Home() {
     email: user?.email,
     avatarUrl: user?.user_metadata?.avatar_url ?? user?.user_metadata?.picture
   };
-  return <HomepagePreviewV2 initialSpecialists={specialists} categories={categories} accountState={accountState} />;
+  return <><HomepagePreviewV2 initialSpecialists={specialists} categories={categories} accountState={accountState} /><HomepageAnswers /></>;
 }

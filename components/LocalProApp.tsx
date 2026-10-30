@@ -1,6 +1,6 @@
 "use client";
 
-import { trackConfirmedConversion } from "../lib/analytics";
+import { trackConfirmedConversion, trackContact, trackArchiveRegistrationProgress } from "../lib/analytics";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AddressAutocomplete, { geocodeLithuanianAddress } from "./AddressAutocomplete";
@@ -434,6 +434,9 @@ export default function LocalProApp({
   registrationOnly = false,
   registrationNext
 }: Props) {
+  useEffect(() => {
+    if (registrationOnly && accountState.authenticated && !accountState.hasProfile) trackArchiveRegistrationProgress("form");
+  }, [registrationOnly, accountState.authenticated, accountState.hasProfile]);
   const [trade, setTrade] = useState("all");
   const [city, setCity] = useState("all");
   const [verification, setVerification] = useState("all");
@@ -935,6 +938,7 @@ export default function LocalProApp({
     setRegistrationErrors(clientErrors);
     const firstInvalidField = (Object.keys(clientErrors) as RegistrationClientField[])[0];
     if (firstInvalidField) {
+      trackArchiveRegistrationProgress("invalid");
       setSubmitTone("error");
       setSubmitMessage(clientErrors[firstInvalidField] ?? "Patikrinkite registracijos laukus.");
       requestAnimationFrame(() => registrationFormRef.current?.querySelector<HTMLElement>(`[name="${firstInvalidField}"]`)?.focus());
@@ -942,6 +946,7 @@ export default function LocalProApp({
     }
 
     registrationInFlight.current = true;
+    trackArchiveRegistrationProgress("submit");
     setIsSubmittingRegistration(true);
     setSubmitMessage("Siunčiama registracija...");
     setSubmitTone("");
@@ -958,6 +963,7 @@ export default function LocalProApp({
       setFormState({ ...addressResolution.draft, phone: normalizedPhone });
 
       if (!registration.response.ok) {
+        trackArchiveRegistrationProgress("failed");
         setSubmitTone("error");
         setSubmitMessage(formatRegistrationError(registration.data));
         return;
@@ -1011,6 +1017,7 @@ export default function LocalProApp({
           : "Profilis aktyvus. Tinkamos nuotraukos paskelbiamos iškart."
       );
     } catch {
+      trackArchiveRegistrationProgress("failed");
       setSubmitTone("error");
       setSubmitMessage("Registracijos išsiųsti nepavyko. Patikrinkite ryšį ir bandykite dar kartą.");
     } finally {
@@ -1500,7 +1507,8 @@ export default function LocalProApp({
               <article className="registration-form">
                 <p className="eyebrow">Paskyros patvirtinimas</p>
                 <h3>Prisijunkite arba sukurkite paskyrą</h3>
-                <p>Po prisijungimo grįšite į šį puslapį ir galėsite užpildyti meistro registraciją.</p>
+                <p>Po prisijungimo grįšite į šį puslapį ir galėsite užpildyti meistro registraciją. Vien Google prisijungimas dar nesukuria viešo meistro profilio.</p>
+                <p>Jei Google prisijungimas neveikia Facebook programėlėje, atidarykite LocalPro.lt įprastoje telefono naršyklėje (Chrome arba Safari) ir pradėkite prisijungimą ten.</p>
                 <a className="google-primary-button" href="/auth/google?next=%2Fmeistro-registracija">Tęsti su Google</a>
               </article>
             ) : accountState.isAdmin && !adminRegistrationAllowed ? (

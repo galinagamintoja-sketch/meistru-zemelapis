@@ -1,4 +1,7 @@
 import { createServerSupabase } from "../../../../../lib/supabase";
+import { publicCardImage } from "../../../../../lib/public-card-image";
+
+export const runtime = "nodejs";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +36,7 @@ export async function GET(request: Request, { params }: Params) {
     }
   }
   if (!data) return new Response(null, { status: 404 });
+  if (variant === "card") data = await publicCardImage(data);
   return new Response(data, {
     headers: {
       "Content-Type": data.type || "application/octet-stream",

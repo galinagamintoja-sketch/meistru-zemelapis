@@ -36,8 +36,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   }
   return <main className="login-shell" data-tradesperson-language-surface><TranslationController /><section className="login-panel">
     <div className="login-brand-language"><Link className="brand" href="/" aria-label="LocalPro.lt"><LocalProBrand priority /></Link><LanguageSwitcher /></div>
-    <div className="login-copy"><p className="eyebrow">LocalPro paskyra</p><h1>Prisijunkite arba registruokitės</h1><p>{forJobs ? "Prisijunkite su Google ir tęskite darbų skelbimų peržiūrą." : "Po pirmo prisijungimo užpildysite trumpą registraciją. LocalPro sukurs naują specialisto profilį ir saugiai susies jį su jūsų paskyra."}</p></div>
+    <div className="login-copy"><p className="eyebrow">LocalPro paskyra</p><h1>Prisijunkite arba registruokitės</h1><p>{forJobs ? "Prisijunkite su Google. Jei dar neturite meistro profilio, pirmiausia užpildysite jo duomenis, o tada galėsite tęsti darbų skelbimų peržiūrą." : "Po pirmo prisijungimo užpildysite trumpą registraciją. LocalPro sukurs naują specialisto profilį ir saugiai susies jį su jūsų paskyra."}</p></div>
     {params.error ? <p className="admin-message" role="alert">{messages[params.error] ?? "Prisijungti nepavyko."}</p> : null}
     <a className="google-primary-button" href={`/auth/google?next=${encodeURIComponent(next)}`}>Tęsti su Google</a>
+    <p>Jei Google prisijungimas neveikia Facebook programėlėje, atidarykite šį puslapį įprastoje telefono naršyklėje (Chrome arba Safari) ir pradėkite prisijungimą ten.</p>
   </section></main>;
 }

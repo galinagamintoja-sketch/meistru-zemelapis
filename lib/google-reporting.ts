@@ -124,12 +124,14 @@ function archiveFunnelRows(body: Json, dateRange: ArchiveFunnelReport["dateRange
     const measured = array(row.metricValues);
     if (values.length !== 1 || measured.length !== 1) throw new GoogleReportingError("INVALID_RESPONSE");
     const label = object(values[0]).value;
-    const index = ARCHIVE_STEPS.findIndex((event, i) => label === `${i + 1}. ${event}`);
+    const index = ARCHIVE_STEPS.findIndex((event, i) => label === `${i + 1}. ${event}` || label === `${i + 1}.${event}`);
     const count = number(object(measured[0]).value);
     if (index < 0 || counts.has(ARCHIVE_STEPS[index]) || !Number.isSafeInteger(count)) throw new GoogleReportingError("INVALID_RESPONSE");
     counts.set(ARCHIVE_STEPS[index], count);
   }
-  if (counts.size !== 0 && counts.size !== ARCHIVE_STEPS.length) throw new GoogleReportingError("INVALID_RESPONSE");
+  // GA4 omits zero-reach trailing steps in a closed funnel. Only a complete
+  // prefix can imply a zero suffix; missing starts/interior gaps are malformed.
+  if (ARCHIVE_STEPS.slice(0, counts.size).some(event => !counts.has(event))) throw new GoogleReportingError("INVALID_RESPONSE");
   const users = ARCHIVE_STEPS.map(event => counts.get(event) ?? 0);
   if (users.some((value, i) => i > 0 && value > users[i - 1])) throw new GoogleReportingError("INVALID_RESPONSE");
   const ratio = (numerator: number, denominator: number) => denominator === 0 ? null : numerator / denominator;

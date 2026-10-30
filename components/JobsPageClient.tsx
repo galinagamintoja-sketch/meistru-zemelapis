@@ -215,7 +215,8 @@ export default function JobsPageClient({ initialFilters, initialFeed, initialTax
       <span className={styles.dialogIcon} aria-hidden="true">✦</span>
       <p className={styles.dialogEyebrow}>Daugiau galimybių</p>
       <h2 id="jobs-registration-title">Atraskite daugiau darbų skelbimų</h2>
-      <p>Nemokamai tęskite su Google ir atraskite daugiau jums tinkamų darbų.</p>
+      <p>Prisijunkite su Google. Jei dar neturite meistro profilio, kitame žingsnyje užpildysite jo duomenis ir galėsite tęsti darbų skelbimų peržiūrą.</p>
+      <p>Jei Google prisijungimas neveikia Facebook programėlėje, atidarykite LocalPro.lt įprastoje telefono naršyklėje (Chrome arba Safari) ir pradėkite prisijungimą ten.</p>
       <a className={styles.googleButton} href={`/auth/google?next=${encodeURIComponent(loginNext)}`} onClick={continueWithGoogle}>Tęsti su Google nemokamai <span aria-hidden="true">↗</span></a>
       <button className={styles.notNow} type="button" onClick={() => registrationDialog.current?.close()}>Dabar ne</button>
     </dialog>}

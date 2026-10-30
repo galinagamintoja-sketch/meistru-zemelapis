@@ -300,6 +300,41 @@ describe("bounded register-click delivery", () => {
   });
 });
 
+describe("consented archive registration diagnostics", () => {
+  function clicked() { accept(); analytics.trackPage("/darbu-skelbimai"); analytics.trackArchiveRegistrationPrompt(); analytics.trackArchiveRegisterClick(false); }
+  const phases = ["form", "submit", "invalid", "failed"] as const;
+  it("requires explicit consent and the actual archive click, never replays withheld milestones", () => {
+    for (const phase of phases) analytics.trackArchiveRegistrationProgress(phase);
+    expect(posted).toEqual([]); accept();
+    analytics.trackPage("/darbu-skelbimai"); analytics.trackArchiveRegistrationPrompt();
+    for (const phase of phases) analytics.trackArchiveRegistrationProgress(phase);
+    expect(posted).toHaveLength(3); // page + visit + prompt only
+  });
+  it("sends only constant names/source once per document without inventing completions", () => {
+    clicked(); const before = posted.length;
+    for (const phase of phases) { analytics.trackArchiveRegistrationProgress(phase); analytics.trackArchiveRegistrationProgress(phase); }
+    expect(posted.slice(before)).toEqual(["form", "submit", "invalid", "failed"].map(phase => ({ type: "localpro:analytics", name: `archive_registration_${phase}`, params: { source: "facebook_archive" } })));
+    expect(JSON.parse(storage.get(analytics.ARCHIVE_JOURNEY_KEY)!)).toEqual({ v: 1, stage: 3, expires: expect.any(Number) });
+    analytics.trackArchiveRegistrationProgress("PRIVATE_MARKER" as never);
+    expect(posted).toHaveLength(before + 4);
+  });
+  it("stops on rejection or expiry and never labels a persisted signup a failed registration", () => {
+    clicked(); analytics.trackConfirmedConversion("registration", { ok: true }, { ok: true, profile: { id: "PRIVATE_MARKER" } });
+    const before = posted.length;
+    analytics.trackArchiveRegistrationProgress("failed");
+    expect(posted).toHaveLength(before);
+    analytics.setAnalyticsConsent("rejected");
+    for (const phase of phases) analytics.trackArchiveRegistrationProgress(phase);
+    expect(posted).toHaveLength(before);
+    expect(storage.has(analytics.ARCHIVE_JOURNEY_KEY)).toBe(false);
+  });
+  it("refuses progress when the fixed journey window has expired", () => {
+    vi.useFakeTimers();
+    try { clicked(); const before = posted.length; vi.advanceTimersByTime(30 * 60 * 1000 + 1); analytics.trackArchiveRegistrationProgress("submit"); expect(posted).toHaveLength(before); expect(storage.has(analytics.ARCHIVE_JOURNEY_KEY)).toBe(false); }
+    finally { vi.useRealTimers(); }
+  });
+});
+
 describe("actual isolated Google frame script", () => {
   it("executes real frame script with manual views only and a constant-only event boundary", () => {
     const html = readFileSync(new URL("../public/localpro-analytics.html", import.meta.url), "utf8");
@@ -318,6 +353,7 @@ describe("actual isolated Google frame script", () => {
     send("custom_pii", { email: "secret" });
     send("archive_register_click", { source: "facebook_archive", email: "secret" });
     send("archive_registration_complete", { source: "https://facebook.com/private" });
+    send("archive_registration_failed", { source: "facebook_archive", error: "PRIVATE_MARKER" });
     send("archive_visit", {});
     send("archive_fake", { source: "facebook_archive" });
     send("archive_visit", { source: "facebook_archive" }, {} as typeof parent);
@@ -339,5 +375,9 @@ describe("actual isolated Google frame script", () => {
     click.event_callback();
     expect(frameWindow.dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "pagehide", init: { persisted: false } }));
     expect(parent.postMessage).toHaveBeenLastCalledWith({ type: "localpro:analytics-sent", name: "archive_register_click" }, "https://localpro.lt");
+    const milestones = ["archive_registration_form", "archive_registration_submit", "archive_registration_invalid", "archive_registration_failed"];
+    for (const name of milestones) send(name, { source: "facebook_archive" });
+    expect(commands().filter(args => args[0] === "event").slice(-4)).toEqual(milestones.map(name => ["event", name, { send_to: "G-DE7XEQRBJC", source: "facebook_archive" }]));
+    expect(JSON.stringify(commands())).not.toContain("PRIVATE_MARKER");
   });
 });
